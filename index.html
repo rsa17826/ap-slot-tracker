@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AP Multi-Slot Tracker</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Archipelago Multi-Slot Tracker</h1>
+    <div class="sub">Connect to several slots at once, get item pings, and track progression per game.</div>
+  </div>
+  <button id="notifBtn">Enable notifications</button>
+</header>
+
+<main>
+
+  <section class="panel">
+    <h2>Add a slot <span class="hint">wss:// is tried first, falls back to ws://</span></h2>
+    <form id="addSlotForm" class="form-grid">
+      <input name="hostname" placeholder="Server host (e.g. archipelago.gg)" required />
+      <input name="port" placeholder="Port" required />
+      <input name="game" placeholder="Game name (must match AP data package)" required />
+      <input name="playerName" placeholder="Your slot name" required />
+      <input name="password" placeholder="Password (optional)" type="password" />
+      <button type="submit" class="primary">Connect slot</button>
+    </form>
+  </section>
+
+  <section class="panel">
+    <h2>Progression files <span class="hint">a file per game, defining a PROG array (same format progression_overlay.js reads)</span></h2>
+    <form id="addProgForm" class="form-grid" style="margin-bottom:12px;">
+      <input name="progGame" placeholder="Game name (must match a slot's game)" required />
+      <input name="progFile" type="file" accept=".js,.json,.txt" required />
+      <button type="submit" class="primary">Upload prog file</button>
+    </form>
+    <div id="progFiles"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Slots</h2>
+    <div id="slots"></div>
+  </section>
+
+</main>
+
+<script src="newelem.js"></script>
+<script src="indexeddbProxy.js"></script>
+<script src="apMulti.js"></script>
+<script src="prog.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
