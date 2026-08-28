@@ -1,3 +1,7 @@
+// @regex \bappendChild\b
+// @info appendChild
+// @endregex
+// const newelem = console.log
 // ---------------------------------------------------------------------
 // Storage
 // ---------------------------------------------------------------------
@@ -197,97 +201,8 @@ function renderSlots() {
     const rt = runtime[conn.id]
     const status = rt?.status || "disconnected"
 
-    const card = newelem("div", { class: "slot-card" })
-
-    const top = newelem("div", { class: "slot-top" })
-    top.appendChild(
-      newelem("div", {}, [
-        newelem("div", { class: "slot-title" }, [
-          newelem("span", { class: `status-dot ${status}` }, []),
-          `${conn.playerName} @ ${conn.hostname}${conn.port ? ":" + conn.port : ""}`,
-        ]),
-        newelem("div", { class: "slot-sub" }, [
-          `${conn.game}${rt?.statusDetail ? " — " + rt.statusDetail : ""}`,
-        ]),
-      ]),
-    )
-
-    const controls = newelem("div", { class: "slot-controls" })
-
-    const modeSelect = newelem("select", {}, [])
     const hasProg = gamesWithProg().includes(conn.game)
-    const options = [{ v: "all", t: "Notify: all items" }]
-    if (hasProg) {
-      options.push({
-        v: "progression",
-        t: "Notify: progression-unlocking only",
-      })
-      options.push({
-        v: "both",
-        t: "Notify: all (highlight progression)",
-      })
-    }
-    options.forEach((o) => {
-      modeSelect.appendChild(newelem("option", { value: o.v }, [o.t]))
-    })
-    modeSelect.value = hasProg ? conn.notifyMode || "all" : "all"
-    modeSelect.disabled = !hasProg
-    modeSelect.title =
-      hasProg ? "" : (
-        `Upload a prog file for "${conn.game}" to unlock progression alerts`
-      )
-    modeSelect.addEventListener("change", async () => {
-      const idx = window.db.connections.findIndex(
-        (c) => c.id === conn.id,
-      )
-      if (idx === -1) return
-      window.db.connections[idx].notifyMode = modeSelect.value
-    })
-    controls.appendChild(modeSelect)
-
-    const toggleBtn = newelem("button", {}, [
-      status === "disconnected" || status === "error" ?
-        "Connect"
-      : "Disconnect",
-    ])
-    toggleBtn.addEventListener("click", () => {
-      if (status === "disconnected" || status === "error" || !rt) {
-        startConnection(conn)
-      } else {
-        stopConnection(conn.id)
-      }
-    })
-    controls.appendChild(toggleBtn)
-
-    const removeBtn = newelem("button", { class: "danger" }, [
-      "Remove",
-    ])
-    removeBtn.addEventListener("click", () => {
-      stopConnection(conn.id)
-      const idx = window.db.connections.findIndex(
-        (c) => c.id === conn.id,
-      )
-      if (idx !== -1) window.db.connections.splice(idx, 1)
-      renderSlots()
-    })
-    controls.appendChild(removeBtn)
-    controls.appendChild(
-      newelem(
-        "button",
-        {
-          onclick: async (e) => {
-            log(conn.game)
-            tryLoadFile(conn.game)
-          },
-        },
-        ["Show Map"],
-      ),
-    )
-
-    top.appendChild(controls)
-    card.appendChild(top)
-
-    card.appendChild(
+    const card = newelem("div", { class: "slot-card" }, [
       newelem(
         "div",
         { class: "slot-log" },
@@ -304,7 +219,92 @@ function renderSlots() {
           )
         }),
       ),
-    )
+      newelem("div", { class: "slot-top" }, [
+        newelem("div", {}, [
+          newelem("div", { class: "slot-title" }, [
+            newelem("span", { class: `status-dot ${status}` }, []),
+            `${conn.playerName} @ ${conn.hostname}${conn.port ? ":" + conn.port : ""}`,
+          ]),
+          newelem("div", { class: "slot-sub" }, [
+            `${conn.game}${rt?.statusDetail ? " — " + rt.statusDetail : ""}`,
+          ]),
+        ]),
+        newelem("div", { class: "slot-controls" }, [
+          newelem(
+            "select",
+            {
+              onchange() {
+                const idx = window.db.connections.findIndex(
+                  (c) => c.id === conn.id,
+                )
+                if (idx === -1) return
+                window.db.connections[idx].notifyMode =
+                  modeSelect.value
+              },
+              title:
+                hasProg ? "" : (
+                  `Upload a prog file for "${conn.game}" to unlock progression alerts`
+                ),
+              options: {
+                "Notify: progression-unlocking only": "progression",
+                "Notify: all (highlight progression)": "both",
+                "Notify: all items": "all",
+              },
+              value: hasProg ? conn.notifyMode || "all" : "all",
+              disabled: !hasProg,
+            },
+            [
+              newelem(
+                "button",
+                {
+                  onclick() {
+                    if (
+                      status === "disconnected" ||
+                      status === "error" ||
+                      !rt
+                    ) {
+                      startConnection(conn)
+                    } else {
+                      stopConnection(conn.id)
+                    }
+                  },
+                },
+                [
+                  status === "disconnected" || status === "error" ?
+                    "Connect"
+                  : "Disconnect",
+                ],
+              ),
+            ],
+          ),
+          newelem(
+            "button",
+            {
+              class: "danger",
+              onclick() {
+                stopConnection(conn.id)
+                const idx = window.db.connections.findIndex(
+                  (c) => c.id === conn.id,
+                )
+                if (idx !== -1) window.db.connections.splice(idx, 1)
+                renderSlots()
+              },
+            },
+            ["Remove"],
+          ),
+          newelem(
+            "button",
+            {
+              onclick: async (e) => {
+                log(conn.game)
+                tryLoadFile(conn.game)
+              },
+            },
+            ["Show Map"],
+          ),
+        ]),
+      ]),
+    ])
 
     slotsRoot.appendChild(card)
   })

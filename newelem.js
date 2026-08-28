@@ -25,7 +25,23 @@ function newelem(type, data = {}, inside = []) {
     Object.assign(elem.dataset, data.dataset)
     delete data.dataset
   }
-
+  if (data.options && type == "select")
+    (Array.isArray(data.options) ?
+      data.options
+    : Object.entries(data.options)
+    ).forEach((e) => {
+      inside.push(
+        Array.isArray(e) ?
+          newelem("option", {
+            innerHTML: e[0],
+            value: e[1],
+          })
+        : newelem("option", {
+            innerHTML: e,
+            value: e,
+          }),
+      )
+    })
   /* -------------------------
      STYLE
   ------------------------- */
