@@ -380,6 +380,7 @@
         for (const e of Object.values(graph.entrances))
           if (e.connects_to) targeted.add(e.connects_to)
         const noIncoming = names.find((n) => !targeted.has(n))
+        debugger
         return noIncoming || names[0]
       }
 
@@ -411,8 +412,7 @@
         return Array.from(names).sort()
       }
 
-      async function loadGraph(raw) {
-        graph = normalizeGraph(raw)
+      function loadGraph(graph) {
         const itemNames = collectItemNames()
         const savedState = mapdb.state ?? null
         if (
@@ -441,15 +441,6 @@
         render()
         saveState()
       }
-
-      // Accept either the exporter's shape directly, or something close to it.
-      function normalizeGraph(raw) {
-        const regions = raw.regions || {}
-        const entrances = raw.entrances || {}
-        const locations = raw.locations || {}
-        return { game: raw.game, regions, entrances, locations }
-      }
-
       /* ============================================================
           LAYOUT (simple auto layout: BFS layers from start region)
           ============================================================ */
@@ -899,12 +890,17 @@
         window.mapdb = await createDB("ap-logic-tracker")
         setupPanZoom()
         view = mapdb.view ?? { x: 40, y: 40, scale: 1 }
-        if (mapdb.state?.gameKey && mapdb.fileHandles[mapdb.state.gameKey]) {
+        if (
+          mapdb.state?.gameKey &&
+          mapdb.fileHandles[mapdb.state.gameKey]
+        ) {
           try {
             loadGraph(
               JSON.parse(
                 await (
-                  await mapdb.fileHandles[mapdb.state.gameKey].getFile()
+                  await mapdb.fileHandles[
+                    mapdb.state.gameKey
+                  ].getFile()
                 ).text(),
               ),
             )
@@ -914,7 +910,9 @@
                 loadGraph(
                   JSON.parse(
                     await (
-                      await mapdb.fileHandles[mapdb.state.gameKey].getFile()
+                      await mapdb.fileHandles[
+                        mapdb.state.gameKey
+                      ].getFile()
                     ).text(),
                   ),
                 )
