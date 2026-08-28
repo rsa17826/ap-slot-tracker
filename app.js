@@ -4,8 +4,12 @@
 window.db = null
 async function initDB() {
   window.db = await createDB("ap_tracker")
-  if (!Array.isArray(window.db.connections)) window.db.connections = []
-  if (typeof window.db.progFiles !== "object" || window.db.progFiles === null) {
+  if (!Array.isArray(window.db.connections))
+    window.db.connections = []
+  if (
+    typeof window.db.progFiles !== "object" ||
+    window.db.progFiles === null
+  ) {
     window.db.progFiles = {}
   }
 }
@@ -68,7 +72,10 @@ function startConnection(conn) {
         renderSlots()
       },
       onConnected: () => {
-        pushLog(conn.id, { text: `Connected as ${conn.playerName} (${conn.game})`, prog: false })
+        pushLog(conn.id, {
+          text: `Connected as ${conn.playerName} (${conn.game})`,
+          prog: false,
+        })
       },
       onCheckedLocations: () => {
         maybeRecomputeProgression(conn, rt)
@@ -179,7 +186,11 @@ function renderSlots() {
   slotsRoot.innerHTML = ""
   const conns = [...window.db.connections]
   if (conns.length === 0) {
-    slotsRoot.appendChild(newelem("div", { class: "empty" }, ["No slots yet — add one above."]))
+    slotsRoot.appendChild(
+      newelem("div", { class: "empty" }, [
+        "No slots yet — add one above.",
+      ]),
+    )
     return
   }
   conns.forEach((conn) => {
@@ -205,27 +216,40 @@ function renderSlots() {
 
     const modeSelect = newelem("select", {}, [])
     const hasProg = gamesWithProg().includes(conn.game)
-    const options = [
-      { v: "all", t: "Notify: all items" },
-    ]
+    const options = [{ v: "all", t: "Notify: all items" }]
     if (hasProg) {
-      options.push({ v: "progression", t: "Notify: progression-unlocking only" })
-      options.push({ v: "both", t: "Notify: all (highlight progression)" })
+      options.push({
+        v: "progression",
+        t: "Notify: progression-unlocking only",
+      })
+      options.push({
+        v: "both",
+        t: "Notify: all (highlight progression)",
+      })
     }
     options.forEach((o) => {
       modeSelect.appendChild(newelem("option", { value: o.v }, [o.t]))
     })
     modeSelect.value = hasProg ? conn.notifyMode || "all" : "all"
     modeSelect.disabled = !hasProg
-    modeSelect.title = hasProg ? "" : `Upload a prog file for "${conn.game}" to unlock progression alerts`
+    modeSelect.title =
+      hasProg ? "" : (
+        `Upload a prog file for "${conn.game}" to unlock progression alerts`
+      )
     modeSelect.addEventListener("change", async () => {
-      const idx = window.db.connections.findIndex((c) => c.id === conn.id)
+      const idx = window.db.connections.findIndex(
+        (c) => c.id === conn.id,
+      )
       if (idx === -1) return
       window.db.connections[idx].notifyMode = modeSelect.value
     })
     controls.appendChild(modeSelect)
 
-    const toggleBtn = newelem("button", {}, [status === "disconnected" || status === "error" ? "Connect" : "Disconnect"])
+    const toggleBtn = newelem("button", {}, [
+      status === "disconnected" || status === "error" ?
+        "Connect"
+      : "Disconnect",
+    ])
     toggleBtn.addEventListener("click", () => {
       if (status === "disconnected" || status === "error" || !rt) {
         startConnection(conn)
@@ -235,10 +259,14 @@ function renderSlots() {
     })
     controls.appendChild(toggleBtn)
 
-    const removeBtn = newelem("button", { class: "danger" }, ["Remove"])
+    const removeBtn = newelem("button", { class: "danger" }, [
+      "Remove",
+    ])
     removeBtn.addEventListener("click", () => {
       stopConnection(conn.id)
-      const idx = window.db.connections.findIndex((c) => c.id === conn.id)
+      const idx = window.db.connections.findIndex(
+        (c) => c.id === conn.id,
+      )
       if (idx !== -1) window.db.connections.splice(idx, 1)
       renderSlots()
     })
@@ -250,10 +278,16 @@ function renderSlots() {
     const log = newelem("div", { class: "slot-log" }, [])
     ;(rt?.log || []).forEach((entry) => {
       log.appendChild(
-        newelem("div", { class: `row${entry.prog ? " new-prog" : ""}` }, [
-          entry.prog ? newelem("span", { class: "badge" }, ["PROG"]) : null,
-          entry.text,
-        ]),
+        newelem(
+          "div",
+          { class: `row${entry.prog ? " new-prog" : ""}` },
+          [
+            entry.prog ?
+              newelem("span", { class: "badge" }, ["PROG"])
+            : null,
+            entry.text,
+          ],
+        ),
       )
     })
     card.appendChild(log)
@@ -266,7 +300,11 @@ function renderProgFiles() {
   progRoot.innerHTML = ""
   const games = gamesWithProg()
   if (games.length === 0) {
-    progRoot.appendChild(newelem("div", { class: "empty" }, ["No progression files uploaded yet."]))
+    progRoot.appendChild(
+      newelem("div", { class: "empty" }, [
+        "No progression files uploaded yet.",
+      ]),
+    )
   }
   games.forEach((game) => {
     const row = newelem("div", { class: "prog-row" })
@@ -278,13 +316,11 @@ function renderProgFiles() {
         ]),
       ]),
     )
-    const removeBtn = newelem("button", { class: "danger" }, ["Remove"])
+    const removeBtn = newelem("button", { class: "danger" }, [
+      "Remove",
+    ])
     removeBtn.addEventListener("click", () => {
       delete window.db.progFiles[game]
-      // proxy delete needs a reassignment to trigger persistence cleanly
-      const copy = { ...window.db.progFiles }
-      delete copy[game]
-      window.db.progFiles = copy
       renderProgFiles()
       renderSlots()
     })
@@ -296,41 +332,43 @@ function renderProgFiles() {
 // ---------------------------------------------------------------------
 // Add-connection form
 // ---------------------------------------------------------------------
-document.getElementById("addSlotForm").addEventListener("submit", (e) => {
-  e.preventDefault()
-  const f = e.target
-  const conn = {
-    id: Math.random().toString(36).slice(2, 10),
-    hostname: f.hostname.value.trim(),
-    port: f.port.value.trim(),
-    game: f.game.value.trim(),
-    playerName: f.playerName.value.trim(),
-    password: f.password.value,
-    notifyMode: "all",
-  }
-  if (!conn.hostname || !conn.game || !conn.playerName) return
-  window.db.connections.push(conn)
-  f.reset()
-  renderSlots()
-  startConnection(conn)
-})
+document
+  .getElementById("addSlotForm")
+  .addEventListener("submit", (e) => {
+    e.preventDefault()
+    const f = e.target
+    const conn = {
+      id: Math.random().toString(36).slice(2, 10),
+      hostname: f.hostname.value.trim(),
+      port: f.port.value.trim(),
+      game: f.game.value.trim(),
+      playerName: f.playerName.value.trim(),
+      password: f.password.value,
+      notifyMode: "all",
+    }
+    if (!conn.hostname || !conn.game || !conn.playerName) return
+    window.db.connections.push(conn)
+    f.reset()
+    renderSlots()
+    startConnection(conn)
+  })
 
 // ---------------------------------------------------------------------
 // Prog file upload form
 // ---------------------------------------------------------------------
-document.getElementById("addProgForm").addEventListener("submit", async (e) => {
-  e.preventDefault()
-  const f = e.target
-  const game = f.progGame.value.trim()
-  const fileInput = f.progFile
-  if (!game || !fileInput.files[0]) return
-  const text = await fileInput.files[0].text()
-  const copy = { ...window.db.progFiles, [game]: text }
-  window.db.progFiles = copy
-  f.reset()
-  renderProgFiles()
-  renderSlots()
-})
+// document.getElementById("addProgForm").addEventListener("submit", async (e) => {
+//   e.preventDefault()
+//   const f = e.target
+//   const game = f.progGame.value.trim()
+//   const fileInput = f.progFile
+//   if (!game || !fileInput.files[0]) return
+//   const text = await fileInput.files[0].text()
+//   const copy = { ...window.db.progFiles, [game]: text }
+//   window.db.progFiles = copy
+//   f.reset()
+//   renderProgFiles()
+//   renderSlots()
+// })
 
 // ---------------------------------------------------------------------
 // Notifications permission

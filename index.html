@@ -1,56 +1,1008 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>AP Multi-Slot Tracker</title>
-<link rel="stylesheet" href="style.css" />
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>AP Multi-Slot Tracker</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="./map.css" />
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>Archipelago Multi-Slot Tracker</h1>
+        <div class="sub">
+          Connect to several slots at once, get item pings, and track
+          progression per game.
+        </div>
+      </div>
+      <button id="notifBtn">Enable notifications</button>
+    </header>
 
-<header>
-  <div>
-    <h1>Archipelago Multi-Slot Tracker</h1>
-    <div class="sub">Connect to several slots at once, get item pings, and track progression per game.</div>
-  </div>
-  <button id="notifBtn">Enable notifications</button>
-</header>
+    <main>
+      <section class="panel">
+        <h2>
+          Add a slot
+          <span class="hint"
+            >wss:// is tried first, falls back to ws://</span
+          >
+        </h2>
+        <form id="addSlotForm" class="form-grid">
+          <input
+            name="hostname"
+            placeholder="Server host (e.g. archipelago.gg)"
+            required
+          />
+          <input name="port" placeholder="Port" required />
+          <input
+            name="game"
+            placeholder="Game name (must match AP data package)"
+            required
+          />
+          <input
+            name="playerName"
+            placeholder="Your slot name"
+            required
+          />
+          <input
+            name="password"
+            placeholder="Password (optional)"
+            type="password"
+          />
+          <button type="submit" class="primary">Connect slot</button>
+        </form>
+      </section>
 
-<main>
+      <section class="panel">
+        <h2>
+          Progression files
+          <span class="hint"
+            >a file per game, defining a PROG array (same format
+            progression_overlay.js reads)</span
+          >
+        </h2>
+        <div id="progFiles"></div>
+      </section>
 
-  <section class="panel">
-    <h2>Add a slot <span class="hint">wss:// is tried first, falls back to ws://</span></h2>
-    <form id="addSlotForm" class="form-grid">
-      <input name="hostname" placeholder="Server host (e.g. archipelago.gg)" required />
-      <input name="port" placeholder="Port" required />
-      <input name="game" placeholder="Game name (must match AP data package)" required />
-      <input name="playerName" placeholder="Your slot name" required />
-      <input name="password" placeholder="Password (optional)" type="password" />
-      <button type="submit" class="primary">Connect slot</button>
-    </form>
-  </section>
+      <section class="panel">
+        <h2>Slots</h2>
+        <div id="slots"></div>
+      </section>
+    </main>
 
-  <section class="panel">
-    <h2>Progression files <span class="hint">a file per game, defining a PROG array (same format progression_overlay.js reads)</span></h2>
-    <form id="addProgForm" class="form-grid" style="margin-bottom:12px;">
-      <input name="progGame" placeholder="Game name (must match a slot's game)" required />
-      <input name="progFile" type="file" accept=".js,.json,.txt" required />
-      <button type="submit" class="primary">Upload prog file</button>
-    </form>
-    <div id="progFiles"></div>
-  </section>
+    <script src="newelem.js"></script>
+    <script src="indexeddbProxy.js"></script>
+    <script src="apMulti.js"></script>
+    <script src="prog.js"></script>
+    <script src="app.js"></script>
 
-  <section class="panel">
-    <h2>Slots</h2>
-    <div id="slots"></div>
-  </section>
+    <div id="app">
+      <div id="sidebar">
+        <h1>◈ AP Logic Tracker</h1>
 
-</main>
+        <div class="side-section">
+          <h2>Data</h2>
+          <button id="loadBtn">Load rules JSON</button>
+          <input
+            type="file"
+            id="fileInput"
+            accept="application/json"
+          />
+          <button id="autoLayoutBtn">Auto layout</button>
+          <button id="resetBtn">Reset inventory</button>
+          <div id="status">No data loaded.</div>
+        </div>
 
-<script src="newelem.js"></script>
-<script src="indexeddbProxy.js"></script>
-<script src="apMulti.js"></script>
-<script src="prog.js"></script>
-<script src="app.js"></script>
-</body>
+        <div class="side-section">
+          <h2>Inventory</h2>
+          <input
+            id="search"
+            type="text"
+            placeholder="filter items…"
+          />
+        </div>
+
+        <div id="itemList"></div>
+
+        <div id="legend">
+          <div class="legend-row">
+            <div
+              class="swatch"
+              style="background: var(--accent)"
+            ></div>
+            reachable region / item
+          </div>
+          <div class="legend-row">
+            <div
+              class="swatch"
+              style="
+                background: var(--danger-dim);
+                border: 1px solid var(--danger);
+              "
+            ></div>
+            unreachable
+          </div>
+          <div class="legend-row">
+            <div class="swatch" style="background: var(--warn)"></div>
+            location, checked off
+          </div>
+        </div>
+      </div>
+
+      <div id="canvasWrap">
+        <div id="topbar">
+          <button id="zoomIn">＋</button>
+          <button id="zoomOut">－</button>
+          <button id="zoomReset">reset view</button>
+        </div>
+        <div id="world">
+          <svg id="edges"></svg>
+          <div id="nodes"></div>
+        </div>
+        <div id="emptyMsg">
+          <div>
+            No graph loaded.<br /><b>Load rules JSON</b> to begin.
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="./indexeddbProxy.js"></script>
+    <script>
+      /* ============================================================
+          STATE
+          ============================================================ */
+      let graph = null // parsed rules JSON
+      let inventory = {} // itemName -> count (int)
+      let checkedLocations = {} // locationName -> bool
+      let positions = {} // regionName -> {x,y}
+      let view = { x: 0, y: 0, scale: 1 }
+      let reach = {
+        regions: new Set(),
+        locations: new Set(),
+        entrances: new Set(),
+      }
+
+      const els = {
+        sidebar: document.getElementById("sidebar"),
+        itemList: document.getElementById("itemList"),
+        status: document.getElementById("status"),
+        search: document.getElementById("search"),
+        world: document.getElementById("world"),
+        nodes: document.getElementById("nodes"),
+        edges: document.getElementById("edges"),
+        canvasWrap: document.getElementById("canvasWrap"),
+        emptyMsg: document.getElementById("emptyMsg"),
+      }
+
+      /* ============================================================
+          RULE EVALUATION
+          Handles the rule_builder tree shape produced by the exporter:
+          { "type": "Has"|"And"|"Or"|"True_"|... , ...fields }
+          Falls back to permissive (true) for unrecognized shapes so a
+          single unmapped rule type doesn't lock out an entire branch
+          silently -- unresolved rules are logged to console once.
+          ============================================================ */
+      const warnedTypes = new Set()
+      function warnOnce(t) {
+        if (!warnedTypes.has(t)) {
+          warnedTypes.add(t)
+          console.warn("Unhandled rule type:", t)
+        }
+      }
+
+      function countHave(name) {
+        return inventory[name] || 0
+      }
+
+      // evalRule returns boolean. `visiting` guards against infinite recursion
+      // for CanReachRegion/Location/Entrance cycles during fixed-point iteration.
+      function evalRule(rule, visiting) {
+        if (rule === null || rule === undefined) return true
+        if (typeof rule === "boolean") return rule
+        const t = rule.type
+        switch (t) {
+          case "True_":
+            return true
+          case "False_":
+            return false
+
+          case "Has":
+            return countHave(rule.item_name) >= (rule.count ?? 1)
+
+          case "HasAll":
+            return (rule.item_names || rule.items || []).every(
+              (n) => countHave(n) >= 1,
+            )
+
+          case "HasAny":
+            return (rule.item_names || rule.items || []).some(
+              (n) => countHave(n) >= 1,
+            )
+
+          case "HasAllCounts": {
+            const counts = rule.item_counts || rule.counts || {}
+            return Object.entries(counts).every(
+              ([n, c]) => countHave(n) >= c,
+            )
+          }
+
+          case "HasAnyCount": {
+            const need = rule.count ?? 1
+            return (rule.item_names || rule.items || []).some(
+              (n) => countHave(n) >= need,
+            )
+          }
+
+          case "HasFromList": {
+            const need = rule.count ?? 1
+            const names = rule.item_names || rule.items || []
+            const have = names.reduce(
+              (s, n) => s + (countHave(n) > 0 ? 1 : 0),
+              0,
+            )
+            return have >= need
+          }
+
+          case "HasFromListUnique": {
+            const need = rule.count ?? 1
+            const names = rule.item_names || rule.items || []
+            const have = names.filter((n) => countHave(n) > 0).length
+            return have >= need
+          }
+
+          case "HasGroup": {
+            const need = rule.count ?? 1
+            const groupItems = rule.items || rule.group_items || []
+            const have = groupItems.reduce(
+              (s, n) => s + countHave(n),
+              0,
+            )
+            return have >= need
+          }
+
+          case "HasGroupUnique": {
+            const need = rule.count ?? 1
+            const groupItems = rule.items || rule.group_items || []
+            const have = groupItems.filter(
+              (n) => countHave(n) > 0,
+            ).length
+            return have >= need
+          }
+
+          case "And":
+            return (rule.rules || rule.sub_rules || []).every((r) =>
+              evalRule(r, visiting),
+            )
+
+          case "Or":
+            return (rule.rules || rule.sub_rules || []).some((r) =>
+              evalRule(r, visiting),
+            )
+
+          case "AtLeast": {
+            const need = rule.count ?? 1
+            const subs = rule.rules || rule.sub_rules || []
+            const passing = subs.filter((r) =>
+              evalRule(r, visiting),
+            ).length
+            return passing >= need
+          }
+
+          case "Filtered":
+          case "WrapperRule":
+            return evalRule(
+              rule.rule || rule.wrapped || rule.sub_rule,
+              visiting,
+            )
+
+          case "CanReachRegion":
+            return reach.regions.has(rule.region_name || rule.name)
+
+          case "CanReachLocation":
+            return reach.locations.has(
+              rule.location_name || rule.name,
+            )
+
+          case "CanReachEntrance":
+            return reach.entrances.has(
+              rule.entrance_name || rule.name,
+            )
+
+          default:
+            warnOnce(t || JSON.stringify(rule))
+            return true // permissive fallback for unrecognized/unserializable rule shapes
+        }
+      }
+
+      /* ============================================================
+          REACHABILITY (fixed point over regions/entrances/locations,
+          needed because CanReachX rules can reference other regions)
+          ============================================================ */
+      function computeReachability() {
+        const regionNames = Object.keys(graph.regions)
+        const startRegion = pickStartRegion()
+
+        let regions = new Set([startRegion])
+        let entrances = new Set()
+        let locations = new Set()
+
+        for (let iter = 0; iter < 12; iter++) {
+          let changed = false
+          reach = { regions, locations, entrances } // expose current pass for CanReachX rules
+
+          for (const rname of regionNames) {
+            if (!regions.has(rname)) continue
+            const region = graph.regions[rname]
+            for (const exitName of region.exits || []) {
+              const einfo = graph.entrances[exitName]
+              if (!einfo) continue
+              const ok = evalRule(einfo.rule, null)
+              if (ok) {
+                if (!entrances.has(exitName)) {
+                  entrances.add(exitName)
+                  changed = true
+                }
+                if (
+                  einfo.connects_to &&
+                  !regions.has(einfo.connects_to)
+                ) {
+                  regions.add(einfo.connects_to)
+                  changed = true
+                }
+              }
+            }
+          }
+          if (!changed) break
+        }
+
+        for (const [lname, linfo] of Object.entries(
+          graph.locations,
+        )) {
+          if (
+            regions.has(linfo.region) &&
+            evalRule(linfo.rule, null)
+          ) {
+            locations.add(lname)
+          }
+        }
+
+        reach = { regions, locations, entrances }
+      }
+
+      function pickStartRegion() {
+        const names = Object.keys(graph.regions)
+        const preferred = names.find((n) => /^menu$/i.test(n))
+        if (preferred) return preferred
+        const targeted = new Set()
+        for (const e of Object.values(graph.entrances))
+          if (e.connects_to) targeted.add(e.connects_to)
+        const noIncoming = names.find((n) => !targeted.has(n))
+        return noIncoming || names[0]
+      }
+
+      /* ============================================================
+          DATA LOADING
+          ============================================================ */
+      function collectItemNames() {
+        const names = new Set()
+        function walk(rule) {
+          if (!rule || typeof rule !== "object") return
+          if (rule.item_name) names.add(rule.item_name)
+          for (const key of ["item_names", "items", "group_items"]) {
+            if (Array.isArray(rule[key]))
+              rule[key].forEach((n) => names.add(n))
+          }
+          if (rule.item_counts)
+            Object.keys(rule.item_counts).forEach((n) => names.add(n))
+          if (rule.counts)
+            Object.keys(rule.counts).forEach((n) => names.add(n))
+          for (const key of ["rules", "sub_rules"]) {
+            if (Array.isArray(rule[key])) rule[key].forEach(walk)
+          }
+          if (rule.rule) walk(rule.rule)
+          if (rule.wrapped) walk(rule.wrapped)
+          if (rule.sub_rule) walk(rule.sub_rule)
+        }
+        for (const e of Object.values(graph.entrances)) walk(e.rule)
+        for (const l of Object.values(graph.locations)) walk(l.rule)
+        return Array.from(names).sort()
+      }
+
+      async function loadGraph(raw) {
+        graph = normalizeGraph(raw)
+        const itemNames = collectItemNames()
+        const savedState = mapdb.state ?? null
+        if (
+          savedState &&
+          savedState.gameKey === (raw.game || "unknown")
+        ) {
+          inventory = savedState.inventory || {}
+          checkedLocations = savedState.checkedLocations || {}
+        } else {
+          inventory = {}
+          checkedLocations = {}
+          for (const n of itemNames) inventory[n] = 0
+        }
+        for (const n of itemNames)
+          if (!(n in inventory)) inventory[n] = 0
+        mapdb.layout ??= {}
+        positions = mapdb.layout[raw.game || "unknown"] || {}
+
+        els.status.textContent =
+          `${Object.keys(graph.regions).length} regions · ` +
+          `${Object.keys(graph.locations).length} locations · ${itemNames.length} items`
+        els.emptyMsg.style.display = "none"
+
+        buildItemList(itemNames)
+        layoutIfNeeded()
+        render()
+        saveState()
+      }
+
+      // Accept either the exporter's shape directly, or something close to it.
+      function normalizeGraph(raw) {
+        const regions = raw.regions || {}
+        const entrances = raw.entrances || {}
+        const locations = raw.locations || {}
+        return { game: raw.game, regions, entrances, locations }
+      }
+
+      /* ============================================================
+          LAYOUT (simple auto layout: BFS layers from start region)
+          ============================================================ */
+      function layoutIfNeeded() {
+        const names = Object.keys(graph.regions)
+        const missing = names.some((n) => !positions[n])
+        if (missing) autoLayout()
+      }
+
+      function autoLayout() {
+        const names = Object.keys(graph.regions)
+        const start = pickStartRegion()
+        const layers = {}
+        const visited = new Set([start])
+        let frontier = [start]
+        layers[start] = 0
+        let depth = 0
+        while (frontier.length) {
+          const next = []
+          for (const rname of frontier) {
+            for (const exitName of graph.regions[rname].exits || []) {
+              const e = graph.entrances[exitName]
+              const target = e && e.connects_to
+              if (target && !visited.has(target)) {
+                visited.add(target)
+                layers[target] = depth + 1
+                next.push(target)
+              }
+            }
+          }
+          frontier = next
+          depth++
+        }
+        let orphanDepth = depth + 1
+        for (const n of names)
+          if (!(n in layers)) layers[n] = orphanDepth
+
+        const byLayer = {}
+        for (const n of names) {
+          ;(byLayer[layers[n]] = byLayer[layers[n]] || []).push(n)
+        }
+        const XGAP = 300,
+          YGAP = 130
+        positions = {}
+        for (const [layer, list] of Object.entries(byLayer)) {
+          list.forEach((n, i) => {
+            positions[n] = {
+              x: Number(layer) * XGAP + 40,
+              y: i * YGAP + 40,
+            }
+          })
+        }
+        saveLayout()
+      }
+
+      /* ============================================================
+          RENDER
+          ============================================================ */
+      function buildItemList(itemNames) {
+        els.itemList.innerHTML = ""
+        for (const name of itemNames) {
+          const row = document.createElement("div")
+          row.className = "item-row"
+          row.dataset.name = name
+          row.innerHTML = `
+             <input type="checkbox" class="ck">
+             <span class="name">${escapeHtml(name)}</span>
+             <input type="number" class="count" min="0" value="0">
+           `
+          const ck = row.querySelector(".ck")
+          const count = row.querySelector(".count")
+          ck.addEventListener("change", () => {
+            inventory[name] =
+              ck.checked ? Math.max(1, parseInt(count.value) || 1) : 0
+            count.value = inventory[name]
+            onInventoryChange()
+          })
+          count.addEventListener("input", () => {
+            const v = Math.max(0, parseInt(count.value) || 0)
+            inventory[name] = v
+            ck.checked = v > 0
+            onInventoryChange()
+          })
+          els.itemList.appendChild(row)
+        }
+        syncItemListUI()
+      }
+
+      function syncItemListUI() {
+        els.itemList.querySelectorAll(".item-row").forEach((row) => {
+          const name = row.dataset.name
+          const v = inventory[name] || 0
+          row.querySelector(".ck").checked = v > 0
+          row.querySelector(".count").value = v
+          row.classList.toggle("collected", v > 0)
+        })
+      }
+
+      function onInventoryChange() {
+        computeReachability()
+        render()
+        saveState()
+      }
+
+      function render() {
+        if (!graph) return
+        computeReachability()
+        renderNodes()
+        renderEdges()
+      }
+
+      function renderNodes() {
+        els.nodes.innerHTML = ""
+        for (const [rname, region] of Object.entries(graph.regions)) {
+          const pos = positions[rname] || { x: 0, y: 0 }
+          const node = document.createElement("div")
+          node.className =
+            "node" + (reach.regions.has(rname) ? " reachable" : "")
+          node.style.left = pos.x + "px"
+          node.style.top = pos.y + "px"
+          node.dataset.region = rname
+
+          const head = document.createElement("div")
+          head.className = "node-head"
+          head.innerHTML = `<span class="dot"></span><span>${escapeHtml(rname)}</span>`
+          node.appendChild(head)
+
+          const body = document.createElement("div")
+          body.className = "node-body"
+          for (const lname of region.locations || []) {
+            const isReach = reach.locations.has(lname)
+            const isChecked = !!checkedLocations[lname]
+            const lrow = document.createElement("label")
+            lrow.className =
+              "loc-row" +
+              (isReach ? " reachable" : "") +
+              (isChecked ? " checked" : "")
+            const shortName =
+              lname.includes(" - ") ?
+                lname.split(" - ").slice(1).join(" - ")
+              : lname
+            lrow.innerHTML = `<input type="checkbox" class="ck">
+               <span class="dot"></span><span title="${escapeHtml(lname)}">${escapeHtml(shortName)}</span>`
+            lrow.querySelector(".ck").checked = isChecked
+            lrow
+              .querySelector(".ck")
+              .addEventListener("change", (e) => {
+                checkedLocations[lname] = e.target.checked
+                lrow.classList.toggle("checked", e.target.checked)
+                saveState()
+              })
+            body.appendChild(lrow)
+          }
+          node.appendChild(body)
+          makeDraggable(node, rname)
+          els.nodes.appendChild(node)
+        }
+      }
+
+      function renderEdges() {
+        const svg = els.edges
+        svg.innerHTML = ""
+        const ns = "http://www.w3.org/2000/svg"
+        let maxX = 0,
+          maxY = 0
+
+        for (const [ename, e] of Object.entries(graph.entrances)) {
+          const from = findRegionForEntrance(ename)
+          const to = e.connects_to
+          if (!from || !to || !positions[from] || !positions[to])
+            continue
+          const p1 = centerOf(from),
+            p2 = centerOf(to)
+          maxX = Math.max(maxX, p1.x, p2.x)
+          maxY = Math.max(maxY, p1.y, p2.y)
+
+          const path = document.createElementNS(ns, "path")
+          const dx = (p2.x - p1.x) * 0.5
+          const d = `M ${p1.x} ${p1.y} C ${p1.x + dx} ${p1.y}, ${p2.x - dx} ${p2.y}, ${p2.x} ${p2.y}`
+          path.setAttribute("d", d)
+          path.setAttribute("fill", "none")
+          const traversable = reach.entrances.has(ename)
+          path.setAttribute(
+            "stroke",
+            traversable ? "var(--accent)" : "#2a3040",
+          )
+          path.setAttribute("stroke-width", traversable ? "2" : "1.4")
+          if (!traversable)
+            path.setAttribute("stroke-dasharray", "4 4")
+          path.setAttribute("opacity", traversable ? "0.9" : "0.45")
+          svg.appendChild(path)
+        }
+        svg.setAttribute("width", maxX + 400 + "px")
+        svg.setAttribute("height", maxY + 400 + "px")
+      }
+
+      function findRegionForEntrance(ename) {
+        for (const [rname, region] of Object.entries(graph.regions)) {
+          if ((region.exits || []).includes(ename)) return rname
+        }
+        return null
+      }
+
+      function centerOf(rname) {
+        const pos = positions[rname] || { x: 0, y: 0 }
+        const node = els.nodes.querySelector(
+          `[data-region="${cssEscape(rname)}"]`,
+        )
+        const w = node ? node.offsetWidth : 190
+        const h = node ? node.offsetHeight : 40
+        return { x: pos.x + w, y: pos.y + h / 2 } // right edge, roughly vertical center
+      }
+
+      function escapeHtml(s) {
+        return String(s).replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[c],
+        )
+      }
+      function cssEscape(s) {
+        return String(s).replace(/["\\]/g, "\\$&")
+      }
+
+      /* ============================================================
+          DRAG (nodes) + PAN/ZOOM (canvas)
+          ============================================================ */
+      function makeDraggable(node, rname) {
+        let dragging = false,
+          startX = 0,
+          startY = 0,
+          origX = 0,
+          origY = 0
+        node.addEventListener("pointerdown", (ev) => {
+          if (ev.target.closest(".ck")) return
+          dragging = true
+          node.setPointerCapture(ev.pointerId)
+          startX = ev.clientX
+          startY = ev.clientY
+          const pos = positions[rname] || { x: 0, y: 0 }
+          origX = pos.x
+          origY = pos.y
+          ev.stopPropagation()
+        })
+        node.addEventListener("pointermove", (ev) => {
+          if (!dragging) return
+          const dx = (ev.clientX - startX) / view.scale
+          const dy = (ev.clientY - startY) / view.scale
+          positions[rname] = { x: origX + dx, y: origY + dy }
+          node.style.left = positions[rname].x + "px"
+          node.style.top = positions[rname].y + "px"
+          renderEdges()
+          ev.stopPropagation()
+        })
+        node.addEventListener("pointerup", (ev) => {
+          if (!dragging) return
+          dragging = false
+          saveLayout()
+          ev.stopPropagation()
+        })
+      }
+
+      function setupPanZoom() {
+        let panning = false,
+          sx = 0,
+          sy = 0,
+          ox = 0,
+          oy = 0
+        els.canvasWrap.addEventListener("pointerdown", (ev) => {
+          if (ev.target.closest(".node")) return
+          panning = true
+          els.canvasWrap.classList.add("panning")
+          sx = ev.clientX
+          sy = ev.clientY
+          ox = view.x
+          oy = view.y
+        })
+        window.addEventListener("pointermove", (ev) => {
+          if (!panning) return
+          view.x = ox + (ev.clientX - sx)
+          view.y = oy + (ev.clientY - sy)
+          applyView()
+        })
+        window.addEventListener("pointerup", () => {
+          if (panning) {
+            panning = false
+            els.canvasWrap.classList.remove("panning")
+            saveLayout()
+          }
+        })
+        els.canvasWrap.addEventListener(
+          "wheel",
+          (ev) => {
+            ev.preventDefault()
+            const delta = -ev.deltaY * 0.001
+            zoomAt(ev.clientX, ev.clientY, delta)
+          },
+          { passive: false },
+        )
+
+        document
+          .getElementById("zoomIn")
+          .addEventListener("click", () =>
+            zoomAt(
+              window.innerWidth / 2,
+              window.innerHeight / 2,
+              0.15,
+            ),
+          )
+        document
+          .getElementById("zoomOut")
+          .addEventListener("click", () =>
+            zoomAt(
+              window.innerWidth / 2,
+              window.innerHeight / 2,
+              -0.15,
+            ),
+          )
+        document
+          .getElementById("zoomReset")
+          .addEventListener("click", () => {
+            view = { x: 40, y: 40, scale: 1 }
+            applyView()
+            saveLayout()
+          })
+      }
+
+      function zoomAt(clientX, clientY, delta) {
+        const rect = els.canvasWrap.getBoundingClientRect()
+        const localX = clientX - rect.left,
+          localY = clientY - rect.top
+        const worldX = (localX - view.x) / view.scale
+        const worldY = (localY - view.y) / view.scale
+        view.scale = Math.min(2.2, Math.max(0.25, view.scale + delta))
+        view.x = localX - worldX * view.scale
+        view.y = localY - worldY * view.scale
+        applyView()
+        saveLayout()
+      }
+
+      function applyView() {
+        els.world.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`
+      }
+
+      /* ============================================================
+          PERSISTENCE
+          ============================================================ */
+      let saveTimer = null
+      function saveState() {
+        clearTimeout(saveTimer)
+        saveTimer = setTimeout(async () => {
+          mapdb.state = {
+            gameKey: graph ? graph.game || "unknown" : "unknown",
+            inventory,
+            checkedLocations,
+          }
+        }, 250)
+      }
+      let layoutTimer = null
+      function saveLayout() {
+        clearTimeout(layoutTimer)
+        layoutTimer = setTimeout(async () => {
+          mapdb.layout ??= {}
+          mapdb.layout[graph ? graph.game || "unknown" : "unknown"] =
+            positions
+          mapdb.view = view
+        }, 250)
+      }
+
+      /* ============================================================
+          WIRE UP UI
+          ============================================================ */
+      document
+        .getElementById("loadBtn")
+        .addEventListener("click", async () => {
+          const handles = await showOpenFilePicker({
+            types: [
+              {
+                description: "JSON Files",
+                accept: {
+                  "application/json": [".json"],
+                },
+              },
+            ],
+            excludeAcceptAllOption: true,
+            multiple: true,
+          })
+
+          const fh = handles.pop()
+          const file = await fh.getFile()
+          ;(async () => {
+            mapdb.fileHandles ??= {}
+            for (var fh of handles) {
+              try {
+                var text = JSON.parse(
+                  await (await fh.getFile()).text(),
+                )
+                mapdb.fileHandles[text.game] = fh
+              } catch (e) {
+                error(e)
+              }
+            }
+          })()
+          if (!file) return
+          const text = await file.text()
+          try {
+            const raw = JSON.parse(text)
+            mapdb.fileHandles[raw.game] = fh
+            await loadGraph(raw)
+            mapdb.lastFile = raw.game
+          } catch (e) {
+            alert("Could not parse JSON: " + e.message)
+          }
+        })
+      document
+        .getElementById("resetBtn")
+        .addEventListener("click", () => {
+          if (!graph) return
+          if (!confirm("Reset inventory and checked locations?"))
+            return
+          for (const k of Object.keys(inventory)) inventory[k] = 0
+          checkedLocations = {}
+          syncItemListUI()
+          onInventoryChange()
+        })
+      document
+        .getElementById("autoLayoutBtn")
+        .addEventListener("click", () => {
+          if (!graph) return
+          autoLayout()
+          render()
+        })
+      els.search.addEventListener("input", () => {
+        const q = els.search.value.trim().toLowerCase()
+        els.itemList.querySelectorAll(".item-row").forEach((row) => {
+          row.style.display =
+            row.dataset.name.toLowerCase().includes(q) ? "" : "none"
+        })
+      })
+      ;(async function init() {
+        window.mapdb = await createDB("ap-logic-tracker")
+        setupPanZoom()
+        view = mapdb.view ?? { x: 40, y: 40, scale: 1 }
+        if (mapdb.state?.gameKey && mapdb.fileHandles[mapdb.state.gameKey]) {
+          try {
+            loadGraph(
+              JSON.parse(
+                await (
+                  await mapdb.fileHandles[mapdb.state.gameKey].getFile()
+                ).text(),
+              ),
+            )
+          } catch (e) {
+            getfileperms(mapdb.fileHandles[mapdb.state.gameKey]).then(
+              async (e) => {
+                loadGraph(
+                  JSON.parse(
+                    await (
+                      await mapdb.fileHandles[mapdb.state.gameKey].getFile()
+                    ).text(),
+                  ),
+                )
+              },
+            )
+          }
+        }
+        applyView()
+      })()
+      async function getfileperms(fileHandle, readWrite) {
+        const options = {}
+        if (readWrite) {
+          options.mode = "readwrite"
+        }
+        try {
+          return (
+            (await fileHandle.queryPermission(options)) ===
+              "granted" ||
+            (await fileHandle.requestPermission(options)) ===
+              "granted"
+          )
+        } catch (e) {
+          await waitforclick()
+          return (
+            (await fileHandle.queryPermission(options)) ===
+              "granted" ||
+            (await fileHandle.requestPermission(options)) ===
+              "granted"
+          )
+        }
+      }
+      async function waitforclick(fileHandle, readWrite) {
+        return new Promise((resolve) => {
+          var listener = a.listen(
+            window,
+            "click",
+            () => {
+              a.unlisten(listener)
+              resolve()
+            },
+            true,
+          )
+        })
+      }
+      function listen(elem, type, cb, istrue = false) {
+        var all = []
+        if (a.gettype(elem, "array")) {
+          return [...elem].map(listen).flat()
+        } else {
+          return listen(elem)
+        }
+        function listen(elem) {
+          if (a.gettype(type, "array")) {
+            var temp = {}
+            a.foreach(type, (e) => (temp[e] = cb))
+            type = temp
+          }
+          if (a.gettype(type, "object")) {
+            istrue = cb
+            a.foreach(type, function (type, cb) {
+              if (a.gettype(type, "string"))
+                type = a.matchall(type, /[a-z]+/g)
+              type.forEach((type) => {
+                const newcb = function (...e) {
+                  cb.call(elem, ...e)
+                }
+                elem.addEventListener(type, newcb, istrue)
+                all.push([elem, type, newcb, istrue])
+              })
+            })
+          } else if (a.gettype(type, "string")) {
+            type = a.matchall(type, /[a-z]+/g)
+            type.forEach((type) => {
+              const newcb = function (e) {
+                cb.call(elem, e, type)
+              }
+              elem.addEventListener(type, newcb, istrue)
+              all.push([elem, type, newcb, istrue])
+            })
+          }
+          return all
+        }
+      }
+      function listen(all) {
+        for (var l of all) {
+          l[0].removeEventListener(l[1], l[2], l[3])
+        }
+      }
+    </script>
+  </body>
 </html>
