@@ -11,6 +11,9 @@
     <link rel="stylesheet" href="./map.css" />
   </head>
   <body>
+    <script>
+      Object.assign(window, console)
+    </script>
     <header>
       <div>
         <h1>Archipelago Multi-Slot Tracker</h1>
@@ -879,38 +882,32 @@
         window.mapdb = await createDB("ap-logic-tracker")
         setupPanZoom()
         view = mapdb.view ?? { x: 40, y: 40, scale: 1 }
-        if (
-          mapdb.state?.gameKey &&
-          mapdb.fileHandles[mapdb.state.gameKey]
-        ) {
+        tryLoadFile(mapdb.state?.gameKey)
+      })()
+      async function tryLoadFile(name) {
+        if (name && mapdb.fileHandles[name]) {
           try {
             loadGraph(
               JSON.parse(
                 await (
-                  await mapdb.fileHandles[
-                    mapdb.state.gameKey
-                  ].getFile()
+                  await mapdb.fileHandles[name].getFile()
                 ).text(),
               ),
             )
           } catch (e) {
-            getfileperms(mapdb.fileHandles[mapdb.state.gameKey]).then(
-              async (e) => {
-                loadGraph(
-                  JSON.parse(
-                    await (
-                      await mapdb.fileHandles[
-                        mapdb.state.gameKey
-                      ].getFile()
-                    ).text(),
-                  ),
-                )
-              },
-            )
+            getfileperms(mapdb.fileHandles[name]).then(async (e) => {
+              loadGraph(
+                JSON.parse(
+                  await (
+                    await mapdb.fileHandles[name].getFile()
+                  ).text(),
+                ),
+              )
+            })
           }
         }
         applyView()
-      })()
+      }
       async function getfileperms(fileHandle, readWrite) {
         const options = {}
         if (readWrite) {

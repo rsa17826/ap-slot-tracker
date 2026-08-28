@@ -271,26 +271,40 @@ function renderSlots() {
       renderSlots()
     })
     controls.appendChild(removeBtn)
+    controls.appendChild(
+      newelem(
+        "button",
+        {
+          onclick: async (e) => {
+            log(conn.game)
+            tryLoadFile(conn.game)
+          },
+        },
+        ["Show Map"],
+      ),
+    )
 
     top.appendChild(controls)
     card.appendChild(top)
 
-    const log = newelem("div", { class: "slot-log" }, [])
-    ;(rt?.log || []).forEach((entry) => {
-      log.appendChild(
-        newelem(
-          "div",
-          { class: `row${entry.prog ? " new-prog" : ""}` },
-          [
-            entry.prog ?
-              newelem("span", { class: "badge" }, ["PROG"])
-            : null,
-            entry.text,
-          ],
-        ),
-      )
-    })
-    card.appendChild(log)
+    card.appendChild(
+      newelem(
+        "div",
+        { class: "slot-log" },
+        (rt?.log || []).map((entry) => {
+          newelem(
+            "div",
+            { class: `row${entry.prog ? " new-prog" : ""}` },
+            [
+              entry.prog ?
+                newelem("span", { class: "badge" }, ["PROG"])
+              : null,
+              entry.text,
+            ],
+          )
+        }),
+      ),
+    )
 
     slotsRoot.appendChild(card)
   })
