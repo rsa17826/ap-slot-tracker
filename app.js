@@ -230,51 +230,45 @@ function renderSlots() {
           ]),
         ]),
         newelem("div", { class: "slot-controls" }, [
+          newelem("select", {
+            onchange() {
+              const idx = window.db.connections.findIndex(
+                (c) => c.id === conn.id,
+              )
+              if (idx === -1) return
+              window.db.connections[idx].notifyMode = modeSelect.value
+            },
+            title:
+              hasProg ? "" : (
+                `Upload a prog file for "${conn.game}" to unlock progression alerts`
+              ),
+            options: {
+              "Notify: progression-unlocking only": "progression",
+              "Notify: all (highlight progression)": "both",
+              "Notify: all items": "all",
+            },
+            value: hasProg ? conn.notifyMode || "all" : "all",
+            disabled: !hasProg,
+          }),
           newelem(
-            "select",
+            "button",
             {
-              onchange() {
-                const idx = window.db.connections.findIndex(
-                  (c) => c.id === conn.id,
-                )
-                if (idx === -1) return
-                window.db.connections[idx].notifyMode =
-                  modeSelect.value
+              onclick() {
+                if (
+                  status === "disconnected" ||
+                  status === "error" ||
+                  !rt
+                ) {
+                  startConnection(conn)
+                } else {
+                  stopConnection(conn.id)
+                }
               },
-              title:
-                hasProg ? "" : (
-                  `Upload a prog file for "${conn.game}" to unlock progression alerts`
-                ),
-              options: {
-                "Notify: progression-unlocking only": "progression",
-                "Notify: all (highlight progression)": "both",
-                "Notify: all items": "all",
-              },
-              value: hasProg ? conn.notifyMode || "all" : "all",
-              disabled: !hasProg,
             },
             [
-              newelem(
-                "button",
-                {
-                  onclick() {
-                    if (
-                      status === "disconnected" ||
-                      status === "error" ||
-                      !rt
-                    ) {
-                      startConnection(conn)
-                    } else {
-                      stopConnection(conn.id)
-                    }
-                  },
-                },
-                [
-                  status === "disconnected" || status === "error" ?
-                    "Connect"
-                  : "Disconnect",
-                ],
-              ),
+              status === "disconnected" || status === "error" ?
+                "Connect"
+              : "Disconnect",
             ],
           ),
           newelem(
@@ -311,36 +305,37 @@ function renderSlots() {
 }
 
 function renderProgFiles() {
-  progRoot.innerHTML = ""
   const games = gamesWithProg()
-  if (games.length === 0) {
-    progRoot.appendChild(
-      newelem("div", { class: "empty" }, [
-        "No progression files uploaded yet.",
-      ]),
-    )
-  }
-  games.forEach((game) => {
-    const row = newelem("div", { class: "prog-row" })
-    row.appendChild(
-      newelem("div", {}, [
-        game,
-        newelem("div", { class: "file-name" }, [
-          `${(window.db.progFiles[game] || "").length} chars loaded`,
+  progRoot.replaceChildren(
+    ...(games.length === 0 ?
+      [
+        newelem("div", { class: "empty" }, [
+          "No progression files uploaded yet.",
         ]),
-      ]),
-    )
-    const removeBtn = newelem("button", { class: "danger" }, [
-      "Remove",
-    ])
-    removeBtn.addEventListener("click", () => {
-      delete window.db.progFiles[game]
-      renderProgFiles()
-      renderSlots()
-    })
-    row.appendChild(removeBtn)
-    progRoot.appendChild(row)
-  })
+      ]
+    : games.map((game) => {
+        newelem("div", { class: "prog-row" }, [
+          newelem("div", {}, [
+            game,
+            newelem("div", { class: "file-name" }, [
+              `${(window.db.progFiles[game] || "").length} chars loaded`,
+            ]),
+            newelem(
+              "button",
+              {
+                class: "danger",
+                onclick() {
+                  delete window.db.progFiles[game]
+                  renderProgFiles()
+                  renderSlots()
+                },
+              },
+              ["Remove"],
+            ),
+          ]),
+        ])
+      })),
+  )
 }
 
 // ---------------------------------------------------------------------
