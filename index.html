@@ -323,7 +323,7 @@
           ============================================================ */
       function computeReachability() {
         const regionNames = Object.keys(graph.regions)
-        const startRegion = pickStartRegion()
+        const startRegion = graph.origin_region_name
 
         let regions = new Set([startRegion])
         let entrances = new Set()
@@ -372,18 +372,6 @@
         reach = { regions, locations, entrances }
       }
 
-      function pickStartRegion() {
-        const names = Object.keys(graph.regions)
-        const preferred = names.find((n) => /^menu$/i.test(n))
-        if (preferred) return preferred
-        const targeted = new Set()
-        for (const e of Object.values(graph.entrances))
-          if (e.connects_to) targeted.add(e.connects_to)
-        const noIncoming = names.find((n) => !targeted.has(n))
-        debugger
-        return noIncoming || names[0]
-      }
-
       /* ============================================================
           DATA LOADING
           ============================================================ */
@@ -412,7 +400,8 @@
         return Array.from(names).sort()
       }
 
-      function loadGraph(graph) {
+      function loadGraph(raw) {
+        graph = raw
         const itemNames = collectItemNames()
         const savedState = mapdb.state ?? null
         if (
@@ -452,7 +441,7 @@
 
       function autoLayout() {
         const names = Object.keys(graph.regions)
-        const start = pickStartRegion()
+        const start = graph.origin_region_name
         const layers = {}
         const visited = new Set([start])
         let frontier = [start]
