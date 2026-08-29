@@ -11,8 +11,7 @@ body {
   overflow: hidden;
   font-size: 13px;
 }
-.ck,
-.count {
+.ck {
   display: none;
 }
 #app {
@@ -185,6 +184,23 @@ body {
 }
 .item-row.maxed .count-max {
   color: var(--accent);
+}
+/* Event items: auto-collected once their location is reachable, styled
+   the same as event locations in the node graph (see .loc-row.event). */
+.item-row.event-item {
+  cursor: default;
+}
+.item-row.event-item .name {
+  color: var(--event);
+  font-style: italic;
+}
+.item-row.event-item .count {
+  color: var(--event);
+  border-color: var(--event);
+  opacity: 0.85;
+}
+.item-row.event-item .ck {
+  accent-color: var(--event);
 }
 .toggle-row {
   display: flex;

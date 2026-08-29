@@ -95,9 +95,13 @@ function startConnection(conn) {
       },
       onCheckedLocations: () => {
         maybeRecomputeProgression(conn, rt)
+        if (typeof notifyMapOfSlotUpdate === "function")
+          notifyMapOfSlotUpdate(conn)
       },
       onItems: (items) => {
         handleReceivedItems(conn, rt, items)
+        if (typeof notifyMapOfSlotUpdate === "function")
+          notifyMapOfSlotUpdate(conn)
       },
     },
   )
@@ -300,37 +304,30 @@ function renderSlots() {
             ]),
           ]),
           newelem("div", { class: "slot-controls" }, [
-            newelem(
-              "select",
-              {
+            (() => {
+              const modeSelect = newelem("select", {
                 title:
                   hasProg ? "" : (
                     `Upload/load a rules JSON for "${conn.game}" to unlock progression-aware alerts`
                   ),
-                value: (conn.notifyMode ??= "all"),
-                onchange() {
-                  const idx = window.db.connections.findIndex(
-                    (c) => c.id === conn.id,
-                  )
-                  if (idx === -1) return
-                  window.db.connections[idx].notifyMode = this.value
+                options: {
+                  "Notify: none": "none",
+                  "Notify: progression-unlocking only": "progression",
+                  "Notify: all (highlight progression)": "both",
+                  "Notify: all items": "all",
                 },
-              },
-              [
-                newelem("option", { value: "none" }, [
-                  "Notify: none",
-                ]),
-                newelem("option", { value: "progression" }, [
-                  "Notify: progression-unlocking only",
-                ]),
-                newelem("option", { value: "both" }, [
-                  "Notify: all (highlight progression)",
-                ]),
-                // newelem("option", { value: "all" }, [
-                //   "Notify: all items",
-                // ]),
-              ],
-            ),
+                value: conn.notifyMode || "all",
+              })
+              modeSelect.onchange = () => {
+                const idx = window.db.connections.findIndex(
+                  (c) => c.id === conn.id,
+                )
+                if (idx === -1) return
+                window.db.connections[idx].notifyMode =
+                  modeSelect.value
+              }
+              return modeSelect
+            })(),
             newelem(
               "button",
               {

@@ -212,6 +212,8 @@
                       ============================================================ */
       let graph = null // parsed rules JSON
       let inventory = {} // itemName -> count (int)
+      let eventInventory = {} // itemName -> count auto-granted by reachable event locations
+      let eventItemNames = new Set() // item names that come from is_event locations (colored + read-only)
       let itemMaxCounts = {} // itemName -> highest count ever required by a rule
       let checkedLocations = {} // locationName -> bool
       let positions = {} // regionName -> {x,y}
@@ -222,6 +224,17 @@
         regions: new Set(),
         locations: new Set(),
         entrances: new Set(),
+      }
+
+      // The rules JSON has no explicit "item for this event location" field,
+      // so by convention the event's item is named after the location: its
+      // full name, or (for "Region - Token" style names) just the token.
+      // `linfo.item` is honored first in case a future export adds it.
+      function eventItemNameFor(lname, linfo) {
+        if (linfo && linfo.item) return linfo.item
+        return lname.includes(" - ") ?
+            lname.split(" - ").slice(1).join(" - ")
+          : lname
       }
 
       const els = {
@@ -255,8 +268,9 @@
         inventory,
         checkedLocations,
       ) {
+        const eventInventory = {} // itemName -> 1, granted once its event location is reachable
         function countHave(name) {
-          return inventory[name] || 0
+          return (inventory[name] || 0) + (eventInventory[name] || 0)
         }
         let reach = {
           regions: new Set([graph.origin_region_name]),
@@ -378,7 +392,7 @@
         let regions = new Set([graph.origin_region_name])
         let entrances = new Set()
         let locations = new Set()
-        for (let iter = 0; iter < 12; iter++) {
+        for (let iter = 0; iter < 20; iter++) {
           let changed = false
           reach = { regions, locations, entrances }
           for (const rname of regionNames) {
@@ -402,19 +416,31 @@
               }
             }
           }
+          // "locations" here means reachable, regardless of checked state —
+          // callers filter out already-checked ones themselves. Computed
+          // inside the fixed-point loop (not after it) because a reachable
+          // event location auto-grants its item, which can in turn unlock
+          // further entrances/locations.
+          for (const [lname, linfo] of Object.entries(
+            graph.locations,
+          )) {
+            if (locations.has(lname)) continue
+            if (regions.has(linfo.region) && evalRule(linfo.rule)) {
+              locations.add(lname)
+              changed = true
+              if (linfo.is_event) {
+                const itemName = eventItemNameFor(lname, linfo)
+                if (itemName && !eventInventory[itemName]) {
+                  eventInventory[itemName] = 1
+                  changed = true
+                }
+              }
+            }
+          }
           if (!changed) break
         }
         reach = { regions, locations, entrances }
-        for (const [lname, linfo] of Object.entries(
-          graph.locations,
-        )) {
-          // "locations" here means reachable, regardless of checked state —
-          // callers filter out already-checked ones themselves.
-          if (regions.has(linfo.region) && evalRule(linfo.rule)) {
-            locations.add(lname)
-          }
-        }
-        return { regions, locations, entrances }
+        return { regions, locations, entrances, eventInventory }
       }
       window.MapEngine = { computeReachablePure }
 
@@ -435,7 +461,7 @@
       }
 
       function countHave(name) {
-        return inventory[name] || 0
+        return (inventory[name] || 0) + (eventInventory[name] || 0)
       }
 
       // evalRule returns boolean. `visiting` guards against infinite recursion
@@ -586,8 +612,9 @@
         let regions = new Set([startRegion])
         let entrances = new Set()
         let locations = new Set()
+        eventInventory = {}
 
-        for (let iter = 0; iter < 12; iter++) {
+        for (let iter = 0; iter < 20; iter++) {
           let changed = false
           reach = { regions, locations, entrances } // expose current pass for CanReachX rules
 
@@ -613,18 +640,31 @@
               }
             }
           }
-          if (!changed) break
-        }
 
-        for (const [lname, linfo] of Object.entries(
-          graph.locations,
-        )) {
-          if (
-            regions.has(linfo.region) &&
-            evalRule(linfo.rule, null)
-          ) {
-            locations.add(lname)
+          // Computed inside the fixed-point loop (not after it), because a
+          // reachable event location auto-grants its item to inventory,
+          // which can unlock further entrances/locations in a later pass.
+          for (const [lname, linfo] of Object.entries(
+            graph.locations,
+          )) {
+            if (locations.has(lname)) continue
+            if (
+              regions.has(linfo.region) &&
+              evalRule(linfo.rule, null)
+            ) {
+              locations.add(lname)
+              changed = true
+              if (linfo.is_event) {
+                const itemName = eventItemNameFor(lname, linfo)
+                if (itemName && !eventInventory[itemName]) {
+                  eventInventory[itemName] = 1
+                  changed = true
+                }
+              }
+            }
           }
+
+          if (!changed) break
         }
 
         reach = { regions, locations, entrances }
@@ -657,7 +697,21 @@
         }
         for (const e of Object.values(graph.entrances)) walk(e.rule)
         for (const l of Object.values(graph.locations)) walk(l.rule)
+        // Event locations auto-grant an item of the same name once
+        // reachable (see eventItemNameFor) -- make sure that item shows up
+        // in the inventory list even if no rule happens to reference it.
+        for (const n of collectEventItemNames()) names.add(n)
         return Array.from(names).sort()
+      }
+
+      function collectEventItemNames() {
+        const set = new Set()
+        for (const [lname, linfo] of Object.entries(graph.locations)) {
+          if (linfo && linfo.is_event) {
+            set.add(eventItemNameFor(lname, linfo))
+          }
+        }
+        return set
       }
 
       // Rule trees don't tell us the true item-pool quantity of each item,
@@ -698,6 +752,7 @@
 
       function loadGraph(raw) {
         graph = raw
+        eventItemNames = collectEventItemNames()
         const itemNames = collectItemNames()
         itemMaxCounts = collectItemMaxCounts(itemNames)
         const key = progKeyFor(raw)
@@ -742,8 +797,15 @@
                       Lets the tracker's "Show Map" button open the map already
                       populated with a live slot's received items and checked
                       locations, instead of the manual checkbox-only inventory.
+                      The map also stays live afterwards: app.js calls
+                      notifyMapOfSlotUpdate(conn) whenever that slot receives
+                      an item or sends a new check, so the open map re-syncs
+                      without needing "Show Map" clicked again.
                       ============================================================ */
+      let currentMapConnId = null
+
       async function openMapForSlot(conn) {
+        currentMapConnId = conn.id
         setMapVisible(true)
         if (!graph || gameKeyOf() !== conn.progKey) {
           const ok = await tryLoadFile(conn.progKey)
@@ -757,10 +819,20 @@
         syncFromSlot(conn)
       }
 
+      // Called by app.js whenever a slot gets new items/checks, regardless
+      // of whether the map is even open. Only re-syncs the map if it's
+      // currently showing this exact slot.
+      function notifyMapOfSlotUpdate(conn) {
+        if (!conn || conn.id !== currentMapConnId) return
+        if (!appEl.classList.contains("visible")) return
+        syncFromSlot(conn)
+      }
+
       const appEl = document.getElementById("app")
       function setMapVisible(v) {
         appEl.classList.toggle("visible", v)
         if (v) applyView()
+        else currentMapConnId = null
       }
       // Tab toggles the map overlay, except while typing in a form field
       // (so normal tab-between-fields behavior in the "Add a slot" form
@@ -1052,9 +1124,11 @@
         els.itemList.replaceChildren(
           ...itemNames.map((name) => {
             const maxCount = itemMaxCounts[name] ?? 1
+            const isEvent = eventItemNames.has(name)
             const ck = newelem("input", {
               type: "checkbox",
               class: "ck",
+              disabled: isEvent,
             })
             const count = newelem("input", {
               type: "number",
@@ -1062,39 +1136,44 @@
               min: 0,
               max: maxCount,
               value: 0,
+              disabled: isEvent,
             })
-            count.oninput = () => {
-              const v = Math.min(
-                maxCount,
-                Math.max(0, parseInt(count.value) || 0),
-              )
-              count.value = v
-              inventory[name] = v
-              ck.checked = v > 0
-              onInventoryChange()
-            }
-            count.onchange = () => {
-              inventory[name] =
-                ck.checked ?
-                  Math.min(
-                    maxCount,
-                    Math.max(1, parseInt(count.value) || 1),
-                  )
-                : 0
-              count.value = inventory[name]
-              onInventoryChange()
+            if (!isEvent) {
+              count.oninput = () => {
+                const v = Math.min(
+                  maxCount,
+                  Math.max(0, parseInt(count.value) || 0),
+                )
+                count.value = v
+                inventory[name] = v
+                ck.checked = v > 0
+                onInventoryChange()
+              }
+              count.onchange = () => {
+                inventory[name] =
+                  ck.checked ?
+                    Math.min(
+                      maxCount,
+                      Math.max(1, parseInt(count.value) || 1),
+                    )
+                  : 0
+                count.value = inventory[name]
+                onInventoryChange()
+              }
             }
             return newelem(
               "div",
               {
-                class: "item-row",
+                class:
+                  "item-row" + (isEvent ? " event-item" : ""),
                 dataset: { name },
+                title: isEvent ? "Event item — auto-collected once reachable" : "",
               },
               [
                 ck,
                 newelem("span", { class: "name" }, [name]),
                 count,
-                maxCount > 1 ?
+                maxCount > 1 && !isEvent ?
                   newelem("span", { class: "count-max" }, [
                     `/ ${maxCount}`,
                   ])
@@ -1109,17 +1188,23 @@
       function syncItemListUI() {
         els.itemList.querySelectorAll(".item-row").forEach((row) => {
           const name = row.dataset.name
-          const v = inventory[name] || 0
+          const isEvent = eventItemNames.has(name)
+          const v =
+            isEvent ?
+              Math.max(inventory[name] || 0, eventInventory[name] || 0)
+            : inventory[name] || 0
           const maxCount = itemMaxCounts[name] ?? 1
           row.querySelector(".ck").checked = v > 0
           row.querySelector(".count").value = v
           row.classList.toggle("collected", v > 0)
-          row.classList.toggle("maxed", maxCount > 1 && v >= maxCount)
+          row.classList.toggle(
+            "maxed",
+            !isEvent && maxCount > 1 && v >= maxCount,
+          )
         })
       }
 
       function onInventoryChange() {
-        computeReachability()
         render()
         saveState()
       }
@@ -1127,6 +1212,7 @@
       function render() {
         if (!graph) return
         computeReachability()
+        syncItemListUI()
         renderNodes()
         renderEdges()
       }
