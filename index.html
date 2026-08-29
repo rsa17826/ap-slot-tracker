@@ -95,6 +95,15 @@
             accept="application/json"
           />
           <button id="autoLayoutBtn">Auto layout</button>
+          <div class="btn-row">
+            <button id="customLayoutBtn">Custom layout</button>
+            <button
+              id="editSortFnBtn"
+              title="Edit sort function for this game"
+            >
+              ✎
+            </button>
+          </div>
           <button id="resetBtn">Reset inventory</button>
           <div id="status">No data loaded.</div>
         </div>
@@ -168,6 +177,29 @@
         </div>
       </div>
     </div>
+
+    <div id="sortFnModal" class="modal-overlay">
+      <div class="modal">
+        <h2>
+          Custom layout function <span id="sortFnGameLabel"></span>
+        </h2>
+        <div class="modal-hint">
+          Define <code>function sort(name)</code> returning a logical
+          <code>{ x, y }</code> grid cell for a region name. Regions
+          sharing a cell are packed by column/row size. Saved per
+          game.
+        </div>
+        <textarea id="sortFnEditor" spellcheck="false"></textarea>
+        <div id="sortFnError"></div>
+        <div class="modal-actions">
+          <button id="sortFnCancel">Cancel</button>
+          <button id="sortFnReset">Reset to default</button>
+          <button id="sortFnSaveRun" class="primary">
+            Save &amp; run
+          </button>
+        </div>
+      </div>
+    </div>
     <script src="./indexeddbProxy.js"></script>
     <script>
       /* ============================================================
@@ -179,6 +211,7 @@
       let positions = {} // regionName -> {x,y}
       let view = { x: 0, y: 0, scale: 1 }
       let hideEvents = false
+      let customSortFns = {} // gameKey -> function source (string)
       let reach = {
         regions: new Set(),
         locations: new Set(),
@@ -196,6 +229,10 @@
         canvasWrap: document.getElementById("canvasWrap"),
         emptyMsg: document.getElementById("emptyMsg"),
         hideEventsChk: document.getElementById("hideEventsChk"),
+        sortFnModal: document.getElementById("sortFnModal"),
+        sortFnEditor: document.getElementById("sortFnEditor"),
+        sortFnError: document.getElementById("sortFnError"),
+        sortFnGameLabel: document.getElementById("sortFnGameLabel"),
       }
 
       /* ============================================================
@@ -774,6 +811,190 @@
       }
 
       /* ============================================================
+                CUSTOM LAYOUT
+                Users write a `function sort(name) { return {x, y} }`
+                for the active game, mapping a region name to a logical
+                grid cell. Cells are then packed into pixel positions by
+                the widest/tallest node in each column/row (ported from
+                the user's sort.js console script). One function is
+                saved per game (customSortFns[gameKey]).
+                ============================================================ */
+      const DEFAULT_SORT_FN_SRC = `function sort(name) {
+  // Return a logical grid cell for this region. Regions sharing a
+  // cell get packed side by side based on the column's widest node.
+  // Example for a "stageN" naming scheme, 5 per row:
+  //
+  // if (name.startsWith("stage")) {
+  //   const n = Number(name.replace("stage", ""))
+  //   return { x: n % 5, y: 1 + ((n / 5) | 0) }
+  // }
+
+  return { x: 0, y: 0 }
+}`
+
+      function gameKeyOf() {
+        return graph ? graph.game || "unknown" : "unknown"
+      }
+
+      function compileSortFn(src) {
+        // eslint-disable-next-line no-new-func
+        const fn = new Function(
+          `${src}\nif (typeof sort !== "function") throw new Error("expected a function named sort(name)"); return sort;`,
+        )
+        return fn()
+      }
+
+      function runCustomLayout(gameKey, src) {
+        const sortFn = compileSortFn(src) // throws on bad code
+
+        const names = Object.keys(graph.regions)
+
+        // Measure current on-screen node sizes (nodes must already be
+        // rendered for the active game).
+        const sizes = {}
+        els.nodes.querySelectorAll(".node").forEach((e) => {
+          const rname = e.dataset.region
+          if (!rname) return
+          const rect = e.getBoundingClientRect()
+          sizes[rname] = {
+            width: rect.width / view.scale,
+            height: rect.height / view.scale,
+          }
+        })
+
+        const logical = {}
+        for (const n of names) {
+          const cell = sortFn(n)
+          if (
+            !cell ||
+            typeof cell.x !== "number" ||
+            typeof cell.y !== "number"
+          ) {
+            throw new Error(
+              `sort("${n}") must return { x: number, y: number }`,
+            )
+          }
+          logical[n] = cell
+        }
+
+        const columnWidths = {}
+        const rowHeights = {}
+        for (const n of names) {
+          const { x, y } = logical[n]
+          const w = sizes[n]?.width ?? 0
+          const h = sizes[n]?.height ?? 0
+          columnWidths[x] = Math.max(columnWidths[x] ?? 0, w)
+          rowHeights[y] = Math.max(rowHeights[y] ?? 0, h)
+        }
+
+        const SPACING = 4
+        const columnX = {}
+        let cx = 0
+        for (const key of Object.keys(columnWidths)
+          .map(Number)
+          .sort((a, b) => a - b)) {
+          columnX[key] = cx
+          cx += columnWidths[key] + SPACING
+        }
+        const rowY = {}
+        let ry = 0
+        for (const key of Object.keys(rowHeights)
+          .map(Number)
+          .sort((a, b) => a - b)) {
+          rowY[key] = ry
+          ry += rowHeights[key] + SPACING
+        }
+
+        for (const n of names) {
+          const { x, y } = logical[n]
+          positions[n] = { x: columnX[x], y: rowY[y] }
+        }
+
+        saveLayout()
+        render()
+      }
+
+      function loadCustomSortFns() {
+        customSortFns = mapdb.customSortFns ?? {}
+      }
+      function saveCustomSortFns() {
+        mapdb.customSortFns = customSortFns
+      }
+
+      function openSortEditor(src) {
+        els.sortFnGameLabel.textContent = `(${gameKeyOf()})`
+        els.sortFnEditor.value =
+          src ?? customSortFns[gameKeyOf()] ?? DEFAULT_SORT_FN_SRC
+        els.sortFnError.textContent = ""
+        els.sortFnError.style.display = "none"
+        els.sortFnModal.classList.add("visible")
+      }
+      function closeSortEditor() {
+        els.sortFnModal.classList.remove("visible")
+      }
+      function showSortEditorError(err) {
+        els.sortFnError.textContent = String(
+          (err && err.message) || err,
+        )
+        els.sortFnError.style.display = "block"
+      }
+
+      function customLayoutClicked() {
+        if (!graph) return
+        const gameKey = gameKeyOf()
+        const src = customSortFns[gameKey]
+        if (!src) {
+          // No saved function for this game yet -- open the editor so
+          // the user can write one.
+          openSortEditor(DEFAULT_SORT_FN_SRC)
+          return
+        }
+        try {
+          runCustomLayout(gameKey, src)
+        } catch (err) {
+          // Saved function broke (e.g. after editing rules JSON) --
+          // surface it in the editor instead of failing silently.
+          openSortEditor(src)
+          showSortEditorError(err)
+        }
+      }
+
+      document
+        .getElementById("customLayoutBtn")
+        .addEventListener("click", customLayoutClicked)
+      document
+        .getElementById("editSortFnBtn")
+        .addEventListener("click", () => {
+          if (!graph) return
+          openSortEditor()
+        })
+      document
+        .getElementById("sortFnCancel")
+        .addEventListener("click", closeSortEditor)
+      document
+        .getElementById("sortFnReset")
+        .addEventListener("click", () => {
+          els.sortFnEditor.value = DEFAULT_SORT_FN_SRC
+        })
+      document
+        .getElementById("sortFnSaveRun")
+        .addEventListener("click", () => {
+          const gameKey = gameKeyOf()
+          const src = els.sortFnEditor.value
+          try {
+            runCustomLayout(gameKey, src)
+            customSortFns[gameKey] = src
+            saveCustomSortFns()
+            closeSortEditor()
+          } catch (err) {
+            showSortEditorError(err)
+          }
+        })
+      els.sortFnModal.addEventListener("pointerdown", (ev) => {
+        if (ev.target === els.sortFnModal) closeSortEditor()
+      })
+
+      /* ============================================================
                 RENDER
                 ============================================================ */
       function buildItemList(itemNames) {
@@ -1261,6 +1482,7 @@
           mapdb.hideEvents = hideEvents
           render()
         })
+        loadCustomSortFns()
         tryLoadFile(mapdb.state?.gameKey)
       })()
       async function tryLoadFile(name) {

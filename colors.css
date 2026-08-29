@@ -1,6 +1,9 @@
 :root {
   --mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
 }
+html {
+  color-scheme: dark;
+}
 :root {
   --accent-dim: #372f66;
   --accent: #8b7bf7;

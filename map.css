@@ -57,7 +57,8 @@ body {
 }
 #loadBtn,
 #resetBtn,
-#autoLayoutBtn {
+#autoLayoutBtn,
+#customLayoutBtn {
   width: 100%;
   padding: 8px 10px;
   background: var(--color-lmcj);
@@ -72,8 +73,36 @@ body {
 }
 #loadBtn:hover,
 #resetBtn:hover,
-#autoLayoutBtn:hover {
+#autoLayoutBtn:hover,
+#customLayoutBtn:hover {
   border-color: var(--accent);
+}
+.btn-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.btn-row #customLayoutBtn {
+  margin-bottom: 0;
+  flex: 1;
+}
+#editSortFnBtn {
+  flex-shrink: 0;
+  width: 30px;
+  padding: 8px 0;
+  background: var(--color-lmcj);
+  border: 1px solid var(--panel-border);
+  color: var(--text-dim);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+}
+#editSortFnBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 #fileInput {
   display: none;
@@ -87,7 +116,7 @@ body {
 #search {
   width: 100%;
   padding: 6px 8px;
-  background: var(--bg);
+  background: #0d1016;
   border: 1px solid var(--panel-border);
   color: var(--text);
   border-radius: 5px;
@@ -126,7 +155,7 @@ body {
 .item-row .count {
   width: 34px;
   padding: 2px 4px;
-  background: var(--bg);
+  background: #0d1016;
   border: 1px solid var(--panel-border);
   color: var(--text);
   border-radius: 4px;
@@ -190,10 +219,6 @@ body {
   left: 0;
   transform-origin: 0 0;
 }
-html {
-  color-scheme: dark;
-}
-
 svg#edges {
   position: absolute;
   top: 0;
@@ -203,21 +228,21 @@ svg#edges {
 }
 .node {
   position: absolute;
-  /* min-width: 170px; */
+  min-width: 170px;
   max-width: 240px;
   background: var(--node-bg);
   border: 1.5px solid var(--danger-dim);
   border-radius: 10px;
   padding: 0;
-  box-shadow: 0 6px 18px var(--color-vzlx);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
   cursor: grab;
   user-select: none;
 }
 .node.reachable {
   border-color: var(--accent);
   box-shadow:
-    0 0 0 1px var(--color-yhwh),
-    0 6px 18px var(--color-awde);
+    0 0 0 1px rgba(94, 230, 180, 0.15),
+    0 6px 18px rgba(0, 0, 0, 0.4);
 }
 .node:active {
   cursor: grabbing;
@@ -234,7 +259,11 @@ svg#edges {
   border-radius: 9px 9px 0 0;
 }
 .node.reachable .node-head {
-  background: linear-gradient(180deg, var(--color-yhwh), transparent);
+  background: linear-gradient(
+    180deg,
+    rgba(94, 230, 180, 0.14),
+    transparent
+  );
 }
 .dot {
   width: 7px;
@@ -249,7 +278,7 @@ svg#edges {
 }
 .node-body {
   padding: 4px 6px 8px;
-  /* max-height: 220px; */
+  max-height: 220px;
   overflow-y: auto;
 }
 .loc-row {
@@ -333,4 +362,98 @@ svg#edges {
 }
 #emptyMsg b {
   color: var(--text);
+}
+
+/* ---------- custom layout / sort fn modal ---------- */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(0, 0, 0, 0.55);
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay.visible {
+  display: flex;
+}
+.modal {
+  width: min(640px, 92vw);
+  max-height: 85vh;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.modal h2 {
+  margin: 0;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text);
+}
+.modal h2 #sortFnGameLabel {
+  color: var(--text-dim);
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+}
+.modal-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+.modal-hint code {
+  color: var(--warn);
+}
+#sortFnEditor {
+  width: 100%;
+  min-height: 260px;
+  resize: vertical;
+  background: #0d1016;
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+  tab-size: 2;
+}
+#sortFnError {
+  display: none;
+  font-size: 11px;
+  color: var(--danger);
+  background: var(--danger-dim);
+  border: 1px solid var(--danger);
+  border-radius: 6px;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.modal-actions button {
+  padding: 7px 12px;
+  background: var(--color-lmcj);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.modal-actions button:hover {
+  border-color: var(--accent);
+}
+.modal-actions button.primary {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
 }
