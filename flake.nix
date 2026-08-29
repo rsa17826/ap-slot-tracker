@@ -18,12 +18,20 @@
       packages = forAllSystems (
         system:
         let
-          pkgs = nixpkgs.legacyPackages.${system};
+          pkgs = import nixpkgs {
+            inherit system;
+            overlays = [
+              (final: prev: {
+                python3 = prev.python313;
+                python3Packages = prev.python313Packages;
+              })
+            ];
+          };
         in
         {
           default = pkgs.writers.writePython3Bin "generate-global-tracker-data" {
             doCheck = false;
-            libraries = with pkgs.python313Packages; [
+            libraries = with pkgs.python3Packages; [
               pyyaml
               pathspec
               typing-extensions
