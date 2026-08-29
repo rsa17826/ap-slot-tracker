@@ -247,11 +247,9 @@ function populateGameSelect() {
     ...progKeys.map((progKey) => {
       const version = progVersion(progKey)
       const name = progGameName(progKey)
-      return newelem(
-        "option",
-        { value: progKey },
-        [version ? `${name} (v${version})` : name],
-      )
+      return newelem("option", { value: progKey }, [
+        version ? `${name} (v${version})` : name,
+      ])
     }),
   )
 
