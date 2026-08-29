@@ -430,8 +430,17 @@
               changed = true
               if (linfo.is_event) {
                 const itemName = eventItemNameFor(lname, linfo)
-                if (itemName && !eventInventory[itemName]) {
-                  eventInventory[itemName] = 1
+                if (itemName) {
+                  // Each reachable event location grants one copy of its
+                  // item -- multiple distinct locations can share the same
+                  // item name (e.g. 26 "star can be got" events all
+                  // granting "flag:starCanBeGot"), so this accumulates
+                  // rather than just flagging presence. Safe against
+                  // double-counting since `locations.has(lname)` above
+                  // ensures each location is only processed once, the
+                  // first time it becomes reachable.
+                  eventInventory[itemName] =
+                    (eventInventory[itemName] || 0) + 1
                   changed = true
                 }
               }
@@ -656,8 +665,9 @@
               changed = true
               if (linfo.is_event) {
                 const itemName = eventItemNameFor(lname, linfo)
-                if (itemName && !eventInventory[itemName]) {
-                  eventInventory[itemName] = 1
+                if (itemName) {
+                  eventInventory[itemName] =
+                    (eventInventory[itemName] || 0) + 1
                   changed = true
                 }
               }
@@ -747,6 +757,21 @@
         }
         for (const e of Object.values(graph.entrances)) walk(e.rule)
         for (const l of Object.values(graph.locations)) walk(l.rule)
+
+        // For event items, the true max is simply how many distinct event
+        // locations grant that item -- more reliable than any single rule's
+        // `count` requirement (which may ask for fewer than the total that
+        // exist, e.g. needing 13 of 26 "star can be got" flags).
+        const eventCounts = {}
+        for (const [lname, linfo] of Object.entries(graph.locations)) {
+          if (!linfo || !linfo.is_event) continue
+          const itemName = eventItemNameFor(lname, linfo)
+          eventCounts[itemName] = (eventCounts[itemName] || 0) + 1
+        }
+        for (const [name, count] of Object.entries(eventCounts)) {
+          max[name] = count
+        }
+
         return max
       }
 
@@ -1173,7 +1198,7 @@
                 ck,
                 newelem("span", { class: "name" }, [name]),
                 count,
-                maxCount > 1 && !isEvent ?
+                maxCount > 1 ?
                   newelem("span", { class: "count-max" }, [
                     `/ ${maxCount}`,
                   ])
@@ -1199,7 +1224,7 @@
           row.classList.toggle("collected", v > 0)
           row.classList.toggle(
             "maxed",
-            !isEvent && maxCount > 1 && v >= maxCount,
+            maxCount > 1 && v >= maxCount,
           )
         })
       }

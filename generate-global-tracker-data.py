@@ -142,19 +142,26 @@ def dump(multiworld, world):
         "rule": serialize_rule(entrance.access_rule),
       }
 
+    for loc in multiworld.get_locations(PLAYER):
+      data["locations"][loc.name] = {
+        "region": loc.parent_region.name if loc.parent_region else None,
+        "rule": serialize_rule(loc.access_rule),
+        "item_dependencies": list(loc.access_rule.item_dependencies()) if hasattr(loc.access_rule, "item_dependencies") else None,
+        "region_dependencies": list(loc.access_rule.region_dependencies()) if hasattr(loc.access_rule, "region_dependencies") else None,
+        # Event locations hold event items used purely for logic (e.g. "beat stageX")
+        # and are never part of the shuffled item pool. AP marks these by giving
+        # them no address (address is None) -- real, checkable locations always
+        # have an integer/tuple address assigned by the world.
+        "is_event": loc.address is None,
+        # The actual item placed at this location. Always populated for event
+        # locations (assigned immediately by add_event); for regular locations
+        # it'll be None here since real items aren't filled until a later gen
+        # step. The tracker uses this to know which item an event grants,
+        # since multiple distinct event locations can share one item name
+        # (e.g. all 26 "star can be got" events grant "flag:starCanBeGot").
+        "item": loc.item.name if loc.item else None,
+      }
 
-  for loc in multiworld.get_locations(PLAYER):
-    data["locations"][loc.name] = {
-      "region": loc.parent_region.name if loc.parent_region else None,
-      "rule": serialize_rule(loc.access_rule),
-      "item_dependencies": list(loc.access_rule.item_dependencies()) if hasattr(loc.access_rule, "item_dependencies") else None,
-      "region_dependencies": list(loc.access_rule.region_dependencies()) if hasattr(loc.access_rule, "region_dependencies") else None,
-      # Event locations hold event items used purely for logic (e.g. "beat stageX")
-      # and are never part of the shuffled item pool. AP marks these by giving
-      # them no address (address is None) -- real, checkable locations always
-      # have an integer/tuple address assigned by the world.
-      "is_event": loc.address is None,
-    }
 
   return data
 
