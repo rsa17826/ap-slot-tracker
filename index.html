@@ -119,6 +119,10 @@
             <input type="checkbox" id="hideEventsChk" />
             Hide event checks
           </label>
+          <label class="toggle-row">
+            <input type="checkbox" id="focusModeChk" />
+            Hide out-of-logic / cleared nodes
+          </label>
         </div>
 
         <div class="side-section">
@@ -222,6 +226,8 @@
       let edgesByRegion = {} // regionName -> [{path, from, to}] touching that region (for fast drag updates)
       let view = { x: 0, y: 0, scale: 1 }
       let hideEvents = false
+      let focusMode = false // hide nodes that are out-of-logic or fully collected already
+      let searchQuery = "" // lowercase; filters both the inventory list and map nodes
       let customSortFns = {} // gameKey -> function source (string)
       let reach = {
         regions: new Set(),
@@ -251,6 +257,7 @@
         canvasWrap: document.getElementById("canvasWrap"),
         emptyMsg: document.getElementById("emptyMsg"),
         hideEventsChk: document.getElementById("hideEventsChk"),
+        focusModeChk: document.getElementById("focusModeChk"),
         sortFnModal: document.getElementById("sortFnModal"),
         sortFnEditor: document.getElementById("sortFnEditor"),
         sortFnError: document.getElementById("sortFnError"),
@@ -683,6 +690,73 @@
         reach = { regions, locations, entrances }
       }
 
+      // A region counts as "cleared" (nothing left to do there) once every
+      // one of its locations is already checked. Used by focus mode to hide
+      // nodes that are either unreachable or fully cleared, so the map only
+      // shows what's actually actionable right now.
+      function isRegionCleared(rname) {
+        const region = graph.regions[rname]
+        const locs = (region && region.locations) || []
+        if (locs.length === 0) return false
+        return locs.every((lname) => checkedLocations[lname])
+      }
+
+      function isRegionVisible(rname) {
+        if (!focusMode) return true
+        if (!reach.regions.has(rname)) return false
+        if (isRegionCleared(rname)) return false
+        return true
+      }
+
+      // Region names focus mode currently allows on the map -- used both
+      // for rendering and to bias the layout functions so they only
+      // position/pack nodes that are actually visible.
+      function visibleRegionNames() {
+        const names = Object.keys(graph.regions)
+        return focusMode ? names.filter(isRegionVisible) : names
+      }
+
+      // A region matches the search box if its own name matches, or any of
+      // its locations' names do -- so searching for a check still surfaces
+      // the node that contains it.
+      function regionMatchesSearch(rname, q) {
+        if (!q) return true
+        if (rname.toLowerCase().includes(q)) return true
+        const region = graph.regions[rname]
+        const locs = (region && region.locations) || []
+        return locs.some((lname) => lname.toLowerCase().includes(q))
+      }
+
+      // Applies the current search query to both the inventory list and the
+      // map, without rebuilding any DOM -- just toggling display on
+      // already-rendered rows/nodes/edges, so it's cheap to run on every
+      // keystroke even on large graphs.
+      function applySearchFilter() {
+        const q = searchQuery
+
+        els.itemList.querySelectorAll(".item-row").forEach((row) => {
+          row.style.display =
+            row.dataset.name.toLowerCase().includes(q) ? "" : "none"
+        })
+
+        if (!graph) return
+
+        for (const [rname, node] of Object.entries(nodeEls)) {
+          node.style.display =
+            regionMatchesSearch(rname, q) ? "" : "none"
+        }
+        for (const edges of Object.values(edgesByRegion)) {
+          for (const edge of edges) {
+            const fromEl = nodeEls[edge.from]
+            const toEl = nodeEls[edge.to]
+            const fromVisible = fromEl && fromEl.style.display !== "none"
+            const toVisible = toEl && toEl.style.display !== "none"
+            edge.path.style.display =
+              fromVisible && toVisible ? "" : "none"
+          }
+        }
+      }
+
       /* ============================================================
                       DATA LOADING
                       ============================================================ */
@@ -918,12 +992,13 @@
       }
 
       function autoLayout() {
-        const names = Object.keys(graph.regions)
+        const names = visibleRegionNames()
+        const visibleSet = new Set(names)
         const start = graph.origin_region_name
         const layers = {}
-        const visited = new Set([start])
-        let frontier = [start]
-        layers[start] = 0
+        const visited = new Set(visibleSet.has(start) ? [start] : [])
+        let frontier = [...visited]
+        if (frontier.length) layers[start] = 0
         let depth = 0
         while (frontier.length) {
           const next = []
@@ -931,7 +1006,11 @@
             for (const exitName of graph.regions[rname].exits || []) {
               const e = graph.entrances[exitName]
               const target = e && e.connects_to
-              if (target && !visited.has(target)) {
+              if (
+                target &&
+                visibleSet.has(target) &&
+                !visited.has(target)
+              ) {
                 visited.add(target)
                 layers[target] = depth + 1
                 next.push(target)
@@ -951,7 +1030,6 @@
         }
         const XGAP = 300,
           YGAP = 130
-        positions = {}
         for (const [layer, list] of Object.entries(byLayer)) {
           list.forEach((n, i) => {
             positions[n] = {
@@ -1000,10 +1078,12 @@
       function runCustomLayout(gameKey, src) {
         const sortFn = compileSortFn(src) // throws on bad code
 
-        const names = Object.keys(graph.regions)
+        const names = visibleRegionNames()
 
         // Measure current on-screen node sizes (nodes must already be
-        // rendered for the active game).
+        // rendered for the active game). Only visible nodes are on-screen
+        // in focus mode, which is fine -- hidden nodes aren't being
+        // positioned this pass anyway.
         const sizes = {}
         els.nodes.querySelectorAll(".node").forEach((e) => {
           const rname = e.dataset.region
@@ -1215,6 +1295,7 @@
           }),
         )
         syncItemListUI()
+        applySearchFilter()
       }
 
       function syncItemListUI() {
@@ -1247,13 +1328,16 @@
         syncItemListUI()
         renderNodes()
         renderEdges()
+        applySearchFilter()
       }
 
       function renderNodes() {
         nodeEls = {}
         nodeSizeCache = {}
         els.nodes.replaceChildren(
-          ...Object.entries(graph.regions).map(([rname, region]) => {
+          ...Object.entries(graph.regions)
+            .filter(([rname]) => isRegionVisible(rname))
+            .map(([rname, region]) => {
             const pos = positions[rname] || { x: 0, y: 0 }
             const node = newelem(
               "div",
@@ -1306,6 +1390,12 @@
                                 ev.target.checked,
                               )
                               saveState()
+                              // In focus mode a node disappears once its
+                              // last location is checked, so a full
+                              // re-render is needed to reflect that;
+                              // otherwise the lightweight class toggle
+                              // above is enough.
+                              if (focusMode) render()
                             },
                           }),
                           newelem("span", {
@@ -1352,6 +1442,7 @@
           const to = e.connects_to
           if (!from || !to || !positions[from] || !positions[to])
             continue
+          if (!nodeEls[from] || !nodeEls[to]) continue // skip edges touching a hidden (focus-mode) node
           const p1 = centerOf(from),
             p2 = centerOf(to)
           maxX = Math.max(maxX, p1.x, p2.x)
@@ -1591,7 +1682,7 @@
           localY = clientY - rect.top
         const worldX = (localX - view.x) / view.scale
         const worldY = (localY - view.y) / view.scale
-        view.scale = Math.min(2.2, Math.max(0.15, view.scale + delta))
+        view.scale = Math.min(2.2, Math.max(0.25, view.scale + delta))
         view.x = localX - worldX * view.scale
         view.y = localY - worldY * view.scale
         applyView()
@@ -1691,11 +1782,39 @@
           render()
         })
       els.search.addEventListener("input", () => {
-        const q = els.search.value.trim().toLowerCase()
-        els.itemList.querySelectorAll(".item-row").forEach((row) => {
-          row.style.display =
-            row.dataset.name.toLowerCase().includes(q) ? "" : "none"
-        })
+        searchQuery = els.search.value.trim().toLowerCase()
+        applySearchFilter()
+      })
+      els.search.addEventListener("keydown", (ev) => {
+        if (ev.key === "Escape") {
+          ev.preventDefault()
+          ev.stopPropagation()
+          els.search.value = ""
+          searchQuery = ""
+          applySearchFilter()
+          els.search.blur()
+        } else if (ev.key === "Enter") {
+          ev.preventDefault()
+          els.search.blur()
+        }
+      })
+      // "/" focuses the search box from anywhere on the page (like a quick
+      // find), as long as the user isn't already typing into some other
+      // field or the sort-function editor.
+      document.addEventListener("keydown", (ev) => {
+        if (ev.key !== "/") return
+        if (ev.ctrlKey || ev.metaKey || ev.altKey) return
+        const active = document.activeElement
+        const isEditable =
+          active &&
+          (active.tagName === "INPUT" ||
+            active.tagName === "TEXTAREA" ||
+            active.isContentEditable)
+        if (isEditable) return
+        if (els.sortFnModal.classList.contains("visible")) return
+        ev.preventDefault()
+        els.search.focus()
+        els.search.select()
       })
       async function tryLoadFile(name) {
         if (name && db.progFiles[name]) {
@@ -1717,6 +1836,13 @@
         els.hideEventsChk.addEventListener("change", () => {
           hideEvents = els.hideEventsChk.checked
           db.hideEvents = hideEvents
+          render()
+        })
+        focusMode = db.focusMode ?? false
+        els.focusModeChk.checked = focusMode
+        els.focusModeChk.addEventListener("change", () => {
+          focusMode = els.focusModeChk.checked
+          db.focusMode = focusMode
           render()
         })
         loadCustomSortFns()
