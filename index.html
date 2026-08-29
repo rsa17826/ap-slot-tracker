@@ -52,11 +52,11 @@
             required
           />
           <input name="port" placeholder="Port" required />
-          <input
-            name="game"
-            placeholder="Game name (must match AP data package)"
-            required
-          />
+          <select id="gameSelect" name="game" required>
+            <option value="" disabled selected>
+              Select a game (load rules JSON below)
+            </option>
+          </select>
           <input
             name="playerName"
             placeholder="Your slot name"
@@ -700,11 +700,9 @@
         graph = raw
         const itemNames = collectItemNames()
         itemMaxCounts = collectItemMaxCounts(itemNames)
+        const key = progKeyFor(raw)
         const savedState = db.state ?? null
-        if (
-          savedState &&
-          savedState.gameKey === (raw.game || "unknown")
-        ) {
+        if (savedState && savedState.gameKey === key) {
           inventory = savedState.inventory || {}
           checkedLocations = savedState.checkedLocations || {}
         } else {
@@ -715,7 +713,7 @@
         for (const n of itemNames)
           if (!(n in inventory)) inventory[n] = 0
         db.layout ??= {}
-        positions = db.layout[raw.game || "unknown"] || {}
+        positions = db.layout[key] || {}
 
         els.status.textContent =
           `${Object.keys(graph.regions).length} regions · ` +
@@ -730,8 +728,10 @@
         // Publish this graph into the tracker's shared store so app.js can
         // use it for progression notifications too — the map is now the
         // single source of truth for "prog" data, replacing prog.js.
+        // Keyed by game+version so multiple rules revisions of the same
+        // game can be stored side by side.
         if (window.db) {
-          window.db.progFiles[raw.game || "unknown"] = raw
+          window.db.progFiles[key] = raw
           if (typeof renderProgFiles === "function") renderProgFiles()
           if (typeof renderSlots === "function") renderSlots()
         }
@@ -745,9 +745,13 @@
                       ============================================================ */
       async function openMapForSlot(conn) {
         setMapVisible(true)
-        if (!graph || (graph.game && graph.game !== conn.game)) {
-          if (!tryLoadFile(conn.game)) {
-            alert("error, failed to load tracker for " + conn.game)
+        if (!graph || gameKeyOf() !== conn.progKey) {
+          const ok = await tryLoadFile(conn.progKey)
+          if (!ok) {
+            alert(
+              "error, failed to load tracker for " +
+                (conn.game || conn.progKey),
+            )
           }
         }
         syncFromSlot(conn)
@@ -880,7 +884,7 @@
       }`
 
       function gameKeyOf() {
-        return graph ? graph.game || "unknown" : "unknown"
+        return graph ? progKeyFor(graph) : "unknown"
       }
 
       function compileSortFn(src) {
@@ -1452,7 +1456,7 @@
         clearTimeout(saveTimer)
         saveTimer = setTimeout(async () => {
           db.state = {
-            gameKey: graph ? graph.game || "unknown" : "unknown",
+            gameKey: graph ? progKeyFor(graph) : "unknown",
             inventory,
             checkedLocations,
           }
@@ -1463,8 +1467,7 @@
         clearTimeout(layoutTimer)
         layoutTimer = setTimeout(async () => {
           db.layout ??= {}
-          db.layout[graph ? graph.game || "unknown" : "unknown"] =
-            positions
+          db.layout[graph ? progKeyFor(graph) : "unknown"] = positions
           db.view = view
         }, 250)
       }
@@ -1497,7 +1500,7 @@
                 var text = JSON.parse(
                   await (await fh.getFile()).text(),
                 )
-                db.fileHandles[text.game] = fh
+                db.fileHandles[progKeyFor(text)] = fh
               } catch (e) {
                 error(e)
               }
@@ -1507,9 +1510,10 @@
           const text = await file.text()
           try {
             const raw = JSON.parse(text)
-            db.fileHandles[raw.game] = fh
+            const key = progKeyFor(raw)
+            db.fileHandles[key] = fh
             loadGraph(raw)
-            db.lastFile = raw.game
+            db.lastFile = key
           } catch (e) {
             alert("Could not parse JSON: " + e.message)
           }

@@ -11,13 +11,24 @@ const runtime = {} // connId -> { client, status, statusDetail, log:[], received
 // loads — regions/entrances/locations with rule trees — rather than the
 // old prog.js PROG-array format. The map writes into this store itself
 // whenever a rules JSON is loaded, so nothing else needs to upload it.
-function progForGame(game) {
-  const src = window.db.progFiles[game]
+//
+// Multiple rules files for the *same* game are allowed as long as their
+// `.version` differs (e.g. re-rolling a game's logic between releases),
+// so progFiles/fileHandles/layout are all keyed by a composite
+// "game@vVERSION" key rather than by game name alone.
+function progKeyFor(raw) {
+  const game = raw?.game || "unknown"
+  const version = raw?.version ?? "unversioned"
+  return `${game}@v${version}`
+}
+
+function progForGame(progKey) {
+  const src = window.db.progFiles[progKey]
   if (!src) return null
   try {
     return typeof src === "string" ? JSON.parse(src) : src
   } catch (e) {
-    console.error("Failed to parse map graph for", game, e)
+    console.error("Failed to parse map graph for", progKey, e)
     return null
   }
 }
@@ -110,7 +121,7 @@ function isRealLocation(graph, name) {
 }
 
 function handleReceivedItems(conn, rt, items) {
-  const graph = progForGame(conn.game)
+  const graph = progForGame(conn.progKey)
 
   items.forEach((item) => {
     rt.receivedNames.add(item.name)
@@ -176,7 +187,7 @@ function handleReceivedItems(conn, rt, items) {
 }
 
 function maybeRecomputeProgression(conn, rt) {
-  const graph = progForGame(conn.game)
+  const graph = progForGame(conn.progKey)
   if (!graph) return
   const checkedNames = checkedLocationNames(conn, rt)
   const { locations } = MapEngine.computeReachablePure(
@@ -201,6 +212,52 @@ function gamesWithProg() {
   return Object.keys(window.db.progFiles || {})
 }
 
+// Version comes from the rules JSON's own `.version` field, so each
+// loaded ruleset's dropdown entry can show which revision it is.
+function progVersion(progKey) {
+  return window.db.progFiles[progKey]?.version ?? null
+}
+
+// The actual AP protocol game name for a loaded ruleset (used to connect
+// and to look up the data package), as opposed to the composite progKey
+// used to store/select that specific version of it.
+function progGameName(progKey) {
+  return window.db.progFiles[progKey]?.game ?? progKey
+}
+
+// Keeps the "Add a slot" game <select> in sync with whatever rules JSON
+// files have been loaded, showing each entry's name + version. Distinct
+// versions of the same game each get their own option.
+function populateGameSelect() {
+  const select = document.getElementById("gameSelect")
+  if (!select) return
+  const progKeys = gamesWithProg()
+  const prevValue = select.value
+
+  select.replaceChildren(
+    newelem(
+      "option",
+      { value: "", disabled: true, selected: !prevValue },
+      [
+        progKeys.length === 0 ?
+          "Load a rules JSON below to select a game"
+        : "Select a game",
+      ],
+    ),
+    ...progKeys.map((progKey) => {
+      const version = progVersion(progKey)
+      const name = progGameName(progKey)
+      return newelem(
+        "option",
+        { value: progKey },
+        [version ? `${name} (v${version})` : name],
+      )
+    }),
+  )
+
+  if (progKeys.includes(prevValue)) select.value = prevValue
+}
+
 function renderSlots() {
   const conns = [...window.db.connections]
   if (conns.length === 0) {
@@ -216,7 +273,7 @@ function renderSlots() {
       const rt = runtime[conn.id]
       const status = rt?.status || "disconnected"
 
-      const hasProg = gamesWithProg().includes(conn.game)
+      const hasProg = gamesWithProg().includes(conn.progKey)
       return newelem("div", { class: "slot-card" }, [
         newelem(
           "div",
@@ -241,7 +298,7 @@ function renderSlots() {
               `${conn.playerName} @ ${conn.hostname}${conn.port ? ":" + conn.port : ""}`,
             ]),
             newelem("div", { class: "slot-sub" }, [
-              `${conn.game}${rt?.statusDetail ? " — " + rt.statusDetail : ""}`,
+              `${conn.game}${conn.progKey && hasProg ? " — v" + (progVersion(conn.progKey) ?? "?") : ""}${rt?.statusDetail ? " — " + rt.statusDetail : ""}`,
             ]),
           ]),
           newelem("div", { class: "slot-controls" }, [
@@ -326,23 +383,25 @@ function renderSlots() {
 }
 
 function renderProgFiles() {
-  const games = gamesWithProg()
+  const progKeys = gamesWithProg()
   progRoot.replaceChildren(
-    ...(games.length === 0 ?
+    ...(progKeys.length === 0 ?
       [
         newelem("div", { class: "empty" }, [
           'No map data yet — open a slot\'s "Show Map" and load its rules JSON there.',
         ]),
       ]
-    : games.map((game) => {
-        const g = window.db.progFiles[game]
+    : progKeys.map((progKey) => {
+        const g = window.db.progFiles[progKey]
         const regionCount =
           g?.regions ? Object.keys(g.regions).length : 0
         const locCount =
           g?.locations ? Object.keys(g.locations).length : 0
+        const version = progVersion(progKey)
+        const name = progGameName(progKey)
         return newelem("div", { class: "prog-row" }, [
           newelem("div", {}, [
-            game,
+            version ? `${name} — v${version}` : name,
             newelem("div", { class: "file-name" }, [
               `${regionCount} regions · ${locCount} locations`,
             ]),
@@ -353,7 +412,7 @@ function renderProgFiles() {
               {
                 marginRight: "8px",
                 onclick() {
-                  updateSavedText(game)
+                  updateSavedText(progKey)
                 },
               },
               ["Update"],
@@ -363,7 +422,7 @@ function renderProgFiles() {
               {
                 class: "danger",
                 onclick() {
-                  delete window.db.progFiles[game]
+                  delete window.db.progFiles[progKey]
                   renderProgFiles()
                   renderSlots()
                 },
@@ -374,6 +433,7 @@ function renderProgFiles() {
         ])
       })),
   )
+  populateGameSelect()
 }
 
 // ---------------------------------------------------------------------
@@ -384,16 +444,19 @@ document
   .addEventListener("submit", (e) => {
     e.preventDefault()
     const f = e.target
+    const progKey = f.game.value.trim()
     const conn = {
       id: Math.random().toString(36).slice(2, 10),
       hostname: f.hostname.value.trim(),
       port: f.port.value.trim(),
-      game: f.game.value.trim(),
+      game: progGameName(progKey), // actual AP protocol game name
+      progKey, // which loaded ruleset/version this slot uses for the map
       playerName: f.playerName.value.trim(),
       password: f.password.value,
       notifyMode: "all",
     }
-    if (!conn.hostname || !conn.game || !conn.playerName) return
+    if (!conn.hostname || !progKey || !conn.game || !conn.playerName)
+      return
     window.db.connections.push(conn)
     f.reset()
     renderSlots()

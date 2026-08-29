@@ -122,7 +122,14 @@ def dump(multiworld, world):
       v = "0"
 
 
-  data = {"game": GAME, "origin_region_name": world.origin_region_name, "regions": {}, "locations": {}, "entrances": {}, "version": v}
+  data = {
+    "game": GAME,
+    "version": v,
+    "origin_region_name": world.origin_region_name,
+    "regions": {},
+    "locations": {},
+    "entrances": {},
+  }
 
   for region in multiworld.get_regions(PLAYER):
     data["regions"][region.name] = {
