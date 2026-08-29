@@ -1,0 +1,48 @@
+:root {
+  --mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+}
+:root {
+  --accent-dim: #2c5b4b;
+  --accent: #5ee6b4;
+  --bg-grid: #211624;
+  --bg: #130d16;
+  --danger-dim: #3a2626;
+  --danger: #ff6b6b;
+  --event: #9b45c7;
+  --node-bg-locked: #1a1414;
+  --node-bg: #201729;
+  --panel-border: #232a38;
+  --panel: #1c121f;
+  --text-dim: #6c7688;
+  --text: #d7dbe4;
+  --warn: #f3c969;
+  --color-awde: rgba(0, 0, 0, 0.4);
+  --color-byuj: #4b5563;
+  --color-cblc: #3b82f6;
+  --color-ckyr: #111827;
+  --color-cvzr: #e0e0e0;
+  --color-cxed: #0d1320;
+  --color-efma: #10b98122;
+  --color-esou: #e5e7eb;
+  --color-eulv: #bb86fc;
+  --color-fpzi: #10b981;
+  --color-givd: #f3f4f6;
+  --color-hmty: #f59e0b;
+  --color-idka: #10b98155;
+  --color-kxct: #000;
+  --color-lmcj: #1b2230;
+  --color-lxez: #6b7280;
+  --color-nmkp: #ef4444;
+  --color-nwiq: #1e1e1e;
+  --color-ppcc: #333333;
+  --color-ptvx: #991b1b;
+  --color-rusx: #1f2937;
+  --color-saed: #121212;
+  --color-scpx: #374151;
+  --color-vzlx: rgba(0, 0, 0, 0.35);
+  --color-ygno: #03dac6;
+  --color-yhwh: rgba(94, 230, 180, 0.15);
+  --color-yzbo: #9ca3af;
+  --color-zgom: #140b17;
+  --color-ztnp: #7f1d1d;
+}

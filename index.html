@@ -7,6 +7,7 @@
       content="width=device-width, initial-scale=1.0"
     />
     <title>AP Multi-Slot Tracker</title>
+    <link rel="stylesheet" href="colors.css" />
     <link rel="stylesheet" href="style.css" />
     <link rel="stylesheet" href="./map.css" />
   </head>
@@ -99,6 +100,14 @@
         </div>
 
         <div class="side-section">
+          <h2>View</h2>
+          <label class="toggle-row">
+            <input type="checkbox" id="hideEventsChk" />
+            Hide event checks
+          </label>
+        </div>
+
+        <div class="side-section">
           <h2>Inventory</h2>
           <input
             id="search"
@@ -131,6 +140,13 @@
             <div class="swatch" style="background: var(--warn)"></div>
             location, checked off
           </div>
+          <div class="legend-row">
+            <div
+              class="swatch"
+              style="background: var(--event)"
+            ></div>
+            event check (not in item pool)
+          </div>
         </div>
       </div>
 
@@ -162,6 +178,7 @@
       let checkedLocations = {} // locationName -> bool
       let positions = {} // regionName -> {x,y}
       let view = { x: 0, y: 0, scale: 1 }
+      let hideEvents = false
       let reach = {
         regions: new Set(),
         locations: new Set(),
@@ -178,6 +195,7 @@
         edges: document.getElementById("edges"),
         canvasWrap: document.getElementById("canvasWrap"),
         emptyMsg: document.getElementById("emptyMsg"),
+        hideEventsChk: document.getElementById("hideEventsChk"),
       }
 
       /* ============================================================
@@ -211,8 +229,23 @@
             case "False_":
               return false
             case "Has":
-            case "Resolved":
               return countHave(rule.item_name) >= (rule.count ?? 1)
+            case "Resolved": {
+              if (rule.children !== undefined) {
+                return rule.children.some((c) => evalRule(c))
+              }
+              if (rule.item_name !== undefined) {
+                return countHave(rule.item_name) >= (rule.count ?? 1)
+              }
+              const names = rule.item_names || rule.items || []
+              if (rule.count !== undefined) {
+                return (
+                  names.filter((n) => countHave(n) > 0).length >=
+                  rule.count
+                )
+              }
+              return names.every((n) => countHave(n) >= 1)
+            }
             case "HasAll":
               return (rule.item_names || rule.items || []).every(
                 (n) => countHave(n) >= 1,
@@ -375,8 +408,24 @@
             return false
 
           case "Has":
-          case "Resolved":
             return countHave(rule.item_name) >= (rule.count ?? 1)
+
+          case "Resolved": {
+            if (rule.children !== undefined) {
+              return rule.children.some((c) => evalRule(c, visiting))
+            }
+            if (rule.item_name !== undefined) {
+              return countHave(rule.item_name) >= (rule.count ?? 1)
+            }
+            const names = rule.item_names || rule.items || []
+            if (rule.count !== undefined) {
+              return (
+                names.filter((n) => countHave(n) > 0).length >=
+                rule.count
+              )
+            }
+            return names.every((n) => countHave(n) >= 1)
+          }
 
           case "HasAll":
             return (rule.item_names || rule.items || []).every(
@@ -811,50 +860,62 @@
                 newelem(
                   "div",
                   { class: "node-body" },
-                  (region.locations || []).map((lname) => {
-                    const isReach = reach.locations.has(lname)
-                    const isChecked = !!checkedLocations[lname]
-                    const lrow = newelem(
-                      "label",
-                      {
-                        class:
-                          "loc-row" +
-                          (isReach ? " reachable" : "") +
-                          (isChecked ? " checked" : ""),
-                      },
-                      [
-                        newelem("input", {
-                          type: "checkbox",
-                          class: "ck",
-                          checked: isChecked,
-                          onchange(ev) {
-                            checkedLocations[lname] =
-                              ev.target.checked
-                            lrow.classList.toggle(
-                              "checked",
-                              ev.target.checked,
-                            )
-                            saveState()
-                          },
-                        }),
-                        newelem("span", {
-                          class: "dot",
-                        }),
-                        newelem(
-                          "span",
-                          {
-                            title: lname,
-                          },
-                          [
-                            lname.includes(" - ") ?
-                              lname.split(" - ").slice(1).join(" - ")
-                            : lname,
-                          ],
-                        ),
-                      ],
-                    )
-                    return lrow
-                  }),
+                  (region.locations || [])
+                    .filter((lname) => {
+                      const linfo = graph.locations[lname]
+                      const isEvent = !!(linfo && linfo.is_event)
+                      return !(hideEvents && isEvent)
+                    })
+                    .map((lname) => {
+                      const isReach = reach.locations.has(lname)
+                      const isChecked = !!checkedLocations[lname]
+                      const linfo = graph.locations[lname]
+                      const isEvent = !!(linfo && linfo.is_event)
+                      const lrow = newelem(
+                        "label",
+                        {
+                          class:
+                            "loc-row" +
+                            (isReach ? " reachable" : "") +
+                            (isChecked ? " checked" : "") +
+                            (isEvent ? " event" : ""),
+                        },
+                        [
+                          newelem("input", {
+                            type: "checkbox",
+                            class: "ck",
+                            checked: isChecked,
+                            onchange(ev) {
+                              checkedLocations[lname] =
+                                ev.target.checked
+                              lrow.classList.toggle(
+                                "checked",
+                                ev.target.checked,
+                              )
+                              saveState()
+                            },
+                          }),
+                          newelem("span", {
+                            class: "dot",
+                          }),
+                          newelem(
+                            "span",
+                            {
+                              title: lname,
+                            },
+                            [
+                              lname.includes(" - ") ?
+                                lname
+                                  .split(" - ")
+                                  .slice(1)
+                                  .join(" - ")
+                              : lname,
+                            ],
+                          ),
+                        ],
+                      )
+                      return lrow
+                    }),
                 ),
               ],
             )
@@ -1186,6 +1247,13 @@
         window.mapdb = await createDB("ap-logic-tracker")
         setupPanZoom()
         view = mapdb.view ?? { x: 40, y: 40, scale: 1 }
+        hideEvents = mapdb.hideEvents ?? false
+        els.hideEventsChk.checked = hideEvents
+        els.hideEventsChk.addEventListener("change", () => {
+          hideEvents = els.hideEventsChk.checked
+          mapdb.hideEvents = hideEvents
+          render()
+        })
         tryLoadFile(mapdb.state?.gameKey)
       })()
       async function tryLoadFile(name) {

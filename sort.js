@@ -18,8 +18,8 @@
   function sort(name) {
     if (name.startsWith("stage"))
       return {
-        x: Number(name.replace("stage", "")),
-        y: 1,
+        x: Number(name.replace("stage", "")) % 5,
+        y: 1 + ((Number(name.replace("stage", "")) / 5) | 0),
       }
 
     return { x: 0, y: 0 }
