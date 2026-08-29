@@ -229,7 +229,7 @@ svg#edges {
 .node {
   position: absolute;
   min-width: 170px;
-  max-width: 240px;
+  /* max-width: 240px; */
   background: var(--node-bg);
   border: 1.5px solid var(--danger-dim);
   border-radius: 10px;
@@ -278,7 +278,7 @@ svg#edges {
 }
 .node-body {
   padding: 4px 6px 8px;
-  max-height: 220px;
+  /* max-height: 220px; */
   overflow-y: auto;
 }
 .loc-row {
@@ -379,7 +379,7 @@ svg#edges {
 }
 .modal {
   width: min(640px, 92vw);
-  max-height: 85vh;
+  /* max-height: 85vh; */
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: 10px;

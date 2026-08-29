@@ -116,6 +116,15 @@ function stopConnection(connId) {
   renderSlots()
 }
 
+// Progression notifications only care about real, checkable locations --
+// event locations (flag/beat-stage tokens etc.) aren't in the item pool
+// and can't be "checked" by the player, so they shouldn't count toward
+// "new obtainable location(s)".
+function isRealLocation(graph, name) {
+  const linfo = graph.locations[name]
+  return !!linfo && !linfo.is_event
+}
+
 function handleReceivedItems(conn, rt, items) {
   const graph = progForGame(conn.game)
 
@@ -137,7 +146,9 @@ function handleReceivedItems(conn, rt, items) {
       checkedNames,
     )
     const nowObtainable = new Set(
-      [...locations].filter((l) => !checkedNames[l]),
+      [...locations].filter(
+        (l) => !checkedNames[l] && isRealLocation(graph, l),
+      ),
     )
     for (const key of nowObtainable) {
       if (!rt.prevObtainable.has(key)) progDeltaTokens.push(key)
@@ -187,7 +198,9 @@ function maybeRecomputeProgression(conn, rt) {
     checkedNames,
   )
   rt.prevObtainable = new Set(
-    [...locations].filter((l) => !checkedNames[l]),
+    [...locations].filter(
+      (l) => !checkedNames[l] && isRealLocation(graph, l),
+    ),
   )
 }
 
