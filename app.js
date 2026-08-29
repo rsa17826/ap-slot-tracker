@@ -300,30 +300,37 @@ function renderSlots() {
             ]),
           ]),
           newelem("div", { class: "slot-controls" }, [
-            (() => {
-              const modeSelect = newelem("select", {
+            newelem(
+              "select",
+              {
                 title:
                   hasProg ? "" : (
                     `Upload/load a rules JSON for "${conn.game}" to unlock progression-aware alerts`
                   ),
-                options: {
-                  "Notify: none": "none",
-                  "Notify: progression-unlocking only": "progression",
-                  "Notify: all (highlight progression)": "both",
-                  "Notify: all items": "all",
+                value: (conn.notifyMode ??= "all"),
+                onchange() {
+                  const idx = window.db.connections.findIndex(
+                    (c) => c.id === conn.id,
+                  )
+                  if (idx === -1) return
+                  window.db.connections[idx].notifyMode = this.value
                 },
-                value: conn.notifyMode || "all",
-              })
-              modeSelect.onchange = () => {
-                const idx = window.db.connections.findIndex(
-                  (c) => c.id === conn.id,
-                )
-                if (idx === -1) return
-                window.db.connections[idx].notifyMode =
-                  modeSelect.value
-              }
-              return modeSelect
-            })(),
+              },
+              [
+                newelem("option", { value: "none" }, [
+                  "Notify: none",
+                ]),
+                newelem("option", { value: "progression" }, [
+                  "Notify: progression-unlocking only",
+                ]),
+                newelem("option", { value: "both" }, [
+                  "Notify: all (highlight progression)",
+                ]),
+                // newelem("option", { value: "all" }, [
+                //   "Notify: all items",
+                // ]),
+              ],
+            ),
             newelem(
               "button",
               {

@@ -32,14 +32,20 @@ function newelem(type, data = {}, inside = []) {
     ).forEach((e) => {
       inside.push(
         Array.isArray(e) ?
-          newelem("option", {
-            innerHTML: e[0],
-            value: e[1],
-          })
-        : newelem("option", {
-            innerHTML: e,
-            value: e,
-          }),
+          newelem(
+            "option",
+            {
+              value: e[1],
+            },
+            [e[0]],
+          )
+        : newelem(
+            "option",
+            {
+              value: e,
+            },
+            [e],
+          ),
       )
     })
   /* -------------------------
@@ -88,6 +94,9 @@ function newelem(type, data = {}, inside = []) {
       }
     })
     elem.appendChild(frag)
+  }
+  if (data.value) {
+    elem.value = data.value
   }
   return elem
 }
