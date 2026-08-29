@@ -716,7 +716,9 @@
 
       function collectEventItemNames() {
         const set = new Set()
-        for (const [lname, linfo] of Object.entries(graph.locations)) {
+        for (const [lname, linfo] of Object.entries(
+          graph.locations,
+        )) {
           if (linfo && linfo.is_event) {
             set.add(eventItemNameFor(lname, linfo))
           }
@@ -763,7 +765,9 @@
         // `count` requirement (which may ask for fewer than the total that
         // exist, e.g. needing 13 of 26 "star can be got" flags).
         const eventCounts = {}
-        for (const [lname, linfo] of Object.entries(graph.locations)) {
+        for (const [lname, linfo] of Object.entries(
+          graph.locations,
+        )) {
           if (!linfo || !linfo.is_event) continue
           const itemName = eventItemNameFor(lname, linfo)
           eventCounts[itemName] = (eventCounts[itemName] || 0) + 1
@@ -827,10 +831,8 @@
                       an item or sends a new check, so the open map re-syncs
                       without needing "Show Map" clicked again.
                       ============================================================ */
-      let currentMapConnId = null
-
       async function openMapForSlot(conn) {
-        currentMapConnId = conn.id
+        db.currentMapConnId = conn.id
         setMapVisible(true)
         if (!graph || gameKeyOf() !== conn.progKey) {
           const ok = await tryLoadFile(conn.progKey)
@@ -848,7 +850,7 @@
       // of whether the map is even open. Only re-syncs the map if it's
       // currently showing this exact slot.
       function notifyMapOfSlotUpdate(conn) {
-        if (!conn || conn.id !== currentMapConnId) return
+        if (!conn || conn.id !== db.currentMapConnId) return
         if (!appEl.classList.contains("visible")) return
         syncFromSlot(conn)
       }
@@ -857,7 +859,7 @@
       function setMapVisible(v) {
         appEl.classList.toggle("visible", v)
         if (v) applyView()
-        else currentMapConnId = null
+        // else db.currentMapConnId = null
       }
       // Tab toggles the map overlay, except while typing in a form field
       // (so normal tab-between-fields behavior in the "Add a slot" form
@@ -1189,10 +1191,12 @@
             return newelem(
               "div",
               {
-                class:
-                  "item-row" + (isEvent ? " event-item" : ""),
+                class: "item-row" + (isEvent ? " event-item" : ""),
                 dataset: { name },
-                title: isEvent ? "Event item — auto-collected once reachable" : "",
+                title:
+                  isEvent ?
+                    "Event item — auto-collected once reachable"
+                  : "",
               },
               [
                 ck,
@@ -1216,16 +1220,16 @@
           const isEvent = eventItemNames.has(name)
           const v =
             isEvent ?
-              Math.max(inventory[name] || 0, eventInventory[name] || 0)
+              Math.max(
+                inventory[name] || 0,
+                eventInventory[name] || 0,
+              )
             : inventory[name] || 0
           const maxCount = itemMaxCounts[name] ?? 1
           row.querySelector(".ck").checked = v > 0
           row.querySelector(".count").value = v
           row.classList.toggle("collected", v > 0)
-          row.classList.toggle(
-            "maxed",
-            maxCount > 1 && v >= maxCount,
-          )
+          row.classList.toggle("maxed", maxCount > 1 && v >= maxCount)
         })
       }
 

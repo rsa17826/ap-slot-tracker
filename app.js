@@ -95,13 +95,11 @@ function startConnection(conn) {
       },
       onCheckedLocations: () => {
         maybeRecomputeProgression(conn, rt)
-        if (typeof notifyMapOfSlotUpdate === "function")
-          notifyMapOfSlotUpdate(conn)
+        notifyMapOfSlotUpdate(conn)
       },
       onItems: (items) => {
         handleReceivedItems(conn, rt, items)
-        if (typeof notifyMapOfSlotUpdate === "function")
-          notifyMapOfSlotUpdate(conn)
+        notifyMapOfSlotUpdate(conn)
       },
     },
   )
