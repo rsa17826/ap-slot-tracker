@@ -1,6 +1,0 @@
-@file index\.html$
-@regex title: "lname",
-@replace title: lname,
-@endregex
-
-
