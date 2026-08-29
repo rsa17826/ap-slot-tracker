@@ -1,7 +1,11 @@
 import sys, json, os, random
 from argparse import Namespace
 
-sys.path.insert(0, "/home/nyix/projects/Archipelago")
+if "AP_SOURCE_DIR" not in os.environ or not os.environ["AP_SOURCE_DIR"]:
+  print('AP_SOURCE_DIR must be set, eg AP_SOURCE_DIR="/home/nyix/projects/Archipelago"')
+  os._exit(1)
+
+sys.path.insert(0, os.environ["AP_SOURCE_DIR"])
 
 from worlds import AutoWorld
 from worlds.AutoWorld import AutoWorldRegister, call_all
@@ -105,7 +109,6 @@ def dump(multiworld, world):
         "connects_to": entrance.connected_region.name if entrance.connected_region else None,
         "rule": serialize_rule(entrance.access_rule),
       }
-
 
   for loc in multiworld.get_locations(PLAYER):
     data["locations"][loc.name] = {
