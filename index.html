@@ -217,6 +217,9 @@
       let itemMaxCounts = {} // itemName -> highest count ever required by a rule
       let checkedLocations = {} // locationName -> bool
       let positions = {} // regionName -> {x,y}
+      let nodeEls = {} // regionName -> node DOM element (avoids querySelector during drag)
+      let nodeSizeCache = {} // regionName -> {w,h} (cached; cleared on renderNodes)
+      let edgesByRegion = {} // regionName -> [{path, from, to}] touching that region (for fast drag updates)
       let view = { x: 0, y: 0, scale: 1 }
       let hideEvents = false
       let customSortFns = {} // gameKey -> function source (string)
@@ -1247,6 +1250,8 @@
       }
 
       function renderNodes() {
+        nodeEls = {}
+        nodeSizeCache = {}
         els.nodes.replaceChildren(
           ...Object.entries(graph.regions).map(([rname, region]) => {
             const pos = positions[rname] || { x: 0, y: 0 }
@@ -1328,6 +1333,7 @@
               ],
             )
             makeDraggable(node, rname)
+            nodeEls[rname] = node
             return node
           }),
         )
@@ -1336,6 +1342,7 @@
       function renderEdges() {
         const svg = els.edges
         svg.innerHTML = ""
+        edgesByRegion = {}
         const ns = "http://www.w3.org/2000/svg"
         let maxX = 0,
           maxY = 0
@@ -1351,9 +1358,7 @@
           maxY = Math.max(maxY, p1.y, p2.y)
 
           const path = document.createElementNS(ns, "path")
-          const dx = (p2.x - p1.x) * 0.5
-          const d = `M ${p1.x} ${p1.y} C ${p1.x + dx} ${p1.y}, ${p2.x - dx} ${p2.y}, ${p2.x} ${p2.y}`
-          path.setAttribute("d", d)
+          setEdgePath(path, p1, p2)
           path.setAttribute("fill", "none")
           const traversable = reach.entrances.has(ename)
           path.setAttribute(
@@ -1365,9 +1370,31 @@
             path.setAttribute("stroke-dasharray", "4 4")
           path.setAttribute("opacity", traversable ? "0.9" : "0.45")
           svg.appendChild(path)
+
+          const edgeEntry = { path, from, to }
+          ;(edgesByRegion[from] ||= []).push(edgeEntry)
+          if (to !== from) (edgesByRegion[to] ||= []).push(edgeEntry)
         }
         svg.setAttribute("width", maxX + 400 + "px")
         svg.setAttribute("height", maxY + 400 + "px")
+      }
+
+      function setEdgePath(path, p1, p2) {
+        const dx = (p2.x - p1.x) * 0.5
+        const d = `M ${p1.x} ${p1.y} C ${p1.x + dx} ${p1.y}, ${p2.x - dx} ${p2.y}, ${p2.x} ${p2.y}`
+        path.setAttribute("d", d)
+      }
+
+      // Fast path used while dragging a single node: only recompute the
+      // handful of edges touching that region instead of rebuilding the
+      // whole SVG (which is O(edges) and was the source of the slowdown
+      // on large graphs with 1000+ regions/edges).
+      function updateEdgesForRegion(rname) {
+        const edges = edgesByRegion[rname]
+        if (!edges) return
+        for (const { path, from, to } of edges) {
+          setEdgePath(path, centerOf(from), centerOf(to))
+        }
       }
 
       function findRegionForEntrance(ename) {
@@ -1379,12 +1406,16 @@
 
       function centerOf(rname) {
         const pos = positions[rname] || { x: 0, y: 0 }
-        const node = els.nodes.querySelector(
-          `[data-region="${cssEscape(rname)}"]`,
-        )
-        const w = node ? node.offsetWidth : 190
-        const h = node ? node.offsetHeight : 40
-        return { x: pos.x + w, y: pos.y + h / 2 } // right edge, roughly vertical center
+        let size = nodeSizeCache[rname]
+        if (!size) {
+          const node = nodeEls[rname]
+          size =
+            node ?
+              { w: node.offsetWidth, h: node.offsetHeight }
+            : { w: 190, h: 40 }
+          nodeSizeCache[rname] = size
+        }
+        return { x: pos.x + size.w, y: pos.y + size.h / 2 } // right edge, roughly vertical center
       }
 
       function escapeHtml(s) {
@@ -1440,7 +1471,7 @@
           positions[rname] = { x: origX + dx, y: origY + dy }
           node.style.left = positions[rname].x + "px"
           node.style.top = positions[rname].y + "px"
-          renderEdges()
+          updateEdgesForRegion(rname)
           ev.stopPropagation()
         })
         node.addEventListener("pointerup", (ev) => {
