@@ -155,8 +155,8 @@
     <script src="./indexeddbProxy.js"></script>
     <script>
       /* ============================================================
-          STATE
-          ============================================================ */
+                STATE
+                ============================================================ */
       let graph = null // parsed rules JSON
       let inventory = {} // itemName -> count (int)
       let checkedLocations = {} // locationName -> bool
@@ -181,13 +181,13 @@
       }
 
       /* ============================================================
-          RULE EVALUATION
-          Handles the rule_builder tree shape produced by the exporter:
-          { "type": "Has"|"And"|"Or"|"True_"|... , ...fields }
-          Falls back to permissive (true) for unrecognized shapes so a
-          single unmapped rule type doesn't lock out an entire branch
-          silently -- unresolved rules are logged to console once.
-          ============================================================ */
+                RULE EVALUATION
+                Handles the rule_builder tree shape produced by the exporter:
+                { "type": "Has"|"And"|"Or"|"True_"|... , ...fields }
+                Falls back to permissive (true) for unrecognized shapes so a
+                single unmapped rule type doesn't lock out an entire branch
+                silently -- unresolved rules are logged to console once.
+                ============================================================ */
       const warnedTypes = new Set()
       function warnOnce(t) {
         if (!warnedTypes.has(t)) {
@@ -321,9 +321,9 @@
       }
 
       /* ============================================================
-          REACHABILITY (fixed point over regions/entrances/locations,
-          needed because CanReachX rules can reference other regions)
-          ============================================================ */
+                REACHABILITY (fixed point over regions/entrances/locations,
+                needed because CanReachX rules can reference other regions)
+                ============================================================ */
       function computeReachability() {
         const regionNames = Object.keys(graph.regions)
         const startRegion = graph.origin_region_name
@@ -376,8 +376,8 @@
       }
 
       /* ============================================================
-          DATA LOADING
-          ============================================================ */
+                DATA LOADING
+                ============================================================ */
       function collectItemNames() {
         const names = new Set()
         function walk(rule) {
@@ -434,8 +434,8 @@
         saveState()
       }
       /* ============================================================
-          LAYOUT (simple auto layout: BFS layers from start region)
-          ============================================================ */
+                LAYOUT (simple auto layout: BFS layers from start region)
+                ============================================================ */
       function layoutIfNeeded() {
         const names = Object.keys(graph.regions)
         const missing = names.some((n) => !positions[n])
@@ -489,8 +489,8 @@
       }
 
       /* ============================================================
-          RENDER
-          ============================================================ */
+                RENDER
+                ============================================================ */
       function buildItemList(itemNames) {
         els.itemList.replaceChildren(
           ...itemNames.map((name) =>
@@ -554,51 +554,77 @@
       }
 
       function renderNodes() {
-        els.nodes.innerHTML = ""
-        for (const [rname, region] of Object.entries(graph.regions)) {
-          const pos = positions[rname] || { x: 0, y: 0 }
-          const node = document.createElement("div")
-          node.className =
-            "node" + (reach.regions.has(rname) ? " reachable" : "")
-          node.style.left = pos.x + "px"
-          node.style.top = pos.y + "px"
-          node.dataset.region = rname
-
-          const head = document.createElement("div")
-          head.className = "node-head"
-          head.innerHTML = `<span class="dot"></span><span>${escapeHtml(rname)}</span>`
-          node.appendChild(head)
-
-          const body = document.createElement("div")
-          body.className = "node-body"
-          for (const lname of region.locations || []) {
-            const isReach = reach.locations.has(lname)
-            const isChecked = !!checkedLocations[lname]
-            const lrow = document.createElement("label")
-            lrow.className =
-              "loc-row" +
-              (isReach ? " reachable" : "") +
-              (isChecked ? " checked" : "")
-            const shortName =
-              lname.includes(" - ") ?
-                lname.split(" - ").slice(1).join(" - ")
-              : lname
-            lrow.innerHTML = `<input type="checkbox" class="ck">
-               <span class="dot"></span><span title="${escapeHtml(lname)}">${escapeHtml(shortName)}</span>`
-            lrow.querySelector(".ck").checked = isChecked
-            lrow
-              .querySelector(".ck")
-              .addEventListener("change", (e) => {
-                checkedLocations[lname] = e.target.checked
-                lrow.classList.toggle("checked", e.target.checked)
-                saveState()
-              })
-            body.appendChild(lrow)
-          }
-          node.appendChild(body)
-          makeDraggable(node, rname)
-          els.nodes.appendChild(node)
-        }
+        els.nodes.replaceChildren(
+          ...Object.entries(graph.regions).map(([rname, region]) => {
+            const pos = positions[rname] || { x: 0, y: 0 }
+            return newelem(
+              "div",
+              {
+                class:
+                  "node" +
+                  (reach.regions.has(rname) ? " reachable" : ""),
+                left: pos.x + "px",
+                top: pos.y + "px",
+                dataset: { region: rname },
+              },
+              [
+                newelem("div", { class: "node-head" }, [
+                  newelem("span", { class: "dot" }),
+                  rname,
+                ]),
+                newelem(
+                  "div",
+                  { class: "node-body" },
+                  (region.locations || []).map((lname) => {
+                    const isReach = reach.locations.has(lname)
+                    const isChecked = !!checkedLocations[lname]
+                    const lrow = newelem(
+                      "label",
+                      {
+                        class:
+                          "loc-row" +
+                          (isReach ? " reachable" : "") +
+                          (isChecked ? " checked" : ""),
+                      },
+                      [
+                        newelem("input", {
+                          type: "checkbox",
+                          class: "ck",
+                          checked: isChecked,
+                          onchange() {
+                            checkedLocations[lname] = e.target.checked
+                            lrow.classList.toggle(
+                              "checked",
+                              e.target.checked,
+                            )
+                            saveState()
+                          },
+                        }),
+                        newelem("span", {
+                          class: "dot",
+                        }),
+                        newelem(
+                          "span",
+                          {
+                            title: "lname",
+                          },
+                          [
+                            lname.includes(" - ") ?
+                              lname.split(" - ").slice(1).join(" - ")
+                            : lname,
+                          ],
+                        ),
+                      ],
+                    )
+                    return lrow
+                  }),
+                ),
+              ],
+            )
+            makeDraggable(node, rname)
+            els.nodes.appendChild(node)
+          }),
+        )
       }
 
       function renderEdges() {
@@ -673,8 +699,8 @@
       }
 
       /* ============================================================
-          DRAG (nodes) + PAN/ZOOM (canvas)
-          ============================================================ */
+                DRAG (nodes) + PAN/ZOOM (canvas)
+                ============================================================ */
       function makeDraggable(node, rname) {
         let dragging = false,
           startX = 0,
@@ -793,8 +819,8 @@
       }
 
       /* ============================================================
-          PERSISTENCE
-          ============================================================ */
+                PERSISTENCE
+                ============================================================ */
       let saveTimer = null
       function saveState() {
         clearTimeout(saveTimer)
@@ -818,8 +844,8 @@
       }
 
       /* ============================================================
-          WIRE UP UI
-          ============================================================ */
+                WIRE UP UI
+                ============================================================ */
       document
         .getElementById("loadBtn")
         .addEventListener("click", async () => {
