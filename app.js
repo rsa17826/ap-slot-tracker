@@ -23,15 +23,31 @@ async function initDB() {
 // ---------------------------------------------------------------------
 const runtime = {} // connId -> { client, status, statusDetail, log:[], receivedNames:Set, prevObtainable:Set }
 
+// "progFiles" now holds the same rules-JSON graph the map (index.html)
+// loads — regions/entrances/locations with rule trees — rather than the
+// old prog.js PROG-array format. The map writes into this store itself
+// whenever a rules JSON is loaded, so nothing else needs to upload it.
 function progForGame(game) {
   const src = window.db.progFiles[game]
   if (!src) return null
   try {
-    return ProgLib.parseProgSource(src)
+    return typeof src === "string" ? JSON.parse(src) : src
   } catch (e) {
-    console.error("Failed to parse prog file for", game, e)
+    console.error("Failed to parse map graph for", game, e)
     return null
   }
+}
+
+// Maps this slot's checked AP location ids to the "Room - Token" names the
+// map graph uses, via the data package the client already downloaded.
+function checkedLocationNames(conn, rt) {
+  const idToName = rt.client.locationIdToName?.[conn.game] || {}
+  const out = {}
+  for (const id of rt.client.checkedLocations || []) {
+    const name = idToName[id]
+    if (name) out[name] = true
+  }
+  return out
 }
 
 function notify(title, body) {
@@ -57,6 +73,7 @@ function startConnection(conn) {
     statusDetail: "",
     log: [],
     receivedNames: new Set(),
+    receivedCounts: {}, // itemName -> count, for Has(count) rules in the map graph
     prevObtainable: new Set(),
   }
   runtime[conn.id] = rt
@@ -100,26 +117,26 @@ function stopConnection(connId) {
 }
 
 function handleReceivedItems(conn, rt, items) {
-  const prog = progForGame(conn.game)
+  const graph = progForGame(conn.game)
 
-  items.forEach((item) => rt.receivedNames.add(item.name))
+  items.forEach((item) => {
+    rt.receivedNames.add(item.name)
+    rt.receivedCounts[item.name] = (rt.receivedCounts[item.name] || 0) + 1
+  })
 
   // Figure out, per item, whether it opened up anything new — only
-  // meaningful if a prog file exists for this game.
+  // meaningful if a map graph has been loaded for this game.
   let anyNewProgression = false
   let progDeltaTokens = []
-  if (prog) {
-    const owned = ProgLib.ownedFromSlot(
-      prog,
-      rt.receivedNames,
-      rt.client.slotData,
-      rt.client.checkedLocations,
+  if (graph) {
+    const checkedNames = checkedLocationNames(conn, rt)
+    const { locations } = MapEngine.computeReachablePure(
+      graph,
+      rt.receivedCounts,
+      checkedNames,
     )
-    const nowObtainable = ProgLib.obtainableNow(
-      prog,
-      owned,
-      rt.client.slotData,
-      rt.client.checkedLocations,
+    const nowObtainable = new Set(
+      [...locations].filter((l) => !checkedNames[l]),
     )
     for (const key of nowObtainable) {
       if (!rt.prevObtainable.has(key)) progDeltaTokens.push(key)
@@ -160,19 +177,16 @@ function handleReceivedItems(conn, rt, items) {
 }
 
 function maybeRecomputeProgression(conn, rt) {
-  const prog = progForGame(conn.game)
-  if (!prog) return
-  const owned = ProgLib.ownedFromSlot(
-    prog,
-    rt.receivedNames,
-    rt.client.slotData,
-    rt.client.checkedLocations,
+  const graph = progForGame(conn.game)
+  if (!graph) return
+  const checkedNames = checkedLocationNames(conn, rt)
+  const { locations } = MapEngine.computeReachablePure(
+    graph,
+    rt.receivedCounts,
+    checkedNames,
   )
-  rt.prevObtainable = ProgLib.obtainableNow(
-    prog,
-    owned,
-    rt.client.slotData,
-    rt.client.checkedLocations,
+  rt.prevObtainable = new Set(
+    [...locations].filter((l) => !checkedNames[l]),
   )
 }
 
@@ -206,7 +220,7 @@ function renderSlots() {
         newelem(
           "div",
           { class: "slot-log" },
-          (rt?.log || []).map((entry) => {
+          (rt?.log || []).map((entry) =>
             newelem(
               "div",
               { class: `row${entry.prog ? " new-prog" : ""}` },
@@ -216,8 +230,8 @@ function renderSlots() {
                 : null,
                 entry.text,
               ],
-            )
-          }),
+            ),
+          ),
         ),
         newelem("div", { class: "slot-top" }, [
           newelem("div", {}, [
@@ -291,8 +305,11 @@ function renderSlots() {
               "button",
               {
                 onclick: async (e) => {
-                  log(conn.game)
-                  tryLoadFile(conn.game)
+                  // Defined in index.html's map script: loads this game's
+                  // rules JSON (if already known) and syncs the map's
+                  // inventory/checked-locations from this slot's live AP
+                  // state.
+                  await openMapForSlot(conn)
                 },
               },
               ["Show Map"],
@@ -310,29 +327,32 @@ function renderProgFiles() {
     ...(games.length === 0 ?
       [
         newelem("div", { class: "empty" }, [
-          "No progression files uploaded yet.",
+          'No map data yet — open a slot\'s "Show Map" and load its rules JSON there.',
         ]),
       ]
     : games.map((game) => {
-        newelem("div", { class: "prog-row" }, [
+        const g = window.db.progFiles[game]
+        const regionCount = g?.regions ? Object.keys(g.regions).length : 0
+        const locCount = g?.locations ? Object.keys(g.locations).length : 0
+        return newelem("div", { class: "prog-row" }, [
           newelem("div", {}, [
             game,
             newelem("div", { class: "file-name" }, [
-              `${(window.db.progFiles[game] || "").length} chars loaded`,
+              `${regionCount} regions · ${locCount} locations`,
             ]),
-            newelem(
-              "button",
-              {
-                class: "danger",
-                onclick() {
-                  delete window.db.progFiles[game]
-                  renderProgFiles()
-                  renderSlots()
-                },
-              },
-              ["Remove"],
-            ),
           ]),
+          newelem(
+            "button",
+            {
+              class: "danger",
+              onclick() {
+                delete window.db.progFiles[game]
+                renderProgFiles()
+                renderSlots()
+              },
+            },
+            ["Remove"],
+          ),
         ])
       })),
   )

@@ -79,7 +79,6 @@
     <script src="newelem.js"></script>
     <script src="indexeddbProxy.js"></script>
     <script src="apMulti.js"></script>
-    <script src="prog.js"></script>
     <script src="app.js"></script>
 
     <div id="app">
@@ -137,6 +136,7 @@
 
       <div id="canvasWrap">
         <div id="topbar">
+          <button id="closeMapBtn">✕ close (Tab)</button>
           <button id="zoomIn">＋</button>
           <button id="zoomOut">－</button>
           <button id="zoomReset">reset view</button>
@@ -179,6 +179,151 @@
         canvasWrap: document.getElementById("canvasWrap"),
         emptyMsg: document.getElementById("emptyMsg"),
       }
+
+      /* ============================================================
+                MAP ENGINE (headless)
+                A pure, side-effect-free copy of the reachability logic
+                below, callable with an arbitrary graph/inventory/checked
+                map. This is what app.js uses (as window.MapEngine) to
+                compute per-slot progression, replacing the old prog.js —
+                the map's own rules-JSON format is now the single source
+                of truth for progression logic.
+                ============================================================ */
+      function computeReachablePure(graph, inventory, checkedLocations) {
+        function countHave(name) {
+          return inventory[name] || 0
+        }
+        let reach = {
+          regions: new Set([graph.origin_region_name]),
+          locations: new Set(),
+          entrances: new Set(),
+        }
+        function evalRule(rule) {
+          if (rule === null || rule === undefined) return true
+          if (typeof rule === "boolean") return rule
+          switch (rule.type) {
+            case "True_":
+              return true
+            case "False_":
+              return false
+            case "Has":
+              return countHave(rule.item_name) >= (rule.count ?? 1)
+            case "HasAll":
+              return (rule.item_names || rule.items || []).every(
+                (n) => countHave(n) >= 1,
+              )
+            case "HasAny":
+              return (rule.item_names || rule.items || []).some(
+                (n) => countHave(n) >= 1,
+              )
+            case "HasAllCounts": {
+              const counts = rule.item_counts || rule.counts || {}
+              return Object.entries(counts).every(
+                ([n, c]) => countHave(n) >= c,
+              )
+            }
+            case "HasAnyCount": {
+              const need = rule.count ?? 1
+              return (rule.item_names || rule.items || []).some(
+                (n) => countHave(n) >= need,
+              )
+            }
+            case "HasFromList": {
+              const need = rule.count ?? 1
+              const names = rule.item_names || rule.items || []
+              const have = names.reduce(
+                (s, n) => s + (countHave(n) > 0 ? 1 : 0),
+                0,
+              )
+              return have >= need
+            }
+            case "HasFromListUnique": {
+              const need = rule.count ?? 1
+              const names = rule.item_names || rule.items || []
+              return names.filter((n) => countHave(n) > 0).length >= need
+            }
+            case "HasGroup": {
+              const need = rule.count ?? 1
+              const groupItems = rule.items || rule.group_items || []
+              return (
+                groupItems.reduce((s, n) => s + countHave(n), 0) >= need
+              )
+            }
+            case "HasGroupUnique": {
+              const need = rule.count ?? 1
+              const groupItems = rule.items || rule.group_items || []
+              return (
+                groupItems.filter((n) => countHave(n) > 0).length >= need
+              )
+            }
+            case "And":
+              return (rule.rules || rule.sub_rules || []).every((r) =>
+                evalRule(r),
+              )
+            case "Or":
+              return (rule.rules || rule.sub_rules || []).some((r) =>
+                evalRule(r),
+              )
+            case "AtLeast": {
+              const need = rule.count ?? 1
+              const subs = rule.rules || rule.sub_rules || []
+              return subs.filter((r) => evalRule(r)).length >= need
+            }
+            case "Filtered":
+            case "WrapperRule":
+              return evalRule(rule.rule || rule.wrapped || rule.sub_rule)
+            case "CanReachRegion":
+              return reach.regions.has(rule.region_name || rule.name)
+            case "CanReachLocation":
+              return reach.locations.has(rule.location_name || rule.name)
+            case "CanReachEntrance":
+              return reach.entrances.has(rule.entrance_name || rule.name)
+            default:
+              return true // permissive fallback, matches the UI evaluator
+          }
+        }
+
+        const regionNames = Object.keys(graph.regions)
+        let regions = new Set([graph.origin_region_name])
+        let entrances = new Set()
+        let locations = new Set()
+        for (let iter = 0; iter < 12; iter++) {
+          let changed = false
+          reach = { regions, locations, entrances }
+          for (const rname of regionNames) {
+            if (!regions.has(rname)) continue
+            const region = graph.regions[rname]
+            for (const exitName of region.exits || []) {
+              const einfo = graph.entrances[exitName]
+              if (!einfo) continue
+              if (evalRule(einfo.rule)) {
+                if (!entrances.has(exitName)) {
+                  entrances.add(exitName)
+                  changed = true
+                }
+                if (
+                  einfo.connects_to &&
+                  !regions.has(einfo.connects_to)
+                ) {
+                  regions.add(einfo.connects_to)
+                  changed = true
+                }
+              }
+            }
+          }
+          if (!changed) break
+        }
+        reach = { regions, locations, entrances }
+        for (const [lname, linfo] of Object.entries(graph.locations)) {
+          // "locations" here means reachable, regardless of checked state —
+          // callers filter out already-checked ones themselves.
+          if (regions.has(linfo.region) && evalRule(linfo.rule)) {
+            locations.add(lname)
+          }
+        }
+        return { regions, locations, entrances }
+      }
+      window.MapEngine = { computeReachablePure }
 
       /* ============================================================
                 RULE EVALUATION
@@ -432,6 +577,78 @@
         layoutIfNeeded()
         render()
         saveState()
+
+        // Publish this graph into the tracker's shared store so app.js can
+        // use it for progression notifications too — the map is now the
+        // single source of truth for "prog" data, replacing prog.js.
+        if (window.db) {
+          window.db.progFiles[raw.game || "unknown"] = raw
+          if (typeof renderProgFiles === "function") renderProgFiles()
+          if (typeof renderSlots === "function") renderSlots()
+        }
+      }
+
+      /* ============================================================
+                SLOT <-> MAP SYNC
+                Lets the tracker's "Show Map" button open the map already
+                populated with a live slot's received items and checked
+                locations, instead of the manual checkbox-only inventory.
+                ============================================================ */
+      async function openMapForSlot(conn) {
+        setMapVisible(true)
+        if (!graph || (graph.game && graph.game !== conn.game)) {
+          await tryLoadFile(conn.game)
+        }
+        syncFromSlot(conn)
+      }
+
+      const appEl = document.getElementById("app")
+      function setMapVisible(v) {
+        appEl.classList.toggle("visible", v)
+        if (v) applyView()
+      }
+      // Tab toggles the map overlay, except while typing in a form field
+      // (so normal tab-between-fields behavior in the "Add a slot" form
+      // still works).
+      document.addEventListener("keydown", (ev) => {
+        if (ev.key !== "Tab") return
+        const tag = ev.target.tagName
+        if (
+          tag === "INPUT" ||
+          tag === "TEXTAREA" ||
+          tag === "SELECT" ||
+          ev.target.isContentEditable
+        )
+          return
+        ev.preventDefault()
+        setMapVisible(!appEl.classList.contains("visible"))
+      })
+
+      function syncFromSlot(conn) {
+        // `runtime` is app.js's connId -> {client, receivedCounts, ...} map;
+        // shared global scope means it's directly visible here.
+        const rt = typeof runtime !== "undefined" ? runtime[conn.id] : null
+        if (!rt || !rt.client || !graph) {
+          applyView()
+          return
+        }
+
+        for (const n of Object.keys(inventory)) inventory[n] = 0
+        for (const [name, count] of Object.entries(
+          rt.receivedCounts || {},
+        )) {
+          inventory[name] = count
+        }
+
+        const idToName = rt.client.locationIdToName?.[conn.game] || {}
+        checkedLocations = {}
+        for (const id of rt.client.checkedLocations || []) {
+          const lname = idToName[id]
+          if (lname) checkedLocations[lname] = true
+        }
+
+        syncItemListUI()
+        onInventoryChange()
       }
       /* ============================================================
                 LAYOUT (simple auto layout: BFS layers from start region)
@@ -557,7 +774,7 @@
         els.nodes.replaceChildren(
           ...Object.entries(graph.regions).map(([rname, region]) => {
             const pos = positions[rname] || { x: 0, y: 0 }
-            return newelem(
+            const node = newelem(
               "div",
               {
                 class:
@@ -591,11 +808,11 @@
                           type: "checkbox",
                           class: "ck",
                           checked: isChecked,
-                          onchange() {
-                            checkedLocations[lname] = e.target.checked
+                          onchange(ev) {
+                            checkedLocations[lname] = ev.target.checked
                             lrow.classList.toggle(
                               "checked",
-                              e.target.checked,
+                              ev.target.checked,
                             )
                             saveState()
                           },
@@ -622,7 +839,7 @@
               ],
             )
             makeDraggable(node, rname)
-            els.nodes.appendChild(node)
+            return node
           }),
         )
       }
@@ -707,16 +924,24 @@
           startY = 0,
           origX = 0,
           origY = 0
+        function stopDragging() {
+          if (!dragging) return
+          dragging = false
+          document.body.style.userSelect = ""
+          saveLayout()
+        }
         node.addEventListener("pointerdown", (ev) => {
           if (ev.target.closest(".ck")) return
           dragging = true
           node.setPointerCapture(ev.pointerId)
+          document.body.style.userSelect = "none"
           startX = ev.clientX
           startY = ev.clientY
           const pos = positions[rname] || { x: 0, y: 0 }
           origX = pos.x
           origY = pos.y
           ev.stopPropagation()
+          ev.preventDefault()
         })
         node.addEventListener("pointermove", (ev) => {
           if (!dragging) return
@@ -729,11 +954,14 @@
           ev.stopPropagation()
         })
         node.addEventListener("pointerup", (ev) => {
-          if (!dragging) return
-          dragging = false
-          saveLayout()
+          try {
+            node.releasePointerCapture(ev.pointerId)
+          } catch (e) {}
+          stopDragging()
           ev.stopPropagation()
         })
+        node.addEventListener("pointercancel", stopDragging)
+        node.addEventListener("lostpointercapture", stopDragging)
       }
 
       function setupPanZoom() {
@@ -742,28 +970,43 @@
           sy = 0,
           ox = 0,
           oy = 0
+        function stopPanning() {
+          if (!panning) return
+          panning = false
+          els.canvasWrap.classList.remove("panning")
+          document.body.style.userSelect = ""
+          saveLayout()
+        }
         els.canvasWrap.addEventListener("pointerdown", (ev) => {
           if (ev.target.closest(".node")) return
           panning = true
           els.canvasWrap.classList.add("panning")
+          els.canvasWrap.setPointerCapture(ev.pointerId)
+          document.body.style.userSelect = "none"
           sx = ev.clientX
           sy = ev.clientY
           ox = view.x
           oy = view.y
+          ev.preventDefault()
         })
-        window.addEventListener("pointermove", (ev) => {
+        els.canvasWrap.addEventListener("pointermove", (ev) => {
           if (!panning) return
           view.x = ox + (ev.clientX - sx)
           view.y = oy + (ev.clientY - sy)
           applyView()
         })
-        window.addEventListener("pointerup", () => {
-          if (panning) {
-            panning = false
-            els.canvasWrap.classList.remove("panning")
-            saveLayout()
-          }
+        els.canvasWrap.addEventListener("pointerup", (ev) => {
+          try {
+            els.canvasWrap.releasePointerCapture(ev.pointerId)
+          } catch (e) {}
+          stopPanning()
         })
+        els.canvasWrap.addEventListener("pointercancel", stopPanning)
+        els.canvasWrap.addEventListener("lostpointercapture", stopPanning)
+        // Safety net: if the pointer is released anywhere outside the
+        // canvas (or capture is somehow lost), don't leave panning stuck.
+        window.addEventListener("pointerup", stopPanning)
+        window.addEventListener("blur", stopPanning)
         els.canvasWrap.addEventListener(
           "wheel",
           (ev) => {
@@ -774,6 +1017,9 @@
           { passive: false },
         )
 
+        document
+          .getElementById("closeMapBtn")
+          .addEventListener("click", () => setMapVisible(false))
         document
           .getElementById("zoomIn")
           .addEventListener("click", () =>
