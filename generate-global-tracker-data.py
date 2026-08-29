@@ -106,13 +106,23 @@ def build_world(seed=None):
 
 
 def dump(multiworld, world):
-  data = {
-    "game": GAME,
-    "origin_region_name": world.origin_region_name,
-    "regions": {},
-    "locations": {},
-    "entrances": {},
-  }
+  v = world.world_version
+  try:
+    if v.major != 0 and v.minor == 0 and v.build == 0:
+      v = v[0]
+    else:
+      v = f"{v.major},{v.minor},{v.build}"
+
+
+  except Exception:
+    try:
+      v = f"{v.major},{v.minor},{v.build}"
+
+    except Exception:
+      v = "0"
+
+
+  data = {"game": GAME, "origin_region_name": world.origin_region_name, "regions": {}, "locations": {}, "entrances": {}, "version": v}
 
   for region in multiworld.get_regions(PLAYER):
     data["regions"][region.name] = {
@@ -145,23 +155,7 @@ def dump(multiworld, world):
 if __name__ == "__main__":
   multiworld, world = build_world(seed=0)
   data = dump(multiworld, world)
-  v = world.world_version
-  try:
-    if v.major != 0 and v.minor == 0 and v.build == 0:
-      v = v[0]
-    else:
-      v = f"{v.major},{v.minor},{v.build}"
-
-
-  except Exception:
-    try:
-      v = f"{v.major},{v.minor},{v.build}"
-
-    except Exception:
-      v = "0"
-
-
-  with open(os.path.join(TRACKER_FILE_OUT_DIR, f"{GAME}_tracker_rules_{v}.json"), "w") as f:
+  with open(os.path.join(TRACKER_FILE_OUT_DIR, f"{GAME}_tracker_rules_{data['version']}.json"), "w") as f:
     json.dump(data, f, indent=2)
 
   print("\n\nSUCCESS\nwrote tracker_rules.json")
