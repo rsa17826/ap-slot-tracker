@@ -15,6 +15,7 @@
     <script>
       Object.assign(window, console)
     </script>
+    <script src="./a.js"></script>
     <header>
       <div>
         <h1>Archipelago Multi-Slot Tracker</h1>
@@ -1495,7 +1496,7 @@
           try {
             const raw = JSON.parse(text)
             db.fileHandles[raw.game] = fh
-            await loadGraph(raw)
+            loadGraph(raw)
             db.lastFile = raw.game
           } catch (e) {
             alert("Could not parse JSON: " + e.message)
@@ -1535,7 +1536,7 @@
               ),
             )
           } catch (e) {
-            getfileperms(db.fileHandles[name]).then(async (e) => {
+            a.getfileperms(db.fileHandles[name]).then(async (e) => {
               loadGraph(
                 JSON.parse(
                   await (await db.fileHandles[name].getFile()).text(),
@@ -1548,14 +1549,8 @@
       }
       ;(async () => {
         window.db = await createDB("ap_tracker")
-        if (!Array.isArray(window.db.connections))
-          window.db.connections = []
-        if (
-          typeof window.db.progFiles !== "object" ||
-          window.db.progFiles === null
-        ) {
-          window.db.progFiles = {}
-        }
+        window.db.connections ??= []
+        window.db.progFiles ??= {}
         setupPanZoom()
         view = db.view ?? { x: 40, y: 40, scale: 1 }
         hideEvents = db.hideEvents ?? false
@@ -1573,85 +1568,6 @@
         // Auto-reconnect any saved slots
         window.db.connections.forEach((conn) => startConnection(conn))
       })()
-      async function getfileperms(fileHandle, readWrite) {
-        const options = {}
-        if (readWrite) {
-          options.mode = "readwrite"
-        }
-        try {
-          return (
-            (await fileHandle.queryPermission(options)) ===
-              "granted" ||
-            (await fileHandle.requestPermission(options)) ===
-              "granted"
-          )
-        } catch (e) {
-          await waitforclick()
-          return (
-            (await fileHandle.queryPermission(options)) ===
-              "granted" ||
-            (await fileHandle.requestPermission(options)) ===
-              "granted"
-          )
-        }
-      }
-      async function waitforclick(fileHandle, readWrite) {
-        return new Promise((resolve) => {
-          var listener = a.listen(
-            window,
-            "click",
-            () => {
-              a.unlisten(listener)
-              resolve()
-            },
-            true,
-          )
-        })
-      }
-      function listen(elem, type, cb, istrue = false) {
-        var all = []
-        if (a.gettype(elem, "array")) {
-          return [...elem].map(listen).flat()
-        } else {
-          return listen(elem)
-        }
-        function listen(elem) {
-          if (a.gettype(type, "array")) {
-            var temp = {}
-            a.foreach(type, (e) => (temp[e] = cb))
-            type = temp
-          }
-          if (a.gettype(type, "object")) {
-            istrue = cb
-            a.foreach(type, function (type, cb) {
-              if (a.gettype(type, "string"))
-                type = a.matchall(type, /[a-z]+/g)
-              type.forEach((type) => {
-                const newcb = function (...e) {
-                  cb.call(elem, ...e)
-                }
-                elem.addEventListener(type, newcb, istrue)
-                all.push([elem, type, newcb, istrue])
-              })
-            })
-          } else if (a.gettype(type, "string")) {
-            type = a.matchall(type, /[a-z]+/g)
-            type.forEach((type) => {
-              const newcb = function (e) {
-                cb.call(elem, e, type)
-              }
-              elem.addEventListener(type, newcb, istrue)
-              all.push([elem, type, newcb, istrue])
-            })
-          }
-          return all
-        }
-      }
-      function listen(all) {
-        for (var l of all) {
-          l[0].removeEventListener(l[1], l[2], l[3])
-        }
-      }
     </script>
   </body>
 </html>
