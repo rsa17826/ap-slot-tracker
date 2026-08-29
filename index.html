@@ -189,7 +189,11 @@
                 the map's own rules-JSON format is now the single source
                 of truth for progression logic.
                 ============================================================ */
-      function computeReachablePure(graph, inventory, checkedLocations) {
+      function computeReachablePure(
+        graph,
+        inventory,
+        checkedLocations,
+      ) {
         function countHave(name) {
           return inventory[name] || 0
         }
@@ -241,20 +245,24 @@
             case "HasFromListUnique": {
               const need = rule.count ?? 1
               const names = rule.item_names || rule.items || []
-              return names.filter((n) => countHave(n) > 0).length >= need
+              return (
+                names.filter((n) => countHave(n) > 0).length >= need
+              )
             }
             case "HasGroup": {
               const need = rule.count ?? 1
               const groupItems = rule.items || rule.group_items || []
               return (
-                groupItems.reduce((s, n) => s + countHave(n), 0) >= need
+                groupItems.reduce((s, n) => s + countHave(n), 0) >=
+                need
               )
             }
             case "HasGroupUnique": {
               const need = rule.count ?? 1
               const groupItems = rule.items || rule.group_items || []
               return (
-                groupItems.filter((n) => countHave(n) > 0).length >= need
+                groupItems.filter((n) => countHave(n) > 0).length >=
+                need
               )
             }
             case "And":
@@ -272,13 +280,19 @@
             }
             case "Filtered":
             case "WrapperRule":
-              return evalRule(rule.rule || rule.wrapped || rule.sub_rule)
+              return evalRule(
+                rule.rule || rule.wrapped || rule.sub_rule,
+              )
             case "CanReachRegion":
               return reach.regions.has(rule.region_name || rule.name)
             case "CanReachLocation":
-              return reach.locations.has(rule.location_name || rule.name)
+              return reach.locations.has(
+                rule.location_name || rule.name,
+              )
             case "CanReachEntrance":
-              return reach.entrances.has(rule.entrance_name || rule.name)
+              return reach.entrances.has(
+                rule.entrance_name || rule.name,
+              )
             default:
               return true // permissive fallback, matches the UI evaluator
           }
@@ -315,7 +329,9 @@
           if (!changed) break
         }
         reach = { regions, locations, entrances }
-        for (const [lname, linfo] of Object.entries(graph.locations)) {
+        for (const [lname, linfo] of Object.entries(
+          graph.locations,
+        )) {
           // "locations" here means reachable, regardless of checked state —
           // callers filter out already-checked ones themselves.
           if (regions.has(linfo.region) && evalRule(linfo.rule)) {
@@ -629,7 +645,8 @@
       function syncFromSlot(conn) {
         // `runtime` is app.js's connId -> {client, receivedCounts, ...} map;
         // shared global scope means it's directly visible here.
-        const rt = typeof runtime !== "undefined" ? runtime[conn.id] : null
+        const rt =
+          typeof runtime !== "undefined" ? runtime[conn.id] : null
         if (!rt || !rt.client || !graph) {
           applyView()
           return
@@ -811,7 +828,8 @@
                           class: "ck",
                           checked: isChecked,
                           onchange(ev) {
-                            checkedLocations[lname] = ev.target.checked
+                            checkedLocations[lname] =
+                              ev.target.checked
                             lrow.classList.toggle(
                               "checked",
                               ev.target.checked,
@@ -825,7 +843,7 @@
                         newelem(
                           "span",
                           {
-                            title: "lname",
+                            title: lname,
                           },
                           [
                             lname.includes(" - ") ?
@@ -1004,7 +1022,10 @@
           stopPanning()
         })
         els.canvasWrap.addEventListener("pointercancel", stopPanning)
-        els.canvasWrap.addEventListener("lostpointercapture", stopPanning)
+        els.canvasWrap.addEventListener(
+          "lostpointercapture",
+          stopPanning,
+        )
         // Safety net: if the pointer is released anywhere outside the
         // canvas (or capture is somehow lost), don't leave panning stuck.
         window.addEventListener("pointerup", stopPanning)
