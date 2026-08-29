@@ -10,8 +10,8 @@
     const rect = e.getBoundingClientRect()
 
     sizes[name] = {
-      width: rect.width / mapdb.view.scale,
-      height: rect.height / mapdb.view.scale,
+      width: rect.width / db.view.scale,
+      height: rect.height / db.view.scale,
     }
   })
 
@@ -25,7 +25,7 @@
     return { x: 0, y: 0 }
   }
 
-  const layout = mapdb.layout[mapdb.state.gameKey]
+  const layout = db.layout[db.state.gameKey]
   const positions = {}
 
   // Logical positions
@@ -96,5 +96,5 @@
     }
   }
 
-  tryLoadFile(mapdb.state.gameKey)
+  tryLoadFile(db.state.gameKey)
 })()

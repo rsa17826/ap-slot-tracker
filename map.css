@@ -163,7 +163,27 @@ body {
   font-size: 11px;
   text-align: center;
 }
+.item-row .count-max {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-left: -2px;
+}
 .item-row.collected .name {
+  color: var(--accent);
+}
+/* Multi-copy items (max > 1): show accent only once every copy is
+   collected; a partial count reads as "in progress" instead. */
+.item-row.collected:not(.maxed) .count-max {
+  color: var(--warn);
+}
+.item-row.collected:not(.maxed) .name {
+  color: var(--warn);
+}
+.item-row.maxed .name {
+  color: var(--accent);
+}
+.item-row.maxed .count-max {
   color: var(--accent);
 }
 .toggle-row {

@@ -68,6 +68,7 @@
             progression_overlay.js reads)</span
           >
         </h2>
+        <button id="loadBtn">Load rules JSON</button>
         <div id="progFiles"></div>
       </section>
 
@@ -87,13 +88,6 @@
         <h1>◈ AP Logic Tracker</h1>
 
         <div class="side-section">
-          <h2>Data</h2>
-          <button id="loadBtn">Load rules JSON</button>
-          <input
-            type="file"
-            id="fileInput"
-            accept="application/json"
-          />
           <button id="autoLayoutBtn">Auto layout</button>
           <div class="btn-row">
             <button id="customLayoutBtn">Custom layout</button>
@@ -207,6 +201,7 @@
                 ============================================================ */
       let graph = null // parsed rules JSON
       let inventory = {} // itemName -> count (int)
+      let itemMaxCounts = {} // itemName -> highest count ever required by a rule
       let checkedLocations = {} // locationName -> bool
       let positions = {} // regionName -> {x,y}
       let view = { x: 0, y: 0, scale: 1 }
@@ -646,16 +641,55 @@
           if (rule.rule) walk(rule.rule)
           if (rule.wrapped) walk(rule.wrapped)
           if (rule.sub_rule) walk(rule.sub_rule)
+          if (Array.isArray(rule.children))
+            rule.children.forEach(walk)
         }
         for (const e of Object.values(graph.entrances)) walk(e.rule)
         for (const l of Object.values(graph.locations)) walk(l.rule)
         return Array.from(names).sort()
       }
 
+      // Rule trees don't tell us the true item-pool quantity of each item,
+      // but the highest `count` ever demanded by a rule (Has(item, count>=N),
+      // item_counts/counts maps, etc.) is a solid lower bound on how many
+      // copies can exist -- used to show "x / y" in the inventory.
+      function collectItemMaxCounts(itemNames) {
+        const max = {}
+        for (const n of itemNames) max[n] = 1
+        function bump(name, count) {
+          const c = Number(count) || 1
+          max[name] = Math.max(max[name] ?? 1, c)
+        }
+        function walk(rule) {
+          if (!rule || typeof rule !== "object") return
+          if (rule.item_name) bump(rule.item_name, rule.count ?? 1)
+          if (rule.item_counts) {
+            for (const [n, c] of Object.entries(rule.item_counts))
+              bump(n, c)
+          }
+          if (rule.counts) {
+            for (const [n, c] of Object.entries(rule.counts))
+              bump(n, c)
+          }
+          for (const key of ["rules", "sub_rules"]) {
+            if (Array.isArray(rule[key])) rule[key].forEach(walk)
+          }
+          if (rule.rule) walk(rule.rule)
+          if (rule.wrapped) walk(rule.wrapped)
+          if (rule.sub_rule) walk(rule.sub_rule)
+          if (Array.isArray(rule.children))
+            rule.children.forEach(walk)
+        }
+        for (const e of Object.values(graph.entrances)) walk(e.rule)
+        for (const l of Object.values(graph.locations)) walk(l.rule)
+        return max
+      }
+
       function loadGraph(raw) {
         graph = raw
         const itemNames = collectItemNames()
-        const savedState = mapdb.state ?? null
+        itemMaxCounts = collectItemMaxCounts(itemNames)
+        const savedState = db.state ?? null
         if (
           savedState &&
           savedState.gameKey === (raw.game || "unknown")
@@ -669,8 +703,8 @@
         }
         for (const n of itemNames)
           if (!(n in inventory)) inventory[n] = 0
-        mapdb.layout ??= {}
-        positions = mapdb.layout[raw.game || "unknown"] || {}
+        db.layout ??= {}
+        positions = db.layout[raw.game || "unknown"] || {}
 
         els.status.textContent =
           `${Object.keys(graph.regions).length} regions · ` +
@@ -915,10 +949,10 @@
       }
 
       function loadCustomSortFns() {
-        customSortFns = mapdb.customSortFns ?? {}
+        customSortFns = db.customSortFns ?? {}
       }
       function saveCustomSortFns() {
-        mapdb.customSortFns = customSortFns
+        db.customSortFns = customSortFns
       }
 
       function openSortEditor(src) {
@@ -999,39 +1033,58 @@
                 ============================================================ */
       function buildItemList(itemNames) {
         els.itemList.replaceChildren(
-          ...itemNames.map((name) =>
-            newelem(
+          ...itemNames.map((name) => {
+            const maxCount = itemMaxCounts[name] ?? 1
+            const ck = newelem("input", {
+              type: "checkbox",
+              class: "ck",
+            })
+            const count = newelem("input", {
+              type: "number",
+              class: "count",
+              min: 0,
+              max: maxCount,
+              value: 0,
+            })
+            count.oninput = () => {
+              const v = Math.min(
+                maxCount,
+                Math.max(0, parseInt(count.value) || 0),
+              )
+              count.value = v
+              inventory[name] = v
+              ck.checked = v > 0
+              onInventoryChange()
+            }
+            count.onchange = () => {
+              inventory[name] =
+                ck.checked ?
+                  Math.min(
+                    maxCount,
+                    Math.max(1, parseInt(count.value) || 1),
+                  )
+                : 0
+              count.value = inventory[name]
+              onInventoryChange()
+            }
+            return newelem(
               "div",
               {
                 class: "item-row",
                 dataset: { name },
               },
               [
-                newelem("input", { type: "checkbox", class: "ck" }),
+                ck,
                 newelem("span", { class: "name" }, [name]),
-                newelem("input", {
-                  type: "number",
-                  class: "count",
-                  min: 0,
-                  value: 0,
-                  oninput() {
-                    const v = Math.max(0, parseInt(count.value) || 0)
-                    inventory[name] = v
-                    ck.checked = v > 0
-                    onInventoryChange()
-                  },
-                  onchange() {
-                    inventory[name] =
-                      ck.checked ?
-                        Math.max(1, parseInt(count.value) || 1)
-                      : 0
-                    count.value = inventory[name]
-                    onInventoryChange()
-                  },
-                }),
+                count,
+                maxCount > 1 ?
+                  newelem("span", { class: "count-max" }, [
+                    `/ ${maxCount}`,
+                  ])
+                : null,
               ],
-            ),
-          ),
+            )
+          }),
         )
         syncItemListUI()
       }
@@ -1040,9 +1093,11 @@
         els.itemList.querySelectorAll(".item-row").forEach((row) => {
           const name = row.dataset.name
           const v = inventory[name] || 0
+          const maxCount = itemMaxCounts[name] ?? 1
           row.querySelector(".ck").checked = v > 0
           row.querySelector(".count").value = v
           row.classList.toggle("collected", v > 0)
+          row.classList.toggle("maxed", maxCount > 1 && v >= maxCount)
         })
       }
 
@@ -1383,7 +1438,7 @@
       function saveState() {
         clearTimeout(saveTimer)
         saveTimer = setTimeout(async () => {
-          mapdb.state = {
+          db.state = {
             gameKey: graph ? graph.game || "unknown" : "unknown",
             inventory,
             checkedLocations,
@@ -1394,10 +1449,10 @@
       function saveLayout() {
         clearTimeout(layoutTimer)
         layoutTimer = setTimeout(async () => {
-          mapdb.layout ??= {}
-          mapdb.layout[graph ? graph.game || "unknown" : "unknown"] =
+          db.layout ??= {}
+          db.layout[graph ? graph.game || "unknown" : "unknown"] =
             positions
-          mapdb.view = view
+          db.view = view
         }, 250)
       }
 
@@ -1423,13 +1478,13 @@
           const fh = handles.pop()
           const file = await fh.getFile()
           ;(async () => {
-            mapdb.fileHandles ??= {}
+            db.fileHandles ??= {}
             for (var fh of handles) {
               try {
                 var text = JSON.parse(
                   await (await fh.getFile()).text(),
                 )
-                mapdb.fileHandles[text.game] = fh
+                db.fileHandles[text.game] = fh
               } catch (e) {
                 error(e)
               }
@@ -1439,9 +1494,9 @@
           const text = await file.text()
           try {
             const raw = JSON.parse(text)
-            mapdb.fileHandles[raw.game] = fh
+            db.fileHandles[raw.game] = fh
             await loadGraph(raw)
-            mapdb.lastFile = raw.game
+            db.lastFile = raw.game
           } catch (e) {
             alert("Could not parse JSON: " + e.message)
           }
@@ -1471,37 +1526,19 @@
             row.dataset.name.toLowerCase().includes(q) ? "" : "none"
         })
       })
-      ;(async function init() {
-        window.mapdb = await createDB("ap-logic-tracker")
-        setupPanZoom()
-        view = mapdb.view ?? { x: 40, y: 40, scale: 1 }
-        hideEvents = mapdb.hideEvents ?? false
-        els.hideEventsChk.checked = hideEvents
-        els.hideEventsChk.addEventListener("change", () => {
-          hideEvents = els.hideEventsChk.checked
-          mapdb.hideEvents = hideEvents
-          render()
-        })
-        loadCustomSortFns()
-        tryLoadFile(mapdb.state?.gameKey)
-      })()
       async function tryLoadFile(name) {
-        if (name && mapdb.fileHandles[name]) {
+        if (name && db.fileHandles[name]) {
           try {
             loadGraph(
               JSON.parse(
-                await (
-                  await mapdb.fileHandles[name].getFile()
-                ).text(),
+                await (await db.fileHandles[name].getFile()).text(),
               ),
             )
           } catch (e) {
-            getfileperms(mapdb.fileHandles[name]).then(async (e) => {
+            getfileperms(db.fileHandles[name]).then(async (e) => {
               loadGraph(
                 JSON.parse(
-                  await (
-                    await mapdb.fileHandles[name].getFile()
-                  ).text(),
+                  await (await db.fileHandles[name].getFile()).text(),
                 ),
               )
             })
@@ -1509,6 +1546,33 @@
         }
         applyView()
       }
+      ;(async () => {
+        window.db = await createDB("ap_tracker")
+        if (!Array.isArray(window.db.connections))
+          window.db.connections = []
+        if (
+          typeof window.db.progFiles !== "object" ||
+          window.db.progFiles === null
+        ) {
+          window.db.progFiles = {}
+        }
+        setupPanZoom()
+        view = db.view ?? { x: 40, y: 40, scale: 1 }
+        hideEvents = db.hideEvents ?? false
+        els.hideEventsChk.checked = hideEvents
+        els.hideEventsChk.addEventListener("change", () => {
+          hideEvents = els.hideEventsChk.checked
+          db.hideEvents = hideEvents
+          render()
+        })
+        loadCustomSortFns()
+        tryLoadFile(db.state?.gameKey)
+        refreshNotifBtn()
+        renderProgFiles()
+        renderSlots()
+        // Auto-reconnect any saved slots
+        window.db.connections.forEach((conn) => startConnection(conn))
+      })()
       async function getfileperms(fileHandle, readWrite) {
         const options = {}
         if (readWrite) {
