@@ -94,17 +94,26 @@ class APSlotClient {
             game: this.opts.game,
             name: this.opts.playerName,
             uuid: Math.random().toString(36).slice(2, 15),
-            version: { major: 0, minor: 6, build: 8, class: "Version" },
+            version: {
+              major: 0,
+              minor: 6,
+              build: 8,
+              class: "Version",
+            },
             items_handling: 7,
-            tags: [],
+            tags: ["Tracker", "AP"],
             slot_data: true,
           },
         ])
         break
       case "DataPackage":
-        for (const [game, gameData] of Object.entries(packet.data.games)) {
+        for (const [game, gameData] of Object.entries(
+          packet.data.games,
+        )) {
           this.itemIdToName[game] = {}
-          for (const [name, id] of Object.entries(gameData.item_name_to_id)) {
+          for (const [name, id] of Object.entries(
+            gameData.item_name_to_id,
+          )) {
             this.itemIdToName[game][id] = name
           }
           this.locationIdToName[game] = {}
@@ -143,7 +152,8 @@ class APSlotClient {
         packet.items.forEach((item, offset) => {
           this.itemCount += 1
           const idx = packet.index + offset
-          const name = this.itemIdToName?.[this.opts.game]?.[item.item]
+          const name =
+            this.itemIdToName?.[this.opts.game]?.[item.item]
           items.push({
             name: name ?? `Unknown Item (${item.item})`,
             id: item.item,
