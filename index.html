@@ -207,6 +207,7 @@
             case "False_":
               return false
             case "Has":
+            case "Resolved":
               return countHave(rule.item_name) >= (rule.count ?? 1)
             case "HasAll":
               return (rule.item_names || rule.items || []).every(
@@ -358,6 +359,7 @@
             return false
 
           case "Has":
+          case "Resolved":
             return countHave(rule.item_name) >= (rule.count ?? 1)
 
           case "HasAll":

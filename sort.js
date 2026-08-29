@@ -1,5 +1,5 @@
 ;(() => {
-  const spacing = 4
+  const spacing = 0
   const sizes = {}
 
   document.querySelectorAll(".node").forEach((e) => {
@@ -10,8 +10,8 @@
     const rect = e.getBoundingClientRect()
 
     sizes[name] = {
-      width: rect.width,
-      height: rect.height,
+      width: rect.width / mapdb.view.scale,
+      height: rect.height / mapdb.view.scale,
     }
   })
 
@@ -53,10 +53,7 @@
     const { x } = positions[name]
     const width = sizes[name]?.width ?? 0
 
-    columnWidths[x] = Math.max(
-      columnWidths[x] ?? 0,
-      width,
-    )
+    columnWidths[x] = Math.max(columnWidths[x] ?? 0, width)
   }
 
   /*
@@ -68,10 +65,7 @@
     const { y } = positions[name]
     const height = sizes[name]?.height ?? 0
 
-    rowHeights[y] = Math.max(
-      rowHeights[y] ?? 0,
-      height,
-    )
+    rowHeights[y] = Math.max(rowHeights[y] ?? 0, height)
   }
 
   // Convert logical X → pixel X
