@@ -1013,6 +1013,7 @@
         }
         node.addEventListener("pointerdown", (ev) => {
           if (ev.target.closest(".ck")) return
+          if (ev.button === 2) return // right-click is reserved for panning
           dragging = true
           node.setPointerCapture(ev.pointerId)
           document.body.style.userSelect = "none"
@@ -1059,7 +1060,10 @@
           saveLayout()
         }
         els.canvasWrap.addEventListener("pointerdown", (ev) => {
-          if (ev.target.closest(".node")) return
+          if (ev.target.closest("button")) return
+          const overNode = ev.target.closest(".node")
+          if (overNode && ev.button !== 2) return // left-click on a node drags it, not the canvas
+          if (ev.target.closest(".ck")) return
           panning = true
           els.canvasWrap.classList.add("panning")
           els.canvasWrap.setPointerCapture(ev.pointerId)
@@ -1068,6 +1072,9 @@
           sy = ev.clientY
           ox = view.x
           oy = view.y
+          ev.preventDefault()
+        })
+        els.canvasWrap.addEventListener("contextmenu", (ev) => {
           ev.preventDefault()
         })
         els.canvasWrap.addEventListener("pointermove", (ev) => {

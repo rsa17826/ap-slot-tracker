@@ -1,4 +1,3 @@
-
 * {
   box-sizing: border-box;
 }
@@ -12,7 +11,10 @@ body {
   overflow: hidden;
   font-size: 13px;
 }
-
+.ck,
+.count {
+  display: none;
+}
 #app {
   display: none;
   position: fixed;
@@ -232,11 +234,7 @@ svg#edges {
   border-radius: 9px 9px 0 0;
 }
 .node.reachable .node-head {
-  background: linear-gradient(
-    180deg,
-    var(--color-yhwh),
-    transparent
-  );
+  background: linear-gradient(180deg, var(--color-yhwh), transparent);
 }
 .dot {
   width: 7px;
