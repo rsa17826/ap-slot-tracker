@@ -1,7 +1,7 @@
 {
   inputs = {
     nixpkgs = {
-      url = "github:NixOS/nixpkgs/nixos-unstable";
+      url = "github:NixOS/nixpkgs/26.05";
     };
   };
 
@@ -37,6 +37,27 @@
               typing-extensions
               schema
               bsdiff4
+
+              orjson
+              requests
+              jinja2
+              colorama
+              websockets
+              (pkgs.python313Packages.buildPythonPackage rec {
+                pname = "pyevermizer";
+                version = "0.50.1";
+                pyproject = true;
+
+                src = pkgs.fetchPypi {
+                  inherit pname version;
+                  hash = "sha256-zVbMom7ZZ1eQFU3XBAKtKKOB/DyQMb0C65sdrYwxc5g=";
+                };
+                build-system = [
+                  pkgs.python313Packages.hatchling
+                  pkgs.python313Packages.setuptools
+                ];
+                doCheck = false;
+              })
             ];
           } ./generate-global-tracker-data.py;
         }

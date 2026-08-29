@@ -7,14 +7,22 @@ if "AP_SOURCE_DIR" not in os.environ or not os.environ["AP_SOURCE_DIR"]:
 
 sys.path.insert(0, os.environ["AP_SOURCE_DIR"])
 
+GAME = sys.argv[1] if len(sys.argv) == 2 else "Vex2"
+
+g = os.path.join(os.environ["AP_SOURCE_DIR"], "Generate.py")
+# with open(g, "r") as f:
+#   text = f.read()
+
+#   if "ModuleUpdate.update()" in text:
+#     with open(g, "w") as f:
+#       _ = f.write(text.replace("ModuleUpdate.update()", ""))
+
+
 from worlds import AutoWorld
 from worlds.AutoWorld import AutoWorldRegister, call_all
 from BaseClasses import MultiWorld, CollectionState
 from Generate import get_seed_name
 from test.general import gen_steps
-
-GAME = sys.argv[1] if len(sys.argv) == 2 else "Vex2"
-
 
 import dataclasses
 from rule_builder.rules import Rule
@@ -132,4 +140,4 @@ if __name__ == "__main__":
   with open("tracker_rules.json", "w") as f:
     json.dump(data, f, indent=2)
 
-  print("wrote tracker_rules.json")
+  print("\n\nSUCCESS\nwrote tracker_rules.json")
