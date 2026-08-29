@@ -347,18 +347,30 @@ function renderProgFiles() {
               `${regionCount} regions · ${locCount} locations`,
             ]),
           ]),
-          newelem(
-            "button",
-            {
-              class: "danger",
-              onclick() {
-                delete window.db.progFiles[game]
-                renderProgFiles()
-                renderSlots()
+          newelem("div", {}, [
+            newelem(
+              "button",
+              {
+                marginRight: "8px",
+                onclick() {
+                  updateSavedText(game)
+                },
               },
-            },
-            ["Remove"],
-          ),
+              ["Update"],
+            ),
+            newelem(
+              "button",
+              {
+                class: "danger",
+                onclick() {
+                  delete window.db.progFiles[game]
+                  renderProgFiles()
+                  renderSlots()
+                },
+              },
+              ["Remove"],
+            ),
+          ]),
         ])
       })),
   )

@@ -208,8 +208,8 @@
     <script src="./indexeddbProxy.js"></script>
     <script>
       /* ============================================================
-                STATE
-                ============================================================ */
+                      STATE
+                      ============================================================ */
       let graph = null // parsed rules JSON
       let inventory = {} // itemName -> count (int)
       let itemMaxCounts = {} // itemName -> highest count ever required by a rule
@@ -242,14 +242,14 @@
       }
 
       /* ============================================================
-                MAP ENGINE (headless)
-                A pure, side-effect-free copy of the reachability logic
-                below, callable with an arbitrary graph/inventory/checked
-                map. This is what app.js uses (as window.MapEngine) to
-                compute per-slot progression, replacing the old prog.js —
-                the map's own rules-JSON format is now the single source
-                of truth for progression logic.
-                ============================================================ */
+                      MAP ENGINE (headless)
+                      A pure, side-effect-free copy of the reachability logic
+                      below, callable with an arbitrary graph/inventory/checked
+                      map. This is what app.js uses (as window.MapEngine) to
+                      compute per-slot progression, replacing the old prog.js —
+                      the map's own rules-JSON format is now the single source
+                      of truth for progression logic.
+                      ============================================================ */
       function computeReachablePure(
         graph,
         inventory,
@@ -419,13 +419,13 @@
       window.MapEngine = { computeReachablePure }
 
       /* ============================================================
-                RULE EVALUATION
-                Handles the rule_builder tree shape produced by the exporter:
-                { "type": "Has"|"And"|"Or"|"True_"|... , ...fields }
-                Falls back to permissive (true) for unrecognized shapes so a
-                single unmapped rule type doesn't lock out an entire branch
-                silently -- unresolved rules are logged to console once.
-                ============================================================ */
+                      RULE EVALUATION
+                      Handles the rule_builder tree shape produced by the exporter:
+                      { "type": "Has"|"And"|"Or"|"True_"|... , ...fields }
+                      Falls back to permissive (true) for unrecognized shapes so a
+                      single unmapped rule type doesn't lock out an entire branch
+                      silently -- unresolved rules are logged to console once.
+                      ============================================================ */
       const warnedTypes = new Set()
       function warnOnce(t) {
         if (!warnedTypes.has(t)) {
@@ -576,9 +576,9 @@
       }
 
       /* ============================================================
-                REACHABILITY (fixed point over regions/entrances/locations,
-                needed because CanReachX rules can reference other regions)
-                ============================================================ */
+                      REACHABILITY (fixed point over regions/entrances/locations,
+                      needed because CanReachX rules can reference other regions)
+                      ============================================================ */
       function computeReachability() {
         const regionNames = Object.keys(graph.regions)
         const startRegion = graph.origin_region_name
@@ -631,8 +631,8 @@
       }
 
       /* ============================================================
-                DATA LOADING
-                ============================================================ */
+                      DATA LOADING
+                      ============================================================ */
       function collectItemNames() {
         const names = new Set()
         function walk(rule) {
@@ -738,15 +738,17 @@
       }
 
       /* ============================================================
-                SLOT <-> MAP SYNC
-                Lets the tracker's "Show Map" button open the map already
-                populated with a live slot's received items and checked
-                locations, instead of the manual checkbox-only inventory.
-                ============================================================ */
+                      SLOT <-> MAP SYNC
+                      Lets the tracker's "Show Map" button open the map already
+                      populated with a live slot's received items and checked
+                      locations, instead of the manual checkbox-only inventory.
+                      ============================================================ */
       async function openMapForSlot(conn) {
         setMapVisible(true)
         if (!graph || (graph.game && graph.game !== conn.game)) {
-          await tryLoadFile(conn.game)
+          if (!tryLoadFile(conn.game)) {
+            alert("error, failed to load tracker for " + conn.game)
+          }
         }
         syncFromSlot(conn)
       }
@@ -801,8 +803,8 @@
         onInventoryChange()
       }
       /* ============================================================
-                LAYOUT (simple auto layout: BFS layers from start region)
-                ============================================================ */
+                      LAYOUT (simple auto layout: BFS layers from start region)
+                      ============================================================ */
       function layoutIfNeeded() {
         const names = Object.keys(graph.regions)
         const missing = names.some((n) => !positions[n])
@@ -856,26 +858,26 @@
       }
 
       /* ============================================================
-                CUSTOM LAYOUT
-                Users write a `function sort(name) { return {x, y} }`
-                for the active game, mapping a region name to a logical
-                grid cell. Cells are then packed into pixel positions by
-                the widest/tallest node in each column/row (ported from
-                the user's sort.js console script). One function is
-                saved per game (customSortFns[gameKey]).
-                ============================================================ */
+                      CUSTOM LAYOUT
+                      Users write a `function sort(name) { return {x, y} }`
+                      for the active game, mapping a region name to a logical
+                      grid cell. Cells are then packed into pixel positions by
+                      the widest/tallest node in each column/row (ported from
+                      the user's sort.js console script). One function is
+                      saved per game (customSortFns[gameKey]).
+                      ============================================================ */
       const DEFAULT_SORT_FN_SRC = `function sort(name) {
-  // Return a logical grid cell for this region. Regions sharing a
-  // cell get packed side by side based on the column's widest node.
-  // Example for a "stageN" naming scheme, 5 per row:
-  //
-  // if (name.startsWith("stage")) {
-  //   const n = Number(name.replace("stage", ""))
-  //   return { x: n % 5, y: 1 + ((n / 5) | 0) }
-  // }
+        // Return a logical grid cell for this region. Regions sharing a
+        // cell get packed side by side based on the column's widest node.
+        // Example for a "stageN" naming scheme, 5 per row:
+        //
+        // if (name.startsWith("stage")) {
+        //   const n = Number(name.replace("stage", ""))
+        //   return { x: n % 5, y: 1 + ((n / 5) | 0) }
+        // }
 
-  return { x: 0, y: 0 }
-}`
+        return { x: 0, y: 0 }
+      }`
 
       function gameKeyOf() {
         return graph ? graph.game || "unknown" : "unknown"
@@ -1040,8 +1042,8 @@
       })
 
       /* ============================================================
-                RENDER
-                ============================================================ */
+                      RENDER
+                      ============================================================ */
       function buildItemList(itemNames) {
         els.itemList.replaceChildren(
           ...itemNames.map((name) => {
@@ -1284,8 +1286,8 @@
       }
 
       /* ============================================================
-                DRAG (nodes) + PAN/ZOOM (canvas)
-                ============================================================ */
+                      DRAG (nodes) + PAN/ZOOM (canvas)
+                      ============================================================ */
       function makeDraggable(node, rname) {
         let dragging = false,
           startX = 0,
@@ -1443,8 +1445,8 @@
       }
 
       /* ============================================================
-                PERSISTENCE
-                ============================================================ */
+                      PERSISTENCE
+                      ============================================================ */
       let saveTimer = null
       function saveState() {
         clearTimeout(saveTimer)
@@ -1468,8 +1470,8 @@
       }
 
       /* ============================================================
-                WIRE UP UI
-                ============================================================ */
+                      WIRE UP UI
+                      ============================================================ */
       document
         .getElementById("loadBtn")
         .addEventListener("click", async () => {
@@ -1538,24 +1540,13 @@
         })
       })
       async function tryLoadFile(name) {
-        if (name && db.fileHandles[name]) {
-          try {
-            loadGraph(
-              JSON.parse(
-                await (await db.fileHandles[name].getFile()).text(),
-              ),
-            )
-          } catch (e) {
-            a.getfileperms(db.fileHandles[name]).then(async (e) => {
-              loadGraph(
-                JSON.parse(
-                  await (await db.fileHandles[name].getFile()).text(),
-                ),
-              )
-            })
-          }
+        if (name && db.progFiles[name]) {
+          loadGraph(db.progFiles[name])
+        } else {
+          return false
         }
         applyView()
+        return true
       }
       ;(async () => {
         window.db = await createDB("ap_tracker")
@@ -1582,6 +1573,21 @@
         await (navigator?.serviceWorker?.ready ?? new Promise())
         swbtn.style.display = "none"
       })()
+      async function updateSavedText(name) {
+        if (name && db.fileHandles[name]) {
+          try {
+            db.progFiles[name] = JSON.parse(
+              await (await db.fileHandles[name].getFile()).text(),
+            )
+          } catch (e) {
+            a.getfileperms(db.fileHandles[name]).then(async (e) => {
+              db.progFiles[name] = JSON.parse(
+                await (await db.fileHandles[name].getFile()).text(),
+              )
+            })
+          }
+        }
+      }
     </script>
   </body>
 </html>

@@ -183,7 +183,7 @@ button:hover {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 8px 0;
+  padding: 4px 0;
   border-bottom: 1px solid var(--color-rusx);
   font-size: 13px;
 }
@@ -202,5 +202,5 @@ button:hover {
 .empty {
   color: var(--color-byuj);
   font-size: 13px;
-  padding: 8px 0;
+  padding: 4px 0;
 }
