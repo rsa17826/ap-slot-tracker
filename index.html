@@ -492,32 +492,41 @@
           RENDER
           ============================================================ */
       function buildItemList(itemNames) {
-        els.itemList.innerHTML = ""
-        for (const name of itemNames) {
-          const row = document.createElement("div")
-          row.className = "item-row"
-          row.dataset.name = name
-          row.innerHTML = `
-             <input type="checkbox" class="ck">
-             <span class="name">${escapeHtml(name)}</span>
-             <input type="number" class="count" min="0" value="0">
-           `
-          const ck = row.querySelector(".ck")
-          const count = row.querySelector(".count")
-          ck.addEventListener("change", () => {
-            inventory[name] =
-              ck.checked ? Math.max(1, parseInt(count.value) || 1) : 0
-            count.value = inventory[name]
-            onInventoryChange()
-          })
-          count.addEventListener("input", () => {
-            const v = Math.max(0, parseInt(count.value) || 0)
-            inventory[name] = v
-            ck.checked = v > 0
-            onInventoryChange()
-          })
-          els.itemList.appendChild(row)
-        }
+        els.itemList.replaceChildren(
+          ...itemNames.map((name) =>
+            newelem(
+              "div",
+              {
+                class: "item-row",
+                dataset: { name },
+              },
+              [
+                newelem("input", { type: "checkbox", class: "ck" }),
+                newelem("span", { class: "name" }, [name]),
+                newelem("input", {
+                  type: "number",
+                  class: "count",
+                  min: 0,
+                  value: 0,
+                  oninput() {
+                    const v = Math.max(0, parseInt(count.value) || 0)
+                    inventory[name] = v
+                    ck.checked = v > 0
+                    onInventoryChange()
+                  },
+                  onchange() {
+                    inventory[name] =
+                      ck.checked ?
+                        Math.max(1, parseInt(count.value) || 1)
+                      : 0
+                    count.value = inventory[name]
+                    onInventoryChange()
+                  },
+                }),
+              ],
+            ),
+          ),
+        )
         syncItemListUI()
       }
 
