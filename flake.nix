@@ -19,27 +19,18 @@
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
-          python = pkgs.python314.withPackages (
-            ps: with ps; [
-              pyyaml
-            ]
-          );
         in
         {
-          default = pkgs.stdenv.mkDerivation {
-            name = "generate-global-tracker-data";
-            src = ./generate-global-tracker-data.py;
-
-            nativeBuildInputs = [ pkgs.makeWrapper ];
-
-            installPhase = ''
-              mkdir -p $out/lib/generate-global-tracker-data $out/bin
-              cp browser_selector.py settings.schema.jsonc $out/lib/generate-global-tracker-data/
-
-              makeWrapper ${python}/bin/python3 $out/bin/generate-global-tracker-data \
-                --add-flags "$out/lib/generate-global-tracker-data/browser_selector.py"
-            '';
-          };
+          default = pkgs.writers.writePython3Bin "generate-global-tracker-data" {
+            doCheck = false;
+            libraries = with pkgs.python313Packages; [
+              pyyaml
+              pathspec
+              typing-extensions
+              schema
+              bsdiff4
+            ];
+          } ./generate-global-tracker-data.py;
         }
       );
     };
