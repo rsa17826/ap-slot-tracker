@@ -145,7 +145,23 @@ def dump(multiworld, world):
 if __name__ == "__main__":
   multiworld, world = build_world(seed=0)
   data = dump(multiworld, world)
-  with open(os.path.join(TRACKER_FILE_OUT_DIR, GAME + "_tracker_rules.json"), "w") as f:
+  v = world.world_version
+  try:
+    if v.major != 0 and v.minor == 0 and v.build == 0:
+      v = v[0]
+    else:
+      v = f"{v.major},{v.minor},{v.build}"
+
+
+  except Exception:
+    try:
+      v = f"{v.major},{v.minor},{v.build}"
+
+    except Exception:
+      v = "0"
+
+
+  with open(os.path.join(TRACKER_FILE_OUT_DIR, f"{GAME}_tracker_rules_{v}.json"), "w") as f:
     json.dump(data, f, indent=2)
 
   print("\n\nSUCCESS\nwrote tracker_rules.json")
