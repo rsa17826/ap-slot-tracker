@@ -5,6 +5,12 @@ if "AP_SOURCE_DIR" not in os.environ or not os.environ["AP_SOURCE_DIR"]:
   print('AP_SOURCE_DIR must be set, eg AP_SOURCE_DIR="/home/nyix/projects/Archipelago"')
   os._exit(1)
 
+if "TRACKER_FILE_OUT_DIR" not in os.environ or not os.environ["TRACKER_FILE_OUT_DIR"]:
+  print('TRACKER_FILE_OUT_DIR not set - defaulting to ., set with TRACKER_FILE_OUT_DIR="/home/nyix/trackerFiles"')
+  TRACKER_FILE_OUT_DIR = "."
+else:
+  TRACKER_FILE_OUT_DIR = os.environ["TRACKER_FILE_OUT_DIR"]
+
 sys.path.insert(0, os.environ["AP_SOURCE_DIR"])
 
 GAME = sys.argv[1] if len(sys.argv) == 2 else "Vex2"
@@ -118,6 +124,7 @@ def dump(multiworld, world):
         "rule": serialize_rule(entrance.access_rule),
       }
 
+
   for loc in multiworld.get_locations(PLAYER):
     data["locations"][loc.name] = {
       "region": loc.parent_region.name if loc.parent_region else None,
@@ -137,7 +144,7 @@ def dump(multiworld, world):
 if __name__ == "__main__":
   multiworld, world = build_world(seed=0)
   data = dump(multiworld, world)
-  with open("tracker_rules.json", "w") as f:
+  with open(os.path.join(TRACKER_FILE_OUT_DIR, GAME + "_tracker_rules.json"), "w") as f:
     json.dump(data, f, indent=2)
 
   print("\n\nSUCCESS\nwrote tracker_rules.json")

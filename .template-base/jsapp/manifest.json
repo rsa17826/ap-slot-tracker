@@ -1,0 +1,25 @@
+{
+  "short_name": "name",
+  "name": "name",
+  "icons": [
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "form_factor": "wide"
+    }
+  ],
+  "start_url": "/",
+  "scope": "/",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "display": "standalone",
+  "orientation": "landscape"
+}

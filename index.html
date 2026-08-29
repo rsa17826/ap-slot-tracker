@@ -2,6 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="manifest" href="/manifest.json" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0"
@@ -24,7 +26,15 @@
           progression per game.
         </div>
       </div>
-      <button id="notifBtn">Enable notifications</button>
+      <div>
+        <button
+          id="swbtn"
+          onclick="navigator.serviceWorker.register('/sw.js')"
+        >
+          Install SW
+        </button>
+        <button id="notifBtn">Enable notifications</button>
+      </div>
     </header>
 
     <main>
@@ -1567,6 +1577,10 @@
         renderSlots()
         // Auto-reconnect any saved slots
         window.db.connections.forEach((conn) => startConnection(conn))
+      })()
+      ;(async () => {
+        await (navigator?.serviceWorker?.ready ?? new Promise())
+        swbtn.style.display = "none"
       })()
     </script>
   </body>
