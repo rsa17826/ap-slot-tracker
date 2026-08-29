@@ -155,7 +155,8 @@ def dump(multiworld, world):
 if __name__ == "__main__":
   multiworld, world = build_world(seed=0)
   data = dump(multiworld, world)
-  with open(os.path.join(TRACKER_FILE_OUT_DIR, f"{GAME}_tracker_rules_{data['version']}.json"), "w") as f:
+  filename = f"{GAME}_tracker_rules_{data['version']}.json"
+  with open(os.path.join(TRACKER_FILE_OUT_DIR, filename), "w") as f:
     json.dump(data, f, indent=2)
 
-  print("\n\nSUCCESS\nwrote tracker_rules.json")
+  print(f"\n\nSUCCESS\nwrote {filename}")
