@@ -121,7 +121,8 @@ function handleReceivedItems(conn, rt, items) {
 
   items.forEach((item) => {
     rt.receivedNames.add(item.name)
-    rt.receivedCounts[item.name] = (rt.receivedCounts[item.name] || 0) + 1
+    rt.receivedCounts[item.name] =
+      (rt.receivedCounts[item.name] || 0) + 1
   })
 
   // Figure out, per item, whether it opened up anything new — only
@@ -332,8 +333,10 @@ function renderProgFiles() {
       ]
     : games.map((game) => {
         const g = window.db.progFiles[game]
-        const regionCount = g?.regions ? Object.keys(g.regions).length : 0
-        const locCount = g?.locations ? Object.keys(g.locations).length : 0
+        const regionCount =
+          g?.regions ? Object.keys(g.regions).length : 0
+        const locCount =
+          g?.locations ? Object.keys(g.locations).length : 0
         return newelem("div", { class: "prog-row" }, [
           newelem("div", {}, [
             game,
