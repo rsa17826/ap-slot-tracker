@@ -735,8 +735,14 @@
         const q = searchQuery
 
         els.itemList.querySelectorAll(".item-row").forEach((row) => {
+          const isEvent = eventItemNames.has(row.dataset.name)
+          const matchesSearch = row.dataset.name
+            .toLowerCase()
+            .includes(q)
           row.style.display =
-            row.dataset.name.toLowerCase().includes(q) ? "" : "none"
+            hideEvents && isEvent ? "none"
+            : matchesSearch ? ""
+            : "none"
         })
 
         if (!graph) return
@@ -749,8 +755,7 @@
           for (const edge of edges) {
             const fromEl = nodeEls[edge.from]
             const toEl = nodeEls[edge.to]
-            const fromVisible =
-              fromEl && fromEl.style.display !== "none"
+            const fromVisible = fromEl && fromEl.style.display !== "none"
             const toVisible = toEl && toEl.style.display !== "none"
             edge.path.style.display =
               fromVisible && toVisible ? "" : "none"
@@ -1082,10 +1087,7 @@
             columnWidths[x] ?? 0,
             sizes[n].width,
           )
-          rowHeights[y] = Math.max(
-            rowHeights[y] ?? 0,
-            sizes[n].height,
-          )
+          rowHeights[y] = Math.max(rowHeights[y] ?? 0, sizes[n].height)
         }
 
         const COLUMN_GAP = 90,
@@ -1402,94 +1404,94 @@
           ...Object.entries(graph.regions)
             .filter(([rname]) => isRegionVisible(rname))
             .map(([rname, region]) => {
-              const pos = positions[rname] || { x: 0, y: 0 }
-              const node = newelem(
-                "div",
-                {
-                  class:
-                    "node" +
-                    (reach.regions.has(rname) ? " reachable" : ""),
-                  left: pos.x + "px",
-                  top: pos.y + "px",
-                  dataset: { region: rname },
-                },
-                [
-                  newelem("div", { class: "node-head" }, [
-                    newelem("span", { class: "dot" }),
-                    rname,
-                  ]),
-                  newelem(
-                    "div",
-                    { class: "node-body" },
-                    (region.locations || [])
-                      .filter((lname) => {
-                        const linfo = graph.locations[lname]
-                        const isEvent = !!(linfo && linfo.is_event)
-                        return !(hideEvents && isEvent)
-                      })
-                      .map((lname) => {
-                        const isReach = reach.locations.has(lname)
-                        const isChecked = !!checkedLocations[lname]
-                        const linfo = graph.locations[lname]
-                        const isEvent = !!(linfo && linfo.is_event)
-                        const lrow = newelem(
-                          "label",
-                          {
-                            class:
-                              "loc-row" +
-                              (isReach ? " reachable" : "") +
-                              (isChecked ? " checked" : "") +
-                              (isEvent ? " event" : ""),
-                          },
-                          [
-                            newelem("input", {
-                              type: "checkbox",
-                              class: "ck",
-                              checked: isChecked,
-                              onchange(ev) {
-                                checkedLocations[lname] =
-                                  ev.target.checked
-                                lrow.classList.toggle(
-                                  "checked",
-                                  ev.target.checked,
-                                )
-                                saveState()
-                                // In focus mode a node disappears once its
-                                // last location is checked, so a full
-                                // re-render is needed to reflect that;
-                                // otherwise the lightweight class toggle
-                                // above is enough.
-                                if (focusMode) render()
-                              },
-                            }),
-                            newelem("span", {
-                              class: "dot",
-                            }),
-                            newelem(
-                              "span",
-                              {
-                                title: lname,
-                              },
-                              [
-                                lname.includes(" - ") ?
-                                  lname
-                                    .split(" - ")
-                                    .slice(1)
-                                    .join(" - ")
-                                : lname,
-                              ],
-                            ),
-                          ],
-                        )
-                        return lrow
-                      }),
-                  ),
-                ],
-              )
-              makeDraggable(node, rname)
-              nodeEls[rname] = node
-              return node
-            }),
+            const pos = positions[rname] || { x: 0, y: 0 }
+            const node = newelem(
+              "div",
+              {
+                class:
+                  "node" +
+                  (reach.regions.has(rname) ? " reachable" : ""),
+                left: pos.x + "px",
+                top: pos.y + "px",
+                dataset: { region: rname },
+              },
+              [
+                newelem("div", { class: "node-head" }, [
+                  newelem("span", { class: "dot" }),
+                  rname,
+                ]),
+                newelem(
+                  "div",
+                  { class: "node-body" },
+                  (region.locations || [])
+                    .filter((lname) => {
+                      const linfo = graph.locations[lname]
+                      const isEvent = !!(linfo && linfo.is_event)
+                      return !(hideEvents && isEvent)
+                    })
+                    .map((lname) => {
+                      const isReach = reach.locations.has(lname)
+                      const isChecked = !!checkedLocations[lname]
+                      const linfo = graph.locations[lname]
+                      const isEvent = !!(linfo && linfo.is_event)
+                      const lrow = newelem(
+                        "label",
+                        {
+                          class:
+                            "loc-row" +
+                            (isReach ? " reachable" : "") +
+                            (isChecked ? " checked" : "") +
+                            (isEvent ? " event" : ""),
+                        },
+                        [
+                          newelem("input", {
+                            type: "checkbox",
+                            class: "ck",
+                            checked: isChecked,
+                            onchange(ev) {
+                              checkedLocations[lname] =
+                                ev.target.checked
+                              lrow.classList.toggle(
+                                "checked",
+                                ev.target.checked,
+                              )
+                              saveState()
+                              // In focus mode a node disappears once its
+                              // last location is checked, so a full
+                              // re-render is needed to reflect that;
+                              // otherwise the lightweight class toggle
+                              // above is enough.
+                              if (focusMode) render()
+                            },
+                          }),
+                          newelem("span", {
+                            class: "dot",
+                          }),
+                          newelem(
+                            "span",
+                            {
+                              title: lname,
+                            },
+                            [
+                              lname.includes(" - ") ?
+                                lname
+                                  .split(" - ")
+                                  .slice(1)
+                                  .join(" - ")
+                              : lname,
+                            ],
+                          ),
+                        ],
+                      )
+                      return lrow
+                    }),
+                ),
+              ],
+            )
+            makeDraggable(node, rname)
+            nodeEls[rname] = node
+            return node
+          }),
         )
       }
 

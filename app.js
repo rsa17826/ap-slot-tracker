@@ -412,7 +412,20 @@ function renderProgFiles() {
               {
                 marginRight: "8px",
                 onclick() {
-                  updateSavedText(progKey)
+                  updateSavedText(progKey).then(() => {
+                    // If this row is the map's currently active graph,
+                    // feed the freshly-reread JSON straight into it so the
+                    // view (reachability, item list, positions) reflects
+                    // the update immediately instead of only updating on
+                    // next load. loadGraph() reuses saved inventory/
+                    // checked-locations/layout for a matching gameKey, so
+                    // this is safe to call again on the same graph.
+                    if (gameKeyOf() === progKey) {
+                      loadGraph(window.db.progFiles[progKey])
+                    } else {
+                      renderProgFiles()
+                    }
+                  })
                 },
               },
               ["Update"],
