@@ -82,6 +82,9 @@ OPTIONS = {} # override option values here, e.g. {"goal": "stage10"}
 
 
 def build_world(seed=None):
+  if GAME not in AutoWorldRegister.world_types:
+    print("[ERROR] GAME MUST BE ONE OF\n-------------------------------\n" + ("\n".join(AutoWorldRegister.world_types.keys())) + "\n-------------------------------")
+
   world_type = AutoWorldRegister.world_types[GAME]
 
   multiworld = MultiWorld(1)
@@ -111,12 +114,12 @@ def dump(multiworld, world):
     if v.major != 0 and v.minor == 0 and v.build == 0:
       v = v[0]
     else:
-      v = f"{v.major},{v.minor},{v.build}"
+      v = f"{v.major}.{v.minor}.{v.build}"
 
 
   except Exception:
     try:
-      v = f"{v.major},{v.minor},{v.build}"
+      v = f"{v.major}.{v.minor}.{v.build}"
 
     except Exception:
       v = "0"
