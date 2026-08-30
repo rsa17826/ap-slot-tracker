@@ -749,7 +749,8 @@
           for (const edge of edges) {
             const fromEl = nodeEls[edge.from]
             const toEl = nodeEls[edge.to]
-            const fromVisible = fromEl && fromEl.style.display !== "none"
+            const fromVisible =
+              fromEl && fromEl.style.display !== "none"
             const toVisible = toEl && toEl.style.display !== "none"
             edge.path.style.display =
               fromVisible && toVisible ? "" : "none"
@@ -991,6 +992,37 @@
         if (missing) autoLayout()
       }
 
+      // Measures actual on-screen size for already-rendered nodes; for any
+      // name that isn't rendered yet (e.g. the very first auto-layout pass
+      // on a freshly loaded graph, before any nodes exist in the DOM) it
+      // falls back to a rough estimate from the node's content so the
+      // layout still avoids overlap on that first pass too.
+      function measureNodeSizes(names) {
+        const rendered = {}
+        els.nodes.querySelectorAll(".node").forEach((e) => {
+          const rname = e.dataset.region
+          if (!rname) return
+          const rect = e.getBoundingClientRect()
+          rendered[rname] = {
+            width: rect.width / view.scale,
+            height: rect.height / view.scale,
+          }
+        })
+        const sizes = {}
+        for (const n of names) {
+          if (rendered[n]) {
+            sizes[n] = rendered[n]
+            continue
+          }
+          const locCount = (graph.regions[n]?.locations || []).length
+          sizes[n] = {
+            width: 190,
+            height: 34 + Math.max(1, locCount) * 19 + 10,
+          }
+        }
+        return sizes
+      }
+
       function autoLayout() {
         const names = visibleRegionNames()
         const visibleSet = new Set(names)
@@ -1028,15 +1060,56 @@
         for (const n of names) {
           ;(byLayer[layers[n]] = byLayer[layers[n]] || []).push(n)
         }
-        const XGAP = 300,
-          YGAP = 130
-        for (const [layer, list] of Object.entries(byLayer)) {
+
+        // Each node gets a logical (column, row) cell -- column is its BFS
+        // layer, row is its order within that layer -- then columns/rows
+        // are packed by the actual measured size of the nodes in them
+        // (same technique as the custom layout) so nodes never overlap,
+        // however long their name or however many locations they list.
+        const cellOf = {}
+        for (const list of Object.values(byLayer)) {
           list.forEach((n, i) => {
-            positions[n] = {
-              x: Number(layer) * XGAP + 40,
-              y: i * YGAP + 40,
-            }
+            cellOf[n] = { x: layers[n], y: i }
           })
+        }
+
+        const sizes = measureNodeSizes(names)
+        const columnWidths = {}
+        const rowHeights = {}
+        for (const n of names) {
+          const { x, y } = cellOf[n]
+          columnWidths[x] = Math.max(
+            columnWidths[x] ?? 0,
+            sizes[n].width,
+          )
+          rowHeights[y] = Math.max(
+            rowHeights[y] ?? 0,
+            sizes[n].height,
+          )
+        }
+
+        const COLUMN_GAP = 90,
+          ROW_GAP = 40
+        const columnX = {}
+        let cx = 40
+        for (const key of Object.keys(columnWidths)
+          .map(Number)
+          .sort((a, b) => a - b)) {
+          columnX[key] = cx
+          cx += columnWidths[key] + COLUMN_GAP
+        }
+        const rowY = {}
+        let ry = 40
+        for (const key of Object.keys(rowHeights)
+          .map(Number)
+          .sort((a, b) => a - b)) {
+          rowY[key] = ry
+          ry += rowHeights[key] + ROW_GAP
+        }
+
+        for (const n of names) {
+          const { x, y } = cellOf[n]
+          positions[n] = { x: columnX[x], y: rowY[y] }
         }
         saveLayout()
       }
@@ -1084,16 +1157,7 @@
         // rendered for the active game). Only visible nodes are on-screen
         // in focus mode, which is fine -- hidden nodes aren't being
         // positioned this pass anyway.
-        const sizes = {}
-        els.nodes.querySelectorAll(".node").forEach((e) => {
-          const rname = e.dataset.region
-          if (!rname) return
-          const rect = e.getBoundingClientRect()
-          sizes[rname] = {
-            width: rect.width / view.scale,
-            height: rect.height / view.scale,
-          }
-        })
+        const sizes = measureNodeSizes(names)
 
         const logical = {}
         for (const n of names) {
@@ -1338,94 +1402,94 @@
           ...Object.entries(graph.regions)
             .filter(([rname]) => isRegionVisible(rname))
             .map(([rname, region]) => {
-            const pos = positions[rname] || { x: 0, y: 0 }
-            const node = newelem(
-              "div",
-              {
-                class:
-                  "node" +
-                  (reach.regions.has(rname) ? " reachable" : ""),
-                left: pos.x + "px",
-                top: pos.y + "px",
-                dataset: { region: rname },
-              },
-              [
-                newelem("div", { class: "node-head" }, [
-                  newelem("span", { class: "dot" }),
-                  rname,
-                ]),
-                newelem(
-                  "div",
-                  { class: "node-body" },
-                  (region.locations || [])
-                    .filter((lname) => {
-                      const linfo = graph.locations[lname]
-                      const isEvent = !!(linfo && linfo.is_event)
-                      return !(hideEvents && isEvent)
-                    })
-                    .map((lname) => {
-                      const isReach = reach.locations.has(lname)
-                      const isChecked = !!checkedLocations[lname]
-                      const linfo = graph.locations[lname]
-                      const isEvent = !!(linfo && linfo.is_event)
-                      const lrow = newelem(
-                        "label",
-                        {
-                          class:
-                            "loc-row" +
-                            (isReach ? " reachable" : "") +
-                            (isChecked ? " checked" : "") +
-                            (isEvent ? " event" : ""),
-                        },
-                        [
-                          newelem("input", {
-                            type: "checkbox",
-                            class: "ck",
-                            checked: isChecked,
-                            onchange(ev) {
-                              checkedLocations[lname] =
-                                ev.target.checked
-                              lrow.classList.toggle(
-                                "checked",
-                                ev.target.checked,
-                              )
-                              saveState()
-                              // In focus mode a node disappears once its
-                              // last location is checked, so a full
-                              // re-render is needed to reflect that;
-                              // otherwise the lightweight class toggle
-                              // above is enough.
-                              if (focusMode) render()
-                            },
-                          }),
-                          newelem("span", {
-                            class: "dot",
-                          }),
-                          newelem(
-                            "span",
-                            {
-                              title: lname,
-                            },
-                            [
-                              lname.includes(" - ") ?
-                                lname
-                                  .split(" - ")
-                                  .slice(1)
-                                  .join(" - ")
-                              : lname,
-                            ],
-                          ),
-                        ],
-                      )
-                      return lrow
-                    }),
-                ),
-              ],
-            )
-            makeDraggable(node, rname)
-            nodeEls[rname] = node
-            return node
-          }),
+              const pos = positions[rname] || { x: 0, y: 0 }
+              const node = newelem(
+                "div",
+                {
+                  class:
+                    "node" +
+                    (reach.regions.has(rname) ? " reachable" : ""),
+                  left: pos.x + "px",
+                  top: pos.y + "px",
+                  dataset: { region: rname },
+                },
+                [
+                  newelem("div", { class: "node-head" }, [
+                    newelem("span", { class: "dot" }),
+                    rname,
+                  ]),
+                  newelem(
+                    "div",
+                    { class: "node-body" },
+                    (region.locations || [])
+                      .filter((lname) => {
+                        const linfo = graph.locations[lname]
+                        const isEvent = !!(linfo && linfo.is_event)
+                        return !(hideEvents && isEvent)
+                      })
+                      .map((lname) => {
+                        const isReach = reach.locations.has(lname)
+                        const isChecked = !!checkedLocations[lname]
+                        const linfo = graph.locations[lname]
+                        const isEvent = !!(linfo && linfo.is_event)
+                        const lrow = newelem(
+                          "label",
+                          {
+                            class:
+                              "loc-row" +
+                              (isReach ? " reachable" : "") +
+                              (isChecked ? " checked" : "") +
+                              (isEvent ? " event" : ""),
+                          },
+                          [
+                            newelem("input", {
+                              type: "checkbox",
+                              class: "ck",
+                              checked: isChecked,
+                              onchange(ev) {
+                                checkedLocations[lname] =
+                                  ev.target.checked
+                                lrow.classList.toggle(
+                                  "checked",
+                                  ev.target.checked,
+                                )
+                                saveState()
+                                // In focus mode a node disappears once its
+                                // last location is checked, so a full
+                                // re-render is needed to reflect that;
+                                // otherwise the lightweight class toggle
+                                // above is enough.
+                                if (focusMode) render()
+                              },
+                            }),
+                            newelem("span", {
+                              class: "dot",
+                            }),
+                            newelem(
+                              "span",
+                              {
+                                title: lname,
+                              },
+                              [
+                                lname.includes(" - ") ?
+                                  lname
+                                    .split(" - ")
+                                    .slice(1)
+                                    .join(" - ")
+                                : lname,
+                              ],
+                            ),
+                          ],
+                        )
+                        return lrow
+                      }),
+                  ),
+                ],
+              )
+              makeDraggable(node, rname)
+              nodeEls[rname] = node
+              return node
+            }),
         )
       }
 
@@ -1682,7 +1746,7 @@
           localY = clientY - rect.top
         const worldX = (localX - view.x) / view.scale
         const worldY = (localY - view.y) / view.scale
-        view.scale = Math.min(2.2, Math.max(0.25, view.scale + delta))
+        view.scale = Math.min(2.2, Math.max(0.05, view.scale + delta))
         view.x = localX - worldX * view.scale
         view.y = localY - worldY * view.scale
         applyView()
