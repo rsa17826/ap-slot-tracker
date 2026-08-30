@@ -84,6 +84,7 @@ OPTIONS = {} # override option values here, e.g. {"goal": "stage10"}
 def build_world(seed=None):
   if GAME not in AutoWorldRegister.world_types:
     print("[ERROR] GAME MUST BE ONE OF\n-------------------------------\n" + ("\n".join(AutoWorldRegister.world_types.keys())) + "\n-------------------------------")
+    os._exit(1)
 
   world_type = AutoWorldRegister.world_types[GAME]
 
