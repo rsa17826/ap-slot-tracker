@@ -75,7 +75,8 @@
         <h2>
           Cheese Trackers
           <span class="hint"
-            >API key used to update BK status for every linked slot</span
+            >API key used to update BK status for every linked
+            slot</span
           >
         </h2>
         <input
@@ -93,7 +94,10 @@
             progression_overlay.js reads)</span
           >
         </h2>
-        <button id="loadBtn">Load rules JSON</button>
+        <div class="h">
+          <button id="loadBtn">Load rules file</button>
+          <button id="loadFolderBtn">Load rules folder</button>
+        </div>
         <div id="progFiles"></div>
       </section>
 
@@ -781,7 +785,8 @@
           for (const edge of edges) {
             const fromEl = nodeEls[edge.from]
             const toEl = nodeEls[edge.to]
-            const fromVisible = fromEl && fromEl.style.display !== "none"
+            const fromVisible =
+              fromEl && fromEl.style.display !== "none"
             const toVisible = toEl && toEl.style.display !== "none"
             edge.path.style.display =
               fromVisible && toVisible ? "" : "none"
@@ -1113,7 +1118,10 @@
             columnWidths[x] ?? 0,
             sizes[n].width,
           )
-          rowHeights[y] = Math.max(rowHeights[y] ?? 0, sizes[n].height)
+          rowHeights[y] = Math.max(
+            rowHeights[y] ?? 0,
+            sizes[n].height,
+          )
         }
 
         const COLUMN_GAP = 90,
@@ -1430,99 +1438,100 @@
           ...Object.entries(graph.regions)
             .filter(([rname]) => isRegionVisible(rname))
             .map(([rname, region]) => {
-            const pos = positions[rname] || { x: 0, y: 0 }
-            const node = newelem(
-              "div",
-              {
-                class:
-                  "node" +
-                  (reach.regions.has(rname) ? " reachable" : ""),
-                left: pos.x + "px",
-                top: pos.y + "px",
-                dataset: { region: rname },
-              },
-              [
-                newelem("div", { class: "node-head" }, [
-                  newelem("span", { class: "dot" }),
-                  rname,
-                ]),
-                newelem(
-                  "div",
-                  { class: "node-body" },
-                  (region.locations || [])
-                    .filter((lname) => {
-                      const linfo = graph.locations[lname]
-                      const isEvent = !!(linfo && linfo.is_event)
-                      if (hideEvents && isEvent) return false
-                      if (focusMode) {
-                        if (!reach.locations.has(lname)) return false // out of logic
-                        if (isLocationDone(lname)) return false // already cleared / auto-granted
-                      }
-                      return true
-                    })
-                    .map((lname) => {
-                      const isReach = reach.locations.has(lname)
-                      const isChecked = !!checkedLocations[lname]
-                      const linfo = graph.locations[lname]
-                      const isEvent = !!(linfo && linfo.is_event)
-                      const lrow = newelem(
-                        "label",
-                        {
-                          class:
-                            "loc-row" +
-                            (isReach ? " reachable" : "") +
-                            (isChecked ? " checked" : "") +
-                            (isEvent ? " event" : ""),
-                        },
-                        [
-                          newelem("input", {
-                            type: "checkbox",
-                            class: "ck",
-                            checked: isChecked,
-                            onchange(ev) {
-                              checkedLocations[lname] =
-                                ev.target.checked
-                              lrow.classList.toggle(
-                                "checked",
-                                ev.target.checked,
-                              )
-                              saveState()
-                              // In focus mode a node disappears once its
-                              // last location is checked, so a full
-                              // re-render is needed to reflect that;
-                              // otherwise the lightweight class toggle
-                              // above is enough.
-                              if (focusMode) render()
-                            },
-                          }),
-                          newelem("span", {
-                            class: "dot",
-                          }),
-                          newelem(
-                            "span",
-                            {
-                              title: lname,
-                            },
-                            [
-                              lname.includes(" - ") ?
-                                lname
-                                  .split(" - ")
-                                  .slice(1)
-                                  .join(" - ")
-                              : lname,
-                            ],
-                          ),
-                        ],
-                      )
-                      return lrow
-                    }),
-                ),
-              ],
-            )
-            makeDraggable(node, rname)
-            nodeEls[rname] = node
-            return node
-          }),
+              const pos = positions[rname] || { x: 0, y: 0 }
+              const node = newelem(
+                "div",
+                {
+                  class:
+                    "node" +
+                    (reach.regions.has(rname) ? " reachable" : ""),
+                  left: pos.x + "px",
+                  top: pos.y + "px",
+                  dataset: { region: rname },
+                },
+                [
+                  newelem("div", { class: "node-head" }, [
+                    newelem("span", { class: "dot" }),
+                    rname,
+                  ]),
+                  newelem(
+                    "div",
+                    { class: "node-body" },
+                    (region.locations || [])
+                      .filter((lname) => {
+                        const linfo = graph.locations[lname]
+                        const isEvent = !!(linfo && linfo.is_event)
+                        if (hideEvents && isEvent) return false
+                        if (focusMode) {
+                          if (!reach.locations.has(lname))
+                            return false // out of logic
+                          if (isLocationDone(lname)) return false // already cleared / auto-granted
+                        }
+                        return true
+                      })
+                      .map((lname) => {
+                        const isReach = reach.locations.has(lname)
+                        const isChecked = !!checkedLocations[lname]
+                        const linfo = graph.locations[lname]
+                        const isEvent = !!(linfo && linfo.is_event)
+                        const lrow = newelem(
+                          "label",
+                          {
+                            class:
+                              "loc-row" +
+                              (isReach ? " reachable" : "") +
+                              (isChecked ? " checked" : "") +
+                              (isEvent ? " event" : ""),
+                          },
+                          [
+                            newelem("input", {
+                              type: "checkbox",
+                              class: "ck",
+                              checked: isChecked,
+                              onchange(ev) {
+                                checkedLocations[lname] =
+                                  ev.target.checked
+                                lrow.classList.toggle(
+                                  "checked",
+                                  ev.target.checked,
+                                )
+                                saveState()
+                                // In focus mode a node disappears once its
+                                // last location is checked, so a full
+                                // re-render is needed to reflect that;
+                                // otherwise the lightweight class toggle
+                                // above is enough.
+                                if (focusMode) render()
+                              },
+                            }),
+                            newelem("span", {
+                              class: "dot",
+                            }),
+                            newelem(
+                              "span",
+                              {
+                                title: lname,
+                              },
+                              [
+                                lname.includes(" - ") ?
+                                  lname
+                                    .split(" - ")
+                                    .slice(1)
+                                    .join(" - ")
+                                : lname,
+                              ],
+                            ),
+                          ],
+                        )
+                        return lrow
+                      }),
+                  ),
+                ],
+              )
+              makeDraggable(node, rname)
+              nodeEls[rname] = node
+              return node
+            }),
         )
       }
 
@@ -1860,6 +1869,56 @@
             alert("Could not parse JSON: " + e.message)
           }
         })
+
+      // Reads every .json file directly inside dirHandle and registers it
+      // as a rule list (db.progFiles), without descending into
+      // subfolders. Re-running this (e.g. on startup, or via the
+      // "Load rules folder" button again) picks up any files added to
+      // the folder since the last scan.
+      async function scanProgFolder(
+        dirHandle,
+        { loadFirst = false } = {},
+      ) {
+        db.fileHandles ??= {}
+        window.db.progFiles ??= {}
+        let firstRaw = null
+        for await (const entry of dirHandle.values()) {
+          if (
+            entry.kind !== "file" ||
+            !entry.name.toLowerCase().endsWith(".json")
+          )
+            continue
+          try {
+            const file = await entry.getFile()
+            const raw = JSON.parse(await file.text())
+            const key = progKeyFor(raw)
+            db.fileHandles[key] = entry
+            window.db.progFiles[key] = raw
+            if (!firstRaw) firstRaw = raw
+          } catch (e) {
+            console.error("Could not parse", entry.name, e)
+          }
+        }
+        if (typeof renderProgFiles === "function") renderProgFiles()
+        if (typeof renderSlots === "function") renderSlots()
+        if (loadFirst && firstRaw) loadGraph(firstRaw)
+      }
+
+      document
+        .getElementById("loadFolderBtn")
+        .addEventListener("click", async () => {
+          try {
+            const dirHandle = await showDirectoryPicker()
+            // Remember the folder itself (not just its current
+            // contents) so it can be rescanned later, e.g. on next
+            // page load, to pick up files added afterwards.
+            db.progFolderHandle = dirHandle
+            await scanProgFolder(dirHandle, { loadFirst: !graph })
+          } catch (e) {
+            if (e.name !== "AbortError")
+              alert("Could not load folder: " + e.message)
+          }
+        })
       document
         .getElementById("resetBtn")
         .addEventListener("click", () => {
@@ -1955,6 +2014,26 @@
         refreshNotifBtn()
         renderProgFiles()
         renderSlots()
+        // If a rules folder was picked in a previous session, rescan it
+        // now so files added since then show up. Permission may not be
+        // grantable without a user gesture on some browsers; fail quietly
+        // if so (the "Load rules folder" button can always re-grant it).
+        if (window.db.progFolderHandle) {
+          ;(async () => {
+            try {
+              const dh = window.db.progFolderHandle
+              let perm = await dh.queryPermission({ mode: "read" })
+              if (perm !== "granted") {
+                perm = await dh.requestPermission({ mode: "read" })
+              }
+              if (perm === "granted") {
+                await scanProgFolder(dh)
+              }
+            } catch (e) {
+              console.error("Could not rescan saved rules folder", e)
+            }
+          })()
+        }
         // Auto-reconnect any saved slots
         window.db.connections.forEach((conn) => startConnection(conn))
       })()

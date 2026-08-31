@@ -55,6 +55,7 @@ body {
   margin: 0 0 4px;
 }
 #loadBtn,
+#loadFolderBtn,
 #resetBtn,
 #autoLayoutBtn,
 #customLayoutBtn {
@@ -70,7 +71,32 @@ body {
   margin-bottom: 6px;
   transition: border-color 0.15s;
 }
+.h {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+}
+.v {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#loadBtn,
+#loadFolderBtn {
+  width: 50%;
+  padding: 8px 10px;
+  background: var(--color-lmcj);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 12px;
+  margin-bottom: 6px;
+  transition: border-color 0.15s;
+}
 #loadBtn:hover,
+#loadFolderBtn:hover,
 #resetBtn:hover,
 #autoLayoutBtn:hover,
 #customLayoutBtn:hover {

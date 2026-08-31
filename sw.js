@@ -1,5 +1,5 @@
 // prettier-ignore
-const ASSETS = ["/","/a.js","/apMulti.js","/app.js","/colors.css","/.foldericon.png","/favicon.ico","/indexeddbProxy.js","/manifest.json","/map.css","/newelem.js","/style.css",]
+const ASSETS = ["/","/ctApi.js","/a.js","/apMulti.js","/app.js","/colors.css","/.foldericon.png","/favicon.ico","/indexeddbProxy.js","/manifest.json","/map.css","/newelem.js","/style.css",]
 // Install Service Worker and cache core assets
 self.addEventListener("install", (event) => {
   self.skipWaiting()

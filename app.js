@@ -330,58 +330,61 @@ function renderSlots() {
               }
               return modeSelect
             })(),
-            newelem(
-              "button",
-              {
-                onclick() {
-                  if (
-                    status === "disconnected" ||
-                    status === "error" ||
-                    !rt
-                  ) {
-                    startConnection(conn)
-                  } else {
+            newelem("div", { class: "h" }, [
+              newelem(
+                "button",
+                {
+                  onclick() {
+                    if (
+                      status === "disconnected" ||
+                      status === "error" ||
+                      !rt
+                    ) {
+                      startConnection(conn)
+                    } else {
+                      stopConnection(conn.id)
+                    }
+                  },
+                },
+                [
+                  status === "disconnected" || status === "error" ?
+                    "Connect"
+                  : "Disconnect",
+                ],
+              ),
+              newelem(
+                "button",
+                {
+                  class: "danger",
+                  onclick() {
                     stopConnection(conn.id)
-                  }
+                    const idx = window.db.connections.findIndex(
+                      (c) => c.id === conn.id,
+                    )
+                    if (idx !== -1)
+                      window.db.connections.splice(idx, 1)
+                    renderSlots()
+                  },
                 },
-              },
-              [
-                status === "disconnected" || status === "error" ?
-                  "Connect"
-                : "Disconnect",
-              ],
-            ),
-            newelem(
-              "button",
-              {
-                class: "danger",
-                onclick() {
-                  stopConnection(conn.id)
-                  const idx = window.db.connections.findIndex(
-                    (c) => c.id === conn.id,
-                  )
-                  if (idx !== -1) window.db.connections.splice(idx, 1)
-                  renderSlots()
+                ["Remove"],
+              ),
+              newelem(
+                "button",
+                {
+                  onclick: async (e) => {
+                    // Defined in index.html's map script: loads this game's
+                    // rules JSON (if already known) and syncs the map's
+                    // inventory/checked-locations from this slot's live AP
+                    // state.
+                    await openMapForSlot(conn)
+                  },
                 },
-              },
-              ["Remove"],
-            ),
-            newelem(
-              "button",
-              {
-                onclick: async (e) => {
-                  // Defined in index.html's map script: loads this game's
-                  // rules JSON (if already known) and syncs the map's
-                  // inventory/checked-locations from this slot's live AP
-                  // state.
-                  await openMapForSlot(conn)
-                },
-              },
-              ["Show Map"],
-            ),
+                ["Show Map"],
+              ),
+            ]),
+            newelem("div", { class: "h" }, ctPanelFor(conn)),
           ]),
         ]),
-        ctPanelFor(conn),
       ])
     }),
   )
@@ -421,7 +424,11 @@ async function ctDoLink(conn) {
   renderSlots()
   try {
     const tracker = await ctGetTracker(trackerId)
-    const game = ctGuessGame(tracker.games, conn.playerName, conn.game)
+    const game = ctGuessGame(
+      tracker.games,
+      conn.playerName,
+      conn.game,
+    )
     if (!game) {
       ui.error = `No game on that tracker matches slot name "${conn.playerName}"`
       return
@@ -470,9 +477,8 @@ async function ctApplyStatus(conn, toBk) {
   try {
     const updated = await ctSetBk(conn, toBk)
     conn.ct.isBk = toBk
-    conn.ct.lastKnownStatus = updated
-      ? updated.progression_status
-      : conn.ct.lastKnownStatus
+    conn.ct.lastKnownStatus =
+      updated ? updated.progression_status : conn.ct.lastKnownStatus
     ctSaveConn(conn)
   } catch (e) {
     console.error(e)
@@ -509,33 +515,30 @@ function ctPanelFor(conn) {
     const label =
       ui.busy ? "…"
       : state === null ?
-        conn.ct.isBk ? "Marked BK'd (tap to clear)"
+        conn.ct.isBk ?
+          "Marked BK'd (tap to clear)"
         : "Mark BK'd"
       : targetIsBk ? "Mark BK'd"
       : "Mark Unblocked"
 
-    return newelem(
-      "div",
-      {
-        class: "slot-ct",
-        display: "flex",
-        gap: "8px",
-        alignItems: "center",
-        flexWrap: "wrap",
-        marginTop: "6px",
-      },
-      [
-        newelem(
-          "button",
-          { disabled: ui.busy, onclick: () => ctApplyStatus(conn, targetIsBk) },
-          [label],
-        ),
-        newelem("button", { class: "danger", onclick: () => ctUnlink(conn) }, [
-          "Unlink",
-        ]),
-        ui.error ? newelem("span", { class: "slot-sub" }, [ui.error]) : null,
-      ],
-    )
+    return [
+      newelem(
+        "button",
+        {
+          disabled: ui.busy,
+          onclick: () => ctApplyStatus(conn, targetIsBk),
+        },
+        [label],
+      ),
+      newelem(
+        "button",
+        { class: "danger", onclick: () => ctUnlink(conn) },
+        ["Unlink"],
+      ),
+      ui.error ?
+        newelem("span", { class: "slot-sub" }, [ui.error])
+      : null,
+    ]
   }
 
   // Not linked yet: just a tracker link/ID -- the game is auto-matched by
@@ -543,22 +546,21 @@ function ctPanelFor(conn) {
   const trackerInput = newelem("input", {
     placeholder: "Tracker link or ID (e.g. .../tracker/AAA or AAA)",
     value: ui.trackerInput,
+    width: "300px",
   })
   trackerInput.oninput = () => (ui.trackerInput = trackerInput.value)
 
-  return newelem(
-    "div",
-    { class: "slot-ct", display: "flex", gap: "8px", flexWrap: "wrap" },
-    [
-      trackerInput,
-      newelem(
-        "button",
-        { disabled: ui.busy, onclick: () => ctDoLink(conn) },
-        [ui.busy ? "…" : "Link Cheese Tracker"],
-      ),
-      ui.error ? newelem("span", { class: "slot-sub" }, [ui.error]) : null,
-    ],
-  )
+  return [
+    trackerInput,
+    newelem(
+      "button",
+      { disabled: ui.busy, onclick: () => ctDoLink(conn) },
+      [ui.busy ? "…" : "Link Cheese Tracker"],
+    ),
+    ui.error ?
+      newelem("span", { class: "slot-sub" }, [ui.error])
+    : null,
+  ]
 }
 
 function renderProgFiles() {
