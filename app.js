@@ -164,6 +164,7 @@ function handleReceivedItems(conn, rt, items) {
       prog: true,
     })
   }
+  ctAutoSync(conn)
 
   const mode = conn.notifyMode || "all"
   const itemNames = items.map((i) => i.name).join(", ")
@@ -202,6 +203,9 @@ function maybeRecomputeProgression(conn, rt) {
       (l) => !checkedNames[l] && isRealLocation(graph, l),
     ),
   )
+  // Locations just got checked off (possibly clearing the last obtainable
+  // one) -- re-sync BK status to match.
+  ctAutoSync(conn)
 }
 
 // ---------------------------------------------------------------------
@@ -377,8 +381,183 @@ function renderSlots() {
             ),
           ]),
         ]),
+        ctPanelFor(conn),
       ])
     }),
+  )
+}
+
+// ---------------------------------------------------------------------
+// Cheese Trackers integration: link a slot to a tracker/game so its BK
+// (blocked) status can be toggled from here instead of the tracker site.
+// The API key is global (one field, used for every linked slot); linking
+// only needs a tracker link/ID since the game is auto-matched by slot name.
+// ---------------------------------------------------------------------
+const ctUiState = {} // connId -> ephemeral link-flow state (not persisted)
+
+function ctUi(connId) {
+  return (ctUiState[connId] ??= {
+    trackerInput: "",
+    busy: false,
+    error: "",
+  })
+}
+
+function ctSaveConn(conn) {
+  const idx = window.db.connections.findIndex((c) => c.id === conn.id)
+  if (idx !== -1) window.db.connections[idx].ct = conn.ct
+}
+
+async function ctDoLink(conn) {
+  const ui = ctUi(conn.id)
+  const trackerId = ctParseTrackerId(ui.trackerInput)
+  if (!trackerId) {
+    ui.error = "Enter a tracker link or ID first"
+    renderSlots()
+    return
+  }
+  ui.busy = true
+  ui.error = ""
+  renderSlots()
+  try {
+    const tracker = await ctGetTracker(trackerId)
+    const game = ctGuessGame(tracker.games, conn.playerName, conn.game)
+    if (!game) {
+      ui.error = `No game on that tracker matches slot name "${conn.playerName}"`
+      return
+    }
+    conn.ct = {
+      trackerId,
+      gameId: game.id,
+      lastKnownStatus: game.progression_status,
+      isBk: game.progression_status === CT_BK_VALUE,
+    }
+    ctSaveConn(conn)
+    delete ctUiState[conn.id]
+  } catch (e) {
+    console.error(e)
+    ui.error = e.message || "Failed to fetch tracker"
+  } finally {
+    ui.busy = false
+    renderSlots()
+  }
+}
+
+function ctUnlink(conn) {
+  conn.ct = null
+  ctSaveConn(conn)
+  delete ctUiState[conn.id]
+  renderSlots()
+}
+
+// Whether this slot currently has any obtainable-but-unchecked locations,
+// per its loaded rules graph. null means we can't tell (no graph loaded
+// yet), in which case BK can only be set manually.
+function ctObtainableState(conn) {
+  const graph = progForGame(conn.progKey)
+  const rt = runtime[conn.id]
+  if (!graph || !rt?.prevObtainable) return null
+  return rt.prevObtainable.size > 0
+}
+
+// Forces the linked slot's tracker status to the given BK state.
+async function ctApplyStatus(conn, toBk) {
+  if (!conn.ct) return
+  const ui = ctUi(conn.id)
+  ui.busy = true
+  ui.error = ""
+  renderSlots()
+  try {
+    const updated = await ctSetBk(conn, toBk)
+    conn.ct.isBk = toBk
+    conn.ct.lastKnownStatus = updated
+      ? updated.progression_status
+      : conn.ct.lastKnownStatus
+    ctSaveConn(conn)
+  } catch (e) {
+    console.error(e)
+    ui.error = e.message || "Failed to update status"
+  } finally {
+    ui.busy = false
+    renderSlots()
+  }
+}
+
+// Called whenever a slot's obtainable-locations set may have changed
+// (items received or locations checked off). Silently re-syncs the
+// tracker's BK status to match the current logic state, if we can tell
+// what it should be and it's not already correct.
+function ctAutoSync(conn) {
+  if (!conn.ct) return
+  const state = ctObtainableState(conn)
+  if (state === null) return
+  const shouldBeBk = !state
+  if (conn.ct.isBk === shouldBeBk) return
+  ctApplyStatus(conn, shouldBeBk)
+}
+
+function ctPanelFor(conn) {
+  const ui = ctUi(conn.id)
+
+  // Already linked: one button that always reflects (and applies) the
+  // status the current logic says this slot should have. With no rules
+  // graph loaded we can't compute that, so it falls back to a manual
+  // toggle of whatever it's currently set to.
+  if (conn.ct?.trackerId && conn.ct?.gameId != null) {
+    const state = ctObtainableState(conn)
+    const targetIsBk = state === null ? !conn.ct.isBk : !state
+    const label =
+      ui.busy ? "…"
+      : state === null ?
+        conn.ct.isBk ? "Marked BK'd (tap to clear)"
+        : "Mark BK'd"
+      : targetIsBk ? "Mark BK'd"
+      : "Mark Unblocked"
+
+    return newelem(
+      "div",
+      {
+        class: "slot-ct",
+        display: "flex",
+        gap: "8px",
+        alignItems: "center",
+        flexWrap: "wrap",
+        marginTop: "6px",
+      },
+      [
+        newelem(
+          "button",
+          { disabled: ui.busy, onclick: () => ctApplyStatus(conn, targetIsBk) },
+          [label],
+        ),
+        newelem("button", { class: "danger", onclick: () => ctUnlink(conn) }, [
+          "Unlink",
+        ]),
+        ui.error ? newelem("span", { class: "slot-sub" }, [ui.error]) : null,
+      ],
+    )
+  }
+
+  // Not linked yet: just a tracker link/ID -- the game is auto-matched by
+  // slot name, and the API key is the global one set above.
+  const trackerInput = newelem("input", {
+    placeholder: "Tracker link or ID (e.g. .../tracker/AAA or AAA)",
+    value: ui.trackerInput,
+  })
+  trackerInput.oninput = () => (ui.trackerInput = trackerInput.value)
+
+  return newelem(
+    "div",
+    { class: "slot-ct", display: "flex", gap: "8px", flexWrap: "wrap" },
+    [
+      trackerInput,
+      newelem(
+        "button",
+        { disabled: ui.busy, onclick: () => ctDoLink(conn) },
+        [ui.busy ? "…" : "Link Cheese Tracker"],
+      ),
+      ui.error ? newelem("span", { class: "slot-sub" }, [ui.error]) : null,
+    ],
   )
 }
 
@@ -467,6 +646,7 @@ document
       playerName: f.playerName.value.trim(),
       password: f.password.value,
       notifyMode: "all",
+      ct: null, // Cheese Trackers link, set via the slot card once created
     }
     if (!conn.hostname || !progKey || !conn.game || !conn.playerName)
       return

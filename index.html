@@ -73,6 +73,20 @@
 
       <section class="panel">
         <h2>
+          Cheese Trackers
+          <span class="hint"
+            >API key used to update BK status for every linked slot</span
+          >
+        </h2>
+        <input
+          id="ctApiKeyInput"
+          type="password"
+          placeholder="Cheese Trackers API key"
+        />
+      </section>
+
+      <section class="panel">
+        <h2>
           Progression files
           <span class="hint"
             >a file per game, defining a PROG array (same format
@@ -92,6 +106,7 @@
     <script src="newelem.js"></script>
     <script src="indexeddbProxy.js"></script>
     <script src="apMulti.js"></script>
+    <script src="ctApi.js"></script>
     <script src="app.js"></script>
 
     <div id="app">
@@ -690,6 +705,17 @@
         reach = { regions, locations, entrances }
       }
 
+      // A location counts as "done" once nothing further is needed from it:
+      // either the user has checked it, or (for event locations, which
+      // auto-grant their item the moment they're reachable rather than via
+      // the checkbox) it's currently reachable.
+      function isLocationDone(lname) {
+        if (checkedLocations[lname]) return true
+        const linfo = graph.locations[lname]
+        if (linfo && linfo.is_event) return reach.locations.has(lname)
+        return false
+      }
+
       // A region counts as "cleared" (nothing left to do there) once every
       // one of its locations is already checked. Used by focus mode to hide
       // nodes that are either unreachable or fully cleared, so the map only
@@ -698,7 +724,7 @@
         const region = graph.regions[rname]
         const locs = (region && region.locations) || []
         if (locs.length === 0) return false
-        return locs.every((lname) => checkedLocations[lname])
+        return locs.every(isLocationDone)
       }
 
       function isRegionVisible(rname) {
@@ -949,14 +975,14 @@
       // still works).
       document.addEventListener("keydown", (ev) => {
         if (ev.key !== "Tab") return
-        const tag = ev.target.tagName
-        if (
-          tag === "INPUT" ||
-          tag === "TEXTAREA" ||
-          tag === "SELECT" ||
-          ev.target.isContentEditable
-        )
-          return
+        // const tag = ev.target.tagName
+        // if (
+        //   tag === "INPUT" ||
+        //   tag === "TEXTAREA" ||
+        //   tag === "SELECT" ||
+        //   ev.target.isContentEditable
+        // )
+        //   return
         ev.preventDefault()
         setMapVisible(!appEl.classList.contains("visible"))
       })
@@ -1427,7 +1453,12 @@
                     .filter((lname) => {
                       const linfo = graph.locations[lname]
                       const isEvent = !!(linfo && linfo.is_event)
-                      return !(hideEvents && isEvent)
+                      if (hideEvents && isEvent) return false
+                      if (focusMode) {
+                        if (!reach.locations.has(lname)) return false // out of logic
+                        if (isLocationDone(lname)) return false // already cleared / auto-granted
+                      }
+                      return true
                     })
                     .map((lname) => {
                       const isReach = reach.locations.has(lname)
@@ -1895,6 +1926,14 @@
         window.db = await createDB("ap_tracker")
         window.db.connections ??= []
         window.db.progFiles ??= {}
+        window.db.ctApiKey ??= ""
+        const ctApiKeyInput = document.getElementById("ctApiKeyInput")
+        if (ctApiKeyInput) {
+          ctApiKeyInput.value = window.db.ctApiKey || ""
+          ctApiKeyInput.oninput = () => {
+            window.db.ctApiKey = ctApiKeyInput.value.trim()
+          }
+        }
         setupPanZoom()
         view = db.view ?? { x: 40, y: 40, scale: 1 }
         hideEvents = db.hideEvents ?? false
