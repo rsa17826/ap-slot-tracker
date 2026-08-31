@@ -231,36 +231,185 @@ function progGameName(progKey) {
   return window.db.progFiles[progKey]?.game ?? progKey
 }
 
-// Keeps the "Add a slot" game <select> in sync with whatever rules JSON
-// files have been loaded, showing each entry's name + version. Distinct
-// versions of the same game each get their own option.
-function populateGameSelect() {
-  const select = document.getElementById("gameSelect")
-  if (!select) return
-  const progKeys = gamesWithProg()
-  const prevValue = select.value
+// Keeps the "Add a slot" game picker in sync with whatever rules JSON
+// files have been loaded, showing each entry's name + version. Games
+// with a single loaded version are a plain one-click item; games with
+// multiple loaded versions become a nested group you expand to pick a
+// version from, like a titlebar menu.
+//
+// The picker is a custom widget (not a native <select>, which can't do
+// nested/expandable entries) but keeps the same #gameSelect id and
+// exposes its value through a hidden `game` form field, so
+// `f.game.value` in the add-slot submit handler keeps working unchanged.
+let gameSelectExpanded = null // which game name's submenu is open, if any
 
-  select.replaceChildren(
-    newelem(
-      "option",
-      { value: "", disabled: true, selected: !prevValue },
-      [
-        progKeys.length === 0 ?
-          "Load a rules JSON below to select a game"
-        : "Select a game",
-      ],
-    ),
-    ...progKeys.map((progKey) => {
-      const version = progVersion(progKey)
-      const name = progGameName(progKey)
-      return newelem("option", { value: progKey }, [
-        version ? `${name} (v${version})` : name,
+function populateGameSelect() {
+  let root = document.getElementById("gameSelect")
+  if (!root) return
+
+  // First run: the element in markup is still the old <select id="gameSelect">
+  // (or nothing has replaced it yet) — swap it for our widget container,
+  // preserving id/name so the rest of the app and the form keep working.
+  if (root.tagName !== "DIV" || !root.classList.contains("game-select")) {
+    const replacement = newelem("div", {
+      id: "gameSelect",
+      class: "game-select",
+    })
+    root.replaceWith(replacement)
+    root = replacement
+  }
+
+  const prevValue = root.dataset.value || ""
+  const progKeys = gamesWithProg()
+  const hasAny = progKeys.length > 0
+
+  // Group progKeys by display game name, so games with >1 loaded
+  // version become an expandable group and games with exactly one
+  // stay a flat, single-click item.
+  const groups = new Map() // name -> [progKey, ...]
+  for (const progKey of progKeys) {
+    const name = progGameName(progKey)
+    if (!groups.has(name)) groups.set(name, [])
+    groups.get(name).push(progKey)
+  }
+
+  const selectedValid = progKeys.includes(prevValue)
+  const value = selectedValid ? prevValue : ""
+  root.dataset.value = value
+
+  const selectedLabel = (() => {
+    if (!value) {
+      return hasAny ?
+          "Select a game"
+        : "Load a rules JSON below to select a game"
+    }
+    const version = progVersion(value)
+    const name = progGameName(value)
+    return version ? `${name} (v${version})` : name
+  })()
+
+  function closeMenu() {
+    gameSelectExpanded = null
+    const menu = root.querySelector(".game-select-menu")
+    menu?.remove()
+    root.classList.remove("open")
+  }
+
+  function selectValue(progKey) {
+    root.dataset.value = progKey
+    closeMenu()
+    populateGameSelect()
+    root
+      .querySelector('input[name="game"]')
+      ?.dispatchEvent(new Event("change", { bubbles: true }))
+  }
+
+  function buildMenu() {
+    if (groups.size === 0) {
+      return newelem("div", { class: "game-select-menu" }, [
+        newelem("div", { class: "game-select-empty" }, [
+          "Load a rules JSON below to select a game",
+        ]),
       ])
-    }),
+    }
+    return newelem(
+      "div",
+      { class: "game-select-menu" },
+      [...groups.entries()].map(([name, keys]) => {
+        if (keys.length === 1) {
+          const progKey = keys[0]
+          return newelem(
+            "div",
+            {
+              class: `game-select-item${progKey === value ? " selected" : ""}`,
+              onclick: (e) => {
+                e.stopPropagation()
+                selectValue(progKey)
+              },
+            },
+            [name],
+          )
+        }
+
+        const expanded = gameSelectExpanded === name
+        return newelem("div", { class: "game-select-group" }, [
+          newelem(
+            "div",
+            {
+              class: `game-select-group-header${expanded ? " expanded" : ""}`,
+              onclick: (e) => {
+                e.stopPropagation()
+                gameSelectExpanded = expanded ? null : name
+                populateGameSelect()
+              },
+            },
+            [name, newelem("span", { class: "caret" }, ["▸"])],
+          ),
+          expanded ?
+            newelem(
+              "div",
+              { class: "game-select-submenu" },
+              keys.map((progKey) => {
+                const version = progVersion(progKey)
+                return newelem(
+                  "div",
+                  {
+                    class: `game-select-item${progKey === value ? " selected" : ""}`,
+                    onclick: (e) => {
+                      e.stopPropagation()
+                      selectValue(progKey)
+                    },
+                  },
+                  [version ? `v${version}` : "(unversioned)"],
+                )
+              }),
+            )
+          : null,
+        ])
+      }),
+    )
+  }
+
+  const wasOpen = root.classList.contains("open")
+
+  root.replaceChildren(
+    newelem("input", { type: "hidden", name: "game", value }),
+    newelem(
+      "button",
+      {
+        type: "button",
+        class: "game-select-trigger",
+        disabled: !hasAny,
+        onclick: (e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          e.stopImmediatePropagation()
+          if (root.classList.contains("open")) closeMenu()
+          else {
+            root.classList.add("open")
+            root.appendChild(buildMenu())
+          }
+        },
+      },
+      [selectedLabel, newelem("span", { class: "caret" }, ["▾"])],
+    ),
   )
 
-  if (progKeys.includes(prevValue)) select.value = prevValue
+  if (wasOpen) {
+    root.classList.add("open")
+    root.appendChild(buildMenu())
+  }
 }
+
+// Close the menu when clicking anywhere outside it.
+document.addEventListener("click", (e) => {
+  const root = document.getElementById("gameSelect")
+  if (!root || !root.classList.contains("open")) return
+  if (root.contains(e.target)) return
+  gameSelectExpanded = null
+  root.classList.remove("open")
+  root.querySelector(".game-select-menu")?.remove()
+})
 
 function renderSlots() {
   const conns = [...window.db.connections]
@@ -654,6 +803,8 @@ document
       return
     window.db.connections.push(conn)
     f.reset()
+    document.getElementById("gameSelect")?.removeAttribute("data-value")
+    populateGameSelect()
     renderSlots()
     startConnection(conn)
   })

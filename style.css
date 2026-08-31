@@ -205,3 +205,81 @@ button:hover {
   font-size: 13px;
   padding: 4px 0;
 }
+
+.game-select {
+  position: relative;
+  display: inline-block;
+  background-color: var(--color-zgom);
+}
+.game-select-trigger {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  background-color: var(--color-zgom);
+}
+.game-select-trigger[disabled] {
+  cursor: not-allowed;
+  background-color: var(--color-zgom);
+}
+.game-select-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  min-width: 100%;
+  background: var(--color-ckyr);
+  border: 1px solid var(--color-rusx);
+  border-radius: 6px;
+  padding: 4px;
+  max-height: 320px;
+  overflow-y: auto;
+  background-color: var(--color-zgom);
+}
+.game-select-item,
+.game-select-group-header {
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background-color: var(--color-zgom);
+}
+.game-select-item:hover,
+.game-select-group-header:hover {
+  filter: brightness(1.15);
+  background: var(--color-cxed);
+}
+.game-select-item.selected {
+  font-weight: 600;
+  background-color: var(--color-zgom);
+}
+.game-select-submenu {
+  padding-left: 14px;
+  background-color: var(--color-zgom);
+}
+.game-select-group-header .caret {
+  transition: transform 0.1s ease;
+  opacity: 0.6;
+  font-size: 0.8em;
+  background-color: var(--color-zgom);
+}
+.game-select-group-header.expanded .caret {
+  transform: rotate(90deg);
+  background-color: var(--color-zgom);
+}
+.game-select-empty {
+  padding: 6px 10px;
+  opacity: 0.7;
+  font-style: italic;
+  background-color: var(--color-zgom);
+}
+* {
+  outline-color: var(--accent);
+}
