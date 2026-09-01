@@ -1,10 +1,8 @@
-:root {
-  --mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
-}
 html {
   color-scheme: dark;
 }
 :root {
+  --mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
   --accent-dim: #372f66;
   --accent: #8b7bf7;
   --bg-grid: #0d0a16;
