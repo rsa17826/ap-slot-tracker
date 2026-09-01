@@ -13,6 +13,7 @@ else:
 
 sys.path.insert(0, os.environ["AP_SOURCE_DIR"])
 
+
 # --- CLI parsing -------------------------------------------------------
 # Usage:
 #   python generate-global-tracker-data.py [GAME] [--options NAME v1,v2 NAME2 v1,v2 ...]
@@ -20,7 +21,7 @@ sys.path.insert(0, os.environ["AP_SOURCE_DIR"])
 #
 # --options NAME v1,v2 ...
 #   Declares one or more "axes" to sweep, e.g.:
-#     --options walls_are_checks true,false eggs_are_checks true,false
+#     --options walls_are_checks True,False eggs_are_checks True,False
 #   generates every combination (cartesian product) as its own profile.
 #   These axes are also saved to a metadata file next to the output JSON
 #   (<GAME>_tracker_options_meta.json), and merged with anything already
@@ -44,7 +45,7 @@ def _parse_args(argv):
   game = positional[0] if positional else "Vex2"
 
   profiles_arg = None
-  options_axes = None  # {name: [raw string values]}
+  options_axes = None # {name: [raw string values]}
 
   i = 0
   while i < len(argv):
@@ -66,13 +67,16 @@ def _parse_args(argv):
         values = [v.strip() for v in argv[i + 1].split(",") if v.strip() != ""]
         options_axes[name] = values
         i += 2
+
       continue
+
     i += 1
 
   if profiles_arg is not None:
     if profiles_arg.startswith("@"):
       with open(profiles_arg[1:], "r") as f:
         profiles = json.load(f)
+
     else:
       profiles = json.loads(profiles_arg)
 
@@ -99,7 +103,7 @@ with open(g, "r") as f:
 
   from worlds import AutoWorld
   from worlds.AutoWorld import AutoWorldRegister, call_all
-  from BaseClasses import MultiWorld, CollectionState
+  from BaseClasses import MultiWorld, CollectionState, ItemClassification
   from Generate import get_seed_name
   from test.general import gen_steps
 
@@ -159,9 +163,12 @@ META_PATH = os.path.join(TRACKER_FILE_OUT_DIR, f"{GAME}_tracker_options_meta.jso
 def _load_metadata():
   if not os.path.exists(META_PATH):
     return {}
+
   try:
     with open(META_PATH, "r") as f:
       return json.load(f)
+
+
   except Exception as e:
     print(f"[WARN] couldn't read {META_PATH} ({e}), starting fresh")
     return {}
@@ -190,8 +197,10 @@ def _validate_and_resolve_axes(raw_axes, world_type):
       try:
         option_type.from_any(v)
         good_values.append(v)
+
       except Exception as e:
         print(f"[WARN] value '{v}' is not valid for option '{name}' on {GAME} ({type(e).__name__}: {e}) - skipping this value")
+
 
     if not good_values:
       print(f"[WARN] option '{name}' had no valid values left after validation - skipping it entirely")
@@ -204,18 +213,20 @@ def _validate_and_resolve_axes(raw_axes, world_type):
 
 def _build_profiles_from_axes(axes):
   """axes: {name: [values]} -> cartesian product of profiles, e.g.
-  {"walls_are_checks": ["true","false"], "eggs_are_checks": ["true","false"]}
-  becomes 4 profiles named like 'walls_are_checks=true,eggs_are_checks=false'."""
+  {"walls_are_checks": ["True","False"], "eggs_are_checks": ["True","False"]}
+  becomes 4 profiles named like 'walls_are_checks=True,eggs_are_checks=False'."""
   if not axes:
     return {"default": {}}
 
   import itertools
+
   names = list(axes.keys())
   value_lists = [axes[n] for n in names]
 
   total = 1
   for vs in value_lists:
     total *= len(vs)
+
   if total > 200:
     print(f"[WARN] {total} option combinations - this will build {total} full worlds and may take a while")
 
@@ -224,6 +235,7 @@ def _build_profiles_from_axes(axes):
     options = dict(zip(names, combo))
     profile_name = ",".join(f"{n}={v}" for n, v in options.items())
     profiles[profile_name] = options
+
   return profiles
 
 
@@ -265,6 +277,7 @@ def resolve_profiles():
     if GAME not in AutoWorldRegister.world_types:
       print("[ERROR] GAME MUST BE ONE OF\n-------------------------------\n" + ("\n".join(AutoWorldRegister.world_types.keys())) + "\n-------------------------------")
       os._exit(1)
+
     world_type = AutoWorldRegister.world_types[GAME]
     hints = world_type.options_dataclass.type_hints
     for profile_name, options in PROFILES_OVERRIDE.items():
@@ -274,14 +287,20 @@ def resolve_profiles():
         else:
           try:
             hints[opt_name].from_any(val)
+
           except Exception as e:
             print(f"[WARN] profile '{profile_name}': value '{val}' is not valid for option '{opt_name}' on {GAME} ({type(e).__name__}: {e}) - it will be ignored (default used instead)")
+
+
+
+
     return PROFILES_OVERRIDE
 
   # --options and/or saved metadata path
   if GAME not in AutoWorldRegister.world_types:
     print("[ERROR] GAME MUST BE ONE OF\n-------------------------------\n" + ("\n".join(AutoWorldRegister.world_types.keys())) + "\n-------------------------------")
     os._exit(1)
+
   world_type = AutoWorldRegister.world_types[GAME]
 
   saved_axes = _load_metadata()
@@ -294,6 +313,8 @@ def resolve_profiles():
     for v in values:
       if v not in existing:
         existing.append(v)
+
+
     merged_axes[name] = existing
 
   resolved_axes = _validate_and_resolve_axes(merged_axes, world_type)
@@ -343,10 +364,26 @@ def dump(multiworld, world):
         "rule": serialize_rule(entrance.access_rule),
       }
 
+
   # NOTE: this used to be nested inside the region loop, which re-processed
   # every location once per region (harmless but wasteful, and now that we
   # run this per-profile it's worth not repeating). Locations aren't tied to
   # a single region's exit list, so this only needs to run once per world.
+  # Item pool counts, ignoring filler items (junk items with no logical
+  # significance, e.g. generic "trap" or currency filler). Non-filler items
+  # (progression, useful, trap, or plain non-filler) are counted by name.
+  item_counts = {}
+  for item in multiworld.itempool:
+    if item.player != PLAYER:
+      continue
+
+    if item.classification == ItemClassification.filler or item.classification == ItemClassification.trap:
+      continue
+
+    item_counts[item.name] = item_counts.get(item.name, 0) + 1
+
+  data["items"] = item_counts
+
   for loc in multiworld.get_locations(PLAYER):
     data["locations"][loc.name] = {
       "region": loc.parent_region.name if loc.parent_region else None,
@@ -387,6 +424,7 @@ def _merge_values(by_profile_value):
   first_json = json.dumps(values[0], sort_keys=True)
   if all(json.dumps(v, sort_keys=True) == first_json for v in values[1:]):
     return values[0]
+
   return {VARIES_MARKER: by_profile_value}
 
 
@@ -403,12 +441,11 @@ def _merge_dict_of_records(per_profile_dicts, field_names):
   for record_name in all_record_names:
     merged_record = {}
     for field in field_names:
-      by_profile = {
-        profile: d.get(record_name, {}).get(field)
-        for profile, d in per_profile_dicts.items()
-      }
+      by_profile = {profile: d.get(record_name, {}).get(field) for profile, d in per_profile_dicts.items()}
       merged_record[field] = _merge_values(by_profile)
+
     merged[record_name] = merged_record
+
   return merged
 
 
@@ -423,9 +460,7 @@ def build_and_dump_all_profiles(profiles):
   merged = {
     "game": first["game"],
     "version": first["version"],
-    "origin_region_name": _merge_values(
-      {p: d["origin_region_name"] for p, d in per_profile_data.items()}
-    ),
+    "origin_region_name": _merge_values({p: d["origin_region_name"] for p, d in per_profile_data.items()}),
     "profiles": {name: opts for name, opts in profiles.items()},
     "regions": _merge_dict_of_records(
       {p: d["regions"] for p, d in per_profile_data.items()},
@@ -438,6 +473,13 @@ def build_and_dump_all_profiles(profiles):
     "locations": _merge_dict_of_records(
       {p: d["locations"] for p, d in per_profile_data.items()},
       ["region", "rule", "item_dependencies", "region_dependencies", "is_event", "item"],
+    ),
+    # Item pool (name -> count), filler excluded. Wrapped as {"count": n}
+    # per item so it can reuse the same _merge_dict_of_records machinery as
+    # the other record types above (varies-by-profile if counts differ).
+    "items": _merge_dict_of_records(
+      {p: {name: {"count": count} for name, count in d["items"].items()} for p, d in per_profile_data.items()},
+      ["count"],
     ),
   }
   return merged

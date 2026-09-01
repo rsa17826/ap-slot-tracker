@@ -903,6 +903,13 @@
         // reachable (see eventItemNameFor) -- make sure that item shows up
         // in the inventory list even if no rule happens to reference it.
         for (const n of collectEventItemNames()) names.add(n)
+        // The exporter also dumps the real (non-filler) item pool, which
+        // includes items that no rule references directly (e.g. purely
+        // "useful" items, or progression items that only ever gate via a
+        // group/count rule elsewhere) -- make sure those show up too.
+        if (graph.items) {
+          for (const n of Object.keys(graph.items)) names.add(n)
+        }
         return Array.from(names).sort()
       }
 
@@ -966,6 +973,17 @@
         }
         for (const [name, count] of Object.entries(eventCounts)) {
           max[name] = count
+        }
+
+        // The exporter's item pool counts (filler excluded) are the true
+        // quantity that exists, and take priority over the rule-derived
+        // lower bound above -- e.g. 26 "star" items in the pool but a rule
+        // only ever asks for 13 of them should still show "x / 26".
+        if (graph.items) {
+          for (const [name, info] of Object.entries(graph.items)) {
+            const c = Number(info && info.count) || 0
+            if (c > 0) max[name] = c
+          }
         }
 
         return max
@@ -1046,22 +1064,6 @@
       async function openMapForSlot(conn) {
         db.currentMapConnId = conn.id
         setMapVisible(true)
-        const raw = db.progFiles[conn.progKey]
-        const wantProfile =
-          raw ? resolvedProfileNameFor(raw, conn.profile) : null
-        if (
-          !graph ||
-          gameKeyOf() !== conn.progKey ||
-          graph.activeProfile !== wantProfile
-        ) {
-          const ok = await tryLoadFile(conn.progKey, conn.profile)
-          if (!ok) {
-            alert(
-              "error, failed to load tracker for " +
-                (conn.game || conn.progKey),
-            )
-          }
-        }
         syncFromSlot(conn)
       }
 
@@ -1097,7 +1099,23 @@
         setMapVisible(!appEl.classList.contains("visible"))
       })
 
-      function syncFromSlot(conn) {
+      async function syncFromSlot(conn) {
+        const raw = db.progFiles[conn.progKey]
+        const wantProfile =
+          raw ? resolvedProfileNameFor(raw, conn.profile) : null
+        if (
+          !graph ||
+          gameKeyOf() !== conn.progKey ||
+          graph.activeProfile !== wantProfile
+        ) {
+          const ok = await tryLoadFile(conn.progKey, conn.profile)
+          if (!ok) {
+            alert(
+              "error, failed to load tracker for " +
+                (conn.game || conn.progKey),
+            )
+          }
+        }
         // `runtime` is app.js's connId -> {client, receivedCounts, ...} map;
         // shared global scope means it's directly visible here.
         const rt =
@@ -1445,37 +1463,7 @@
               class: "ck",
               disabled: isEvent,
             })
-            const count = newelem("input", {
-              type: "number",
-              class: "count",
-              min: 0,
-              max: maxCount,
-              value: 0,
-              disabled: isEvent,
-            })
-            if (!isEvent) {
-              count.oninput = () => {
-                const v = Math.min(
-                  maxCount,
-                  Math.max(0, parseInt(count.value) || 0),
-                )
-                count.value = v
-                inventory[name] = v
-                ck.checked = v > 0
-                onInventoryChange()
-              }
-              count.onchange = () => {
-                inventory[name] =
-                  ck.checked ?
-                    Math.min(
-                      maxCount,
-                      Math.max(1, parseInt(count.value) || 1),
-                    )
-                  : 0
-                count.value = inventory[name]
-                onInventoryChange()
-              }
-            }
+            const count = newelem("span", { class: "count" }, [0])
             return newelem(
               "div",
               {
@@ -1487,14 +1475,11 @@
                   : "",
               },
               [
-                ck,
                 newelem("span", { class: "name" }, [name]),
                 count,
-                maxCount > 1 ?
-                  newelem("span", { class: "count-max" }, [
-                    `/ ${maxCount}`,
-                  ])
-                : null,
+                newelem("span", { class: "count-max" }, [
+                  `/ ${maxCount}`,
+                ]),
               ],
             )
           }),
@@ -1515,8 +1500,7 @@
               )
             : inventory[name] || 0
           const maxCount = itemMaxCounts[name] ?? 1
-          row.querySelector(".ck").checked = v > 0
-          row.querySelector(".count").value = v
+          row.querySelector(".count").textContent = v
           row.classList.toggle("collected", v > 0)
           row.classList.toggle("maxed", maxCount > 1 && v >= maxCount)
         })
@@ -2160,6 +2144,12 @@
         }
         // Auto-reconnect any saved slots
         window.db.connections.forEach((conn) => startConnection(conn))
+        if (db.currentMapConnId) {
+          var s = db.connections.find(
+            (e) => e.id == db.currentMapConnId,
+          )
+          if (s) syncFromSlot(s)
+        }
       })()
       ;(async () => {
         await (navigator?.serviceWorker?.ready ?? new Promise())
