@@ -14,15 +14,15 @@ header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-header h1 {
-  font-size: 18px;
-  margin: 0;
-}
-header .sub {
-  color: var(--color-lxez);
-  font-size: 12px;
-  margin-top: 2px;
+  .sub {
+    color: var(--color-lxez);
+    font-size: 12px;
+    margin-top: 2px;
+  }
+  h1 {
+    font-size: 18px;
+    margin: 0;
+  }
 }
 #notifBtn {
   background: var(--color-rusx);
@@ -32,12 +32,11 @@ header .sub {
   padding: 8px 12px;
   font-size: 12px;
   cursor: pointer;
+  &.granted {
+    border-color: var(--color-idka);
+    color: var(--color-fpzi);
+  }
 }
-#notifBtn.granted {
-  border-color: var(--color-idka);
-  color: var(--color-fpzi);
-}
-
 main {
   /* max-width: 1100px; */
   margin: 0 auto;
@@ -45,27 +44,25 @@ main {
   display: grid;
   gap: 20px;
 }
-
 .panel {
   background: var(--color-ckyr);
   border: 1px solid var(--color-rusx);
   border-radius: 10px;
   padding: 16px;
+  h2 {
+    font-size: 14px;
+    margin: 0 0 12px;
+    color: var(--color-esou);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    .hint {
+      font-weight: 400;
+      color: var(--color-lxez);
+      font-size: 11px;
+    }
+  }
 }
-.panel h2 {
-  font-size: 14px;
-  margin: 0 0 12px;
-  color: var(--color-esou);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.panel h2 .hint {
-  font-weight: 400;
-  color: var(--color-lxez);
-  font-size: 11px;
-}
-
 .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -92,19 +89,18 @@ button {
   color: var(--color-givd);
   padding: 8px 12px;
   font-size: 13px;
+  &.primary {
+    background: var(--color-cblc);
+    border-color: var(--color-cblc);
+  }
+  &.danger {
+    background: var(--color-ztnp);
+    border-color: var(--color-ptvx);
+  }
+  &:hover {
+    filter: brightness(1.15);
+  }
 }
-button.primary {
-  background: var(--color-cblc);
-  border-color: var(--color-cblc);
-}
-button.danger {
-  background: var(--color-ztnp);
-  border-color: var(--color-ptvx);
-}
-button:hover {
-  filter: brightness(1.15);
-}
-
 .slot-card {
   border: 1px solid var(--color-rusx);
   border-radius: 8px;
@@ -134,15 +130,15 @@ button:hover {
   border-radius: 50%;
   margin-right: 6px;
   background: var(--color-lxez);
-}
-.status-dot.connected {
-  background: var(--color-fpzi);
-}
-.status-dot.connecting {
-  background: var(--color-hmty);
-}
-.status-dot.error {
-  background: var(--color-nmkp);
+  &.connecting {
+    background: var(--color-hmty);
+  }
+  &.connected {
+    background: var(--color-fpzi);
+  }
+  &.error {
+    background: var(--color-nmkp);
+  }
 }
 .slot-controls {
   display: flex;
@@ -162,23 +158,22 @@ button:hover {
   display: flex;
   flex-direction: column-reverse;
   gap: 4px;
+  .badge {
+    font-size: 10px;
+    background: var(--color-efma);
+    color: var(--color-fpzi);
+    border: 1px solid var(--color-idka);
+    border-radius: 4px;
+    padding: 0 5px;
+  }
+  .row {
+    display: flex;
+    gap: 6px;
+    &.new-prog {
+      color: var(--color-fpzi);
+    }
+  }
 }
-.slot-log .row {
-  display: flex;
-  gap: 6px;
-}
-.slot-log .row.new-prog {
-  color: var(--color-fpzi);
-}
-.slot-log .badge {
-  font-size: 10px;
-  background: var(--color-efma);
-  color: var(--color-fpzi);
-  border: 1px solid var(--color-idka);
-  border-radius: 4px;
-  padding: 0 5px;
-}
-
 .prog-row {
   display: flex;
   align-items: center;
@@ -187,15 +182,14 @@ button:hover {
   padding: 4px 0;
   border-bottom: 1px solid var(--color-rusx);
   font-size: 13px;
+  &:last-child {
+    border-bottom: none;
+  }
+  .file-name {
+    color: var(--color-lxez);
+    font-size: 11px;
+  }
 }
-.prog-row:last-child {
-  border-bottom: none;
-}
-.prog-row .file-name {
-  color: var(--color-lxez);
-  font-size: 11px;
-}
-
 .small {
   font-size: 11px;
   color: var(--color-lxez);
@@ -205,7 +199,6 @@ button:hover {
   font-size: 13px;
   padding: 4px 0;
 }
-
 .game-select {
   position: relative;
   display: inline-block;
@@ -220,10 +213,10 @@ button:hover {
   gap: 8px;
   cursor: pointer;
   background-color: var(--color-zgom);
-}
-.game-select-trigger[disabled] {
-  cursor: not-allowed;
-  background-color: var(--color-zgom);
+  &[disabled] {
+    cursor: not-allowed;
+    background-color: var(--color-zgom);
+  }
 }
 .game-select-menu {
   position: absolute;

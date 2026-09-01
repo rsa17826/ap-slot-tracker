@@ -1463,7 +1463,6 @@
               class: "ck",
               disabled: isEvent,
             })
-            const count = newelem("span", { class: "count" }, [0])
             return newelem(
               "div",
               {
@@ -1476,10 +1475,9 @@
               },
               [
                 newelem("span", { class: "name" }, [name]),
-                count,
-                newelem("span", { class: "count-max" }, [
-                  `/ ${maxCount}`,
-                ]),
+                newelem("span", { class: "count" }, [0]),
+                newelem("span", { class: "sep" }, ["/"]),
+                newelem("span", { class: "count-max" }, [maxCount]),
               ],
             )
           }),

@@ -1,0 +1,5 @@
+@file \.css$
+@regex \n\n+
+@replace
+
+@endregex

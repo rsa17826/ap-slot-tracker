@@ -10,7 +10,6 @@ body {
   font-family: var(--mono);
   font-size: 13px;
 }
-/* TODO something */
 .ck {
   display: none;
 }
@@ -21,38 +20,36 @@ body {
   z-index: 1000;
   grid-template-columns: 300px 1fr;
   height: 100vh;
+  &.visible {
+    display: grid;
+  }
 }
-#app.visible {
-  display: grid;
-}
-
-/* ---------- sidebar ---------- */
 #sidebar {
   background: var(--panel);
   border-right: 1px solid var(--panel-border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-#sidebar h1 {
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  padding: 14px 14px 8px;
-  margin: 0;
-  border-bottom: 1px solid var(--panel-border);
+  h1 {
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    padding: 14px 14px 8px;
+    margin: 0;
+    border-bottom: 1px solid var(--panel-border);
+  }
 }
 .side-section {
   border-bottom: 1px solid var(--panel-border);
   padding: 10px 14px;
-}
-.side-section h2 {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--text-dim);
-  margin: 0 0 4px;
+  h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-dim);
+    margin: 0 0 4px;
+  }
 }
 #loadBtn,
 #loadFolderBtn,
@@ -106,10 +103,10 @@ body {
   display: flex;
   gap: 6px;
   margin-bottom: 6px;
-}
-.btn-row #customLayoutBtn {
-  margin-bottom: 0;
-  flex: 1;
+  #customLayoutBtn {
+    margin-bottom: 0;
+    flex: 1;
+  }
 }
 #editSortFnBtn {
   flex-shrink: 0;
@@ -124,10 +121,10 @@ body {
   transition:
     border-color 0.15s,
     color 0.15s;
-}
-#editSortFnBtn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+  &:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 }
 #fileInput {
   display: none;
@@ -161,72 +158,68 @@ body {
   border-radius: 4px;
   cursor: pointer;
   user-select: none;
+  &.maxed .count-max {
+    color: var(--accent);
+  }
+  &.maxed .name {
+    color: var(--accent);
+  }
+  &.event-item {
+    cursor: default;
+    .count {
+      color: var(--event);
+      border-color: var(--event);
+      opacity: 0.85;
+    }
+    .name {
+      color: var(--event);
+      font-style: italic;
+    }
+    .ck {
+      accent-color: var(--event);
+    }
+  }
+  &.collected {
+    .name {
+      color: var(--accent);
+    }
+    &:not(.maxed) .count-max {
+      color: var(--warn);
+    }
+    &:not(.maxed) .name {
+      color: var(--warn);
+    }
+  }
+  &:hover {
+    background: var(--color-lmcj);
+  }
+  input {
+    accent-color: var(--accent);
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+  }
+  .name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
-.item-row:hover {
-  background: var(--color-lmcj);
-}
-.item-row input {
-  accent-color: var(--accent);
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-}
-.item-row .name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.item-row .count {
-  width: 34px;
-  padding: 2px 4px;
-  background: #0d1016;
-  border: 1px solid var(--panel-border);
-  color: var(--text);
-  border-radius: 4px;
-  font-family: var(--mono);
-  font-size: 11px;
-  text-align: center;
-}
-.item-row .count-max {
-  flex-shrink: 0;
-  font-size: 10px;
-  color: var(--text-dim);
-  margin-left: -2px;
-}
-.item-row.collected .name {
-  color: var(--accent);
-}
-/* Multi-copy items (max > 1): show accent only once every copy is
-   collected; a partial count reads as "in progress" instead. */
-.item-row.collected:not(.maxed) .count-max {
-  color: var(--warn);
-}
-.item-row.collected:not(.maxed) .name {
-  color: var(--warn);
-}
-.item-row.maxed .name {
-  color: var(--accent);
-}
-.item-row.maxed .count-max {
-  color: var(--accent);
-}
-/* Event items: auto-collected once their location is reachable, styled
-   the same as event locations in the node graph (see .loc-row.event). */
-.item-row.event-item {
-  cursor: default;
-}
-.item-row.event-item .name {
-  color: var(--event);
-  font-style: italic;
-}
-.item-row.event-item .count {
-  color: var(--event);
-  border-color: var(--event);
-  opacity: 0.85;
-}
-.item-row.event-item .ck {
-  accent-color: var(--event);
+.item-row {
+  .count,
+  .count-max {
+    border: 1px solid var(--panel-border);
+    color: var(--text-dim);
+    flex-shrink: 0;
+    font-size: 10px;
+    margin-left: -2px;
+    border-radius: 4px;
+    padding: 2px 4px;
+  }
+  .sep {
+    color: var(--text-dim);
+  }
 }
 .toggle-row {
   display: flex;
@@ -236,12 +229,12 @@ body {
   color: var(--text);
   cursor: pointer;
   user-select: none;
-}
-.toggle-row input {
-  accent-color: var(--accent);
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
+  input {
+    accent-color: var(--accent);
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+  }
 }
 #legend {
   padding: 10px 14px;
@@ -261,8 +254,6 @@ body {
   border-radius: 3px;
   flex-shrink: 0;
 }
-
-/* ---------- canvas ---------- */
 #canvasWrap {
   position: relative;
   overflow: hidden;
@@ -271,9 +262,9 @@ body {
       0/22px 22px,
     var(--bg);
   cursor: grab;
-}
-#canvasWrap.panning {
-  cursor: grabbing;
+  &.panning {
+    cursor: grabbing;
+  }
 }
 #world {
   position: absolute;
@@ -291,7 +282,6 @@ svg#edges {
 .node {
   position: absolute;
   min-width: 170px;
-  /* max-width: 240px; */
   background: var(--node-bg);
   border: 1.5px solid var(--danger-dim);
   border-radius: 10px;
@@ -299,15 +289,26 @@ svg#edges {
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
   cursor: grab;
   user-select: none;
-}
-.node.reachable {
-  border-color: var(--accent);
-  box-shadow:
-    0 0 0 1px rgba(94, 230, 180, 0.15),
-    0 6px 18px rgba(0, 0, 0, 0.4);
-}
-.node:active {
-  cursor: grabbing;
+  &.reachable {
+    border-color: var(--accent);
+    box-shadow:
+      0 0 0 1px rgba(94, 230, 180, 0.15),
+      0 6px 18px rgba(0, 0, 0, 0.4);
+    .node-head {
+      background: linear-gradient(
+        180deg,
+        rgba(94, 230, 180, 0.14),
+        transparent
+      );
+      .dot {
+        background: var(--accent);
+        box-shadow: 0 0 6px var(--accent);
+      }
+    }
+  }
+  &:active {
+    cursor: grabbing;
+  }
 }
 .node-head {
   padding: 8px 10px;
@@ -320,13 +321,6 @@ svg#edges {
   color: var(--text);
   border-radius: 9px 9px 0 0;
 }
-.node.reachable .node-head {
-  background: linear-gradient(
-    180deg,
-    rgba(94, 230, 180, 0.14),
-    transparent
-  );
-}
 .dot {
   width: 7px;
   height: 7px;
@@ -334,13 +328,8 @@ svg#edges {
   flex-shrink: 0;
   background: var(--danger);
 }
-.node.reachable .node-head .dot {
-  background: var(--accent);
-  box-shadow: 0 0 6px var(--accent);
-}
 .node-body {
   padding: 4px 6px 8px;
-  /* max-height: 220px; */
   overflow-y: auto;
 }
 .loc-row {
@@ -351,43 +340,42 @@ svg#edges {
   border-radius: 4px;
   font-size: 11px;
   color: var(--text-dim);
+  &.reachable {
+    color: var(--text);
+    .dot {
+      background: var(--accent);
+      box-shadow: 0 0 4px var(--accent);
+    }
+  }
+  &.checked {
+    opacity: 0.4;
+    text-decoration: line-through;
+  }
+  &.event {
+    color: var(--event);
+    font-style: italic;
+    &.reachable {
+      color: var(--event);
+      .dot {
+        background: var(--event);
+        box-shadow: 0 0 4px var(--event);
+      }
+    }
+    .dot {
+      background: var(--event);
+    }
+  }
+  .dot {
+    width: 5px;
+    height: 5px;
+  }
+  .ck {
+    width: 11px;
+    height: 11px;
+    flex-shrink: 0;
+    accent-color: var(--warn);
+  }
 }
-.loc-row .dot {
-  width: 5px;
-  height: 5px;
-}
-.loc-row.event .dot {
-  background: var(--event);
-}
-.loc-row.event.reachable .dot {
-  background: var(--event);
-  box-shadow: 0 0 4px var(--event);
-}
-.loc-row.reachable {
-  color: var(--text);
-}
-.loc-row.reachable .dot {
-  background: var(--accent);
-  box-shadow: 0 0 4px var(--accent);
-}
-.loc-row.checked {
-  opacity: 0.4;
-  text-decoration: line-through;
-}
-.loc-row.event {
-  color: var(--event);
-  font-style: italic;
-}
-.loc-row.event.reachable {
-  color: var(--event);
-}
-.loc-row .ck {
-  width: 11px;
-  height: 11px;
-  flex-shrink: 0;
-  accent-color: var(--warn);
-}
-
 #topbar {
   position: absolute;
   top: 10px;
@@ -395,20 +383,20 @@ svg#edges {
   display: flex;
   gap: 8px;
   z-index: 5;
-}
-#topbar button {
-  background: var(--panel);
-  border: 1px solid var(--panel-border);
-  color: var(--text-dim);
-  border-radius: 6px;
-  padding: 6px 10px;
-  font-family: var(--mono);
-  font-size: 11px;
-  cursor: pointer;
-}
-#topbar button:hover {
-  color: var(--text);
-  border-color: var(--accent);
+  button {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    color: var(--text-dim);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-family: var(--mono);
+    font-size: 11px;
+    cursor: pointer;
+    &:hover {
+      color: var(--text);
+      border-color: var(--accent);
+    }
+  }
 }
 #emptyMsg {
   position: absolute;
@@ -421,12 +409,10 @@ svg#edges {
   text-align: center;
   flex-direction: column;
   gap: 10px;
+  b {
+    color: var(--text);
+  }
 }
-#emptyMsg b {
-  color: var(--text);
-}
-
-/* ---------- custom layout / sort fn modal ---------- */
 .modal-overlay {
   display: none;
   position: fixed;
@@ -435,13 +421,12 @@ svg#edges {
   background: rgba(0, 0, 0, 0.55);
   align-items: center;
   justify-content: center;
-}
-.modal-overlay.visible {
-  display: flex;
+  &.visible {
+    display: flex;
+  }
 }
 .modal {
   width: min(640px, 92vw);
-  /* max-height: 85vh; */
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: 10px;
@@ -450,27 +435,27 @@ svg#edges {
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-.modal h2 {
-  margin: 0;
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text);
-}
-.modal h2 #sortFnGameLabel {
-  color: var(--text-dim);
-  text-transform: none;
-  letter-spacing: normal;
-  font-weight: 400;
+  h2 {
+    margin: 0;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text);
+    #sortFnGameLabel {
+      color: var(--text-dim);
+      text-transform: none;
+      letter-spacing: normal;
+      font-weight: 400;
+    }
+  }
 }
 .modal-hint {
   font-size: 11px;
   color: var(--text-dim);
   line-height: 1.5;
-}
-.modal-hint code {
-  color: var(--warn);
+  code {
+    color: var(--warn);
+  }
 }
 #sortFnEditor {
   width: 100%;
@@ -500,22 +485,22 @@ svg#edges {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-}
-.modal-actions button {
-  padding: 7px 12px;
-  background: var(--color-lmcj);
-  border: 1px solid var(--panel-border);
-  color: var(--text);
-  border-radius: 6px;
-  cursor: pointer;
-  font-family: var(--mono);
-  font-size: 12px;
-}
-.modal-actions button:hover {
-  border-color: var(--accent);
-}
-.modal-actions button.primary {
-  background: var(--accent-dim);
-  border-color: var(--accent);
-  color: var(--accent);
+  button {
+    padding: 7px 12px;
+    background: var(--color-lmcj);
+    border: 1px solid var(--panel-border);
+    color: var(--text);
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 12px;
+    &.primary {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    &:hover {
+      border-color: var(--accent);
+    }
+  }
 }
