@@ -132,6 +132,15 @@
           <div id="status">No data loaded.</div>
         </div>
 
+        <div
+          class="side-section"
+          id="profileSelectWrap"
+          style="display: none"
+        >
+          <h2>Settings profile</h2>
+          <select id="profileSelect"></select>
+        </div>
+
         <div class="side-section">
           <h2>View</h2>
           <label class="toggle-row">
@@ -233,7 +242,8 @@
       /* ============================================================
                       STATE
                       ============================================================ */
-      let graph = null // parsed rules JSON
+      let graph = null // rules JSON, resolved to the currently active settings profile
+      let rawGraph = null // last-loaded rules JSON as-is (still has any _by_profile markers), kept so switching profiles can re-resolve without reloading the file
       let inventory = {} // itemName -> count (int)
       let eventInventory = {} // itemName -> count auto-granted by reachable event locations
       let eventItemNames = new Set() // item names that come from is_event locations (colored + read-only)
@@ -281,6 +291,10 @@
         sortFnEditor: document.getElementById("sortFnEditor"),
         sortFnError: document.getElementById("sortFnError"),
         sortFnGameLabel: document.getElementById("sortFnGameLabel"),
+        profileSelectWrap: document.getElementById(
+          "profileSelectWrap",
+        ),
+        profileSelect: document.getElementById("profileSelect"),
       }
 
       /* ============================================================
@@ -480,7 +494,74 @@
         reach = { regions, locations, entrances }
         return { regions, locations, entrances, eventInventory }
       }
-      window.MapEngine = { computeReachablePure }
+      /* ============================================================
+                      SETTINGS PROFILES
+                      generate-global-tracker-data.py can now dump multiple
+                      settings profiles into one rules JSON. Any field that
+                      differs between profiles is stored as
+                      { "_by_profile": { profileName: value, ... } } instead
+                      of a flat value; everything else is stored flat as
+                      before. `resolveProfile` walks the raw JSON and swaps
+                      each _by_profile marker for the value belonging to one
+                      chosen profile, producing an ordinary flat graph that
+                      the rest of the app (evalRule, computeReachability,
+                      computeReachablePure, etc.) can keep using unchanged.
+                      ============================================================ */
+      function profileNamesOf(raw) {
+        return (
+            raw && raw.profiles && typeof raw.profiles === "object"
+          ) ?
+            Object.keys(raw.profiles)
+          : []
+      }
+
+      function defaultProfileName(raw) {
+        const names = profileNamesOf(raw)
+        if (names.length === 0) return null
+        return names.includes("default") ? "default" : names[0]
+      }
+
+      function resolveProfile(raw, profileName) {
+        if (!raw || !raw.profiles) return raw // older single-profile file, nothing to resolve
+
+        function resolve(node) {
+          if (Array.isArray(node)) return node.map(resolve)
+          if (node && typeof node === "object") {
+            if (
+              Object.prototype.hasOwnProperty.call(
+                node,
+                "_by_profile",
+              )
+            ) {
+              const byProfile = node._by_profile
+              const value =
+                profileName != null && profileName in byProfile ?
+                  byProfile[profileName]
+                : "default" in byProfile ? byProfile.default
+                : Object.values(byProfile)[0]
+              return resolve(value)
+            }
+            const out = {}
+            for (const [k, v] of Object.entries(node))
+              out[k] = resolve(v)
+            return out
+          }
+          return node
+        }
+
+        const { profiles, ...rest } = raw
+        const resolved = resolve(rest)
+        resolved.profiles = profiles // keep the original profile catalog around for the UI
+        resolved.activeProfile = profileName
+        return resolved
+      }
+
+      window.MapEngine = {
+        computeReachablePure,
+        resolveProfile,
+        profileNamesOf,
+        defaultProfileName,
+      }
 
       /* ============================================================
                       RULE EVALUATION
@@ -893,12 +974,61 @@
         return max
       }
 
+      // Which profile should be active for a given rules JSON: whatever was
+      // last picked for this exact progKey (game+version), if it's still a
+      // valid profile name in this file, else the file's own default.
+      function activeProfileFor(key, raw) {
+        const names = profileNamesOf(raw)
+        if (names.length === 0) return null
+        db.selectedProfile ??= {}
+        const saved = db.selectedProfile[key]
+        return names.includes(saved) ? saved : defaultProfileName(raw)
+      }
+
+      function updateProfileSelector(raw, profile) {
+        const names = profileNamesOf(raw)
+        if (!els.profileSelectWrap || !els.profileSelect) return
+        if (names.length <= 1) {
+          els.profileSelectWrap.style.display = "none"
+          return
+        }
+        els.profileSelectWrap.style.display = ""
+        els.profileSelect.replaceChildren(
+          ...names.map((n) => {
+            const opt = document.createElement("option")
+            opt.value = n
+            opt.textContent = n
+            opt.selected = n === profile
+            return opt
+          }),
+        )
+      }
+
+      // Re-resolves the already-loaded raw graph against a newly chosen
+      // profile and re-renders. Inventory/checked-locations are untouched
+      // (same game+version key => same saved progress), only the logic
+      // (rules/dependencies/region-locations, wherever they differ between
+      // profiles) changes.
+      function switchProfile(name) {
+        if (!rawGraph) return
+        const key = progKeyFor(rawGraph)
+        if (!key) error(name, "not valid")
+        db.selectedProfile ??= {}
+        db.selectedProfile[key] = name
+        db.selectedProfile = { ...db.selectedProfile } // reassign so the persistence proxy notices the change
+        loadGraph(rawGraph)
+        applyView()
+      }
+
       function loadGraph(raw) {
-        graph = raw
+        rawGraph = raw
+        const key = progKeyFor(raw)
+        const profile = activeProfileFor(key, raw)
+        graph = resolveProfile(raw, profile)
+        updateProfileSelector(raw, profile)
         eventItemNames = collectEventItemNames()
         const itemNames = collectItemNames()
         itemMaxCounts = collectItemMaxCounts(itemNames)
-        const key = progKeyFor(raw)
         const savedState = db.state ?? null
         if (savedState && savedState.gameKey === key) {
           inventory = savedState.inventory || {}
@@ -1851,7 +1981,9 @@
                 var text = JSON.parse(
                   await (await fh.getFile()).text(),
                 )
-                db.fileHandles[progKeyFor(text)] = fh
+                var k = progKeyFor(text)
+                if (!k) error("an invalid file selected")
+                db.fileHandles[k] = fh
               } catch (e) {
                 error(e)
               }
@@ -1937,6 +2069,9 @@
           autoLayout()
           render()
         })
+      els.profileSelect.addEventListener("change", () => {
+        switchProfile(els.profileSelect.value)
+      })
       els.search.addEventListener("input", () => {
         searchQuery = els.search.value.trim().toLowerCase()
         applySearchFilter()

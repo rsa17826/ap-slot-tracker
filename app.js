@@ -17,20 +17,54 @@ const runtime = {} // connId -> { client, status, statusDetail, log:[], received
 // so progFiles/fileHandles/layout are all keyed by a composite
 // "game@vVERSION" key rather than by game name alone.
 function progKeyFor(raw) {
-  const game = raw?.game || "unknown"
-  const version = raw?.version ?? "unversioned"
+  const game = raw?.game
+  const version = raw?.version
+  if (!game || !version) return null
   return `${game}@v${version}`
 }
+
+// Rules JSON can now bundle multiple settings profiles (see
+// generate-global-tracker-data.py --options / --profiles): any rule field
+// that differs between profiles is stored as { "_by_profile": { name:
+// value, ... } } instead of a flat value. progForGame() resolves that down
+// to a plain graph for whichever profile is active for this progKey (same
+// db.selectedProfile store the map's sidebar profile picker writes to),
+// so callers here never need to know profiles exist at all.
+//
+// Resolving is a full tree walk, and this gets called on every item/check
+// event, so the result is cached per progKey and only recomputed when the
+// underlying raw file or the selected profile actually changes.
+const _resolvedGraphCache = {} // progKey -> { srcRef, profile, resolved }
 
 function progForGame(progKey) {
   const src = window.db.progFiles[progKey]
   if (!src) return null
+  let raw
   try {
-    return typeof src === "string" ? JSON.parse(src) : src
+    raw = typeof src === "string" ? JSON.parse(src) : src
   } catch (e) {
     console.error("Failed to parse map graph for", progKey, e)
     return null
   }
+
+  const names =
+    (typeof MapEngine !== "undefined" &&
+      MapEngine.profileNamesOf &&
+      MapEngine.profileNamesOf(raw)) ||
+    []
+  if (names.length === 0) return raw // older single-profile file, nothing to resolve
+
+  const saved = window.db.selectedProfile?.[progKey]
+  const profile =
+    names.includes(saved) ? saved : MapEngine.defaultProfileName(raw)
+
+  const cached = _resolvedGraphCache[progKey]
+  if (cached && cached.srcRef === src && cached.profile === profile) {
+    return cached.resolved
+  }
+  const resolved = MapEngine.resolveProfile(raw, profile)
+  _resolvedGraphCache[progKey] = { srcRef: src, profile, resolved }
+  return resolved
 }
 
 // Maps this slot's checked AP location ids to the "Room - Token" names the
@@ -250,7 +284,10 @@ function populateGameSelect() {
   // First run: the element in markup is still the old <select id="gameSelect">
   // (or nothing has replaced it yet) — swap it for our widget container,
   // preserving id/name so the rest of the app and the form keep working.
-  if (root.tagName !== "DIV" || !root.classList.contains("game-select")) {
+  if (
+    root.tagName !== "DIV" ||
+    !root.classList.contains("game-select")
+  ) {
     const replacement = newelem("div", {
       id: "gameSelect",
       class: "game-select",
@@ -279,9 +316,9 @@ function populateGameSelect() {
 
   const selectedLabel = (() => {
     if (!value) {
-      return hasAny ?
-          "Select a game"
-        : "Load a rules JSON below to select a game"
+      return hasAny ? "Select a game" : (
+          "Load a rules JSON below to select a game"
+        )
     }
     const version = progVersion(value)
     const name = progGameName(value)
@@ -729,11 +766,25 @@ function renderProgFiles() {
           g?.locations ? Object.keys(g.locations).length : 0
         const version = progVersion(progKey)
         const name = progGameName(progKey)
+        const profileNames =
+          g && g.profiles && typeof g.profiles === "object" ?
+            Object.keys(g.profiles)
+          : []
+        const activeProfile =
+          profileNames.length > 1 ?
+            (window.db.selectedProfile?.[progKey] ??
+            (profileNames.includes("default") ? "default" : (
+              profileNames[0]
+            )))
+          : null
         return newelem("div", { class: "prog-row" }, [
           newelem("div", {}, [
             version ? `${name} — v${version}` : name,
             newelem("div", { class: "file-name" }, [
-              `${regionCount} regions · ${locCount} locations`,
+              `${regionCount} regions · ${locCount} locations` +
+                (profileNames.length > 1 ?
+                  ` · profile: ${activeProfile} (${profileNames.length} available — switch from the map sidebar)`
+                : ""),
             ]),
           ]),
           newelem("div", {}, [
@@ -803,7 +854,9 @@ document
       return
     window.db.connections.push(conn)
     f.reset()
-    document.getElementById("gameSelect")?.removeAttribute("data-value")
+    document
+      .getElementById("gameSelect")
+      ?.removeAttribute("data-value")
     populateGameSelect()
     renderSlots()
     startConnection(conn)
