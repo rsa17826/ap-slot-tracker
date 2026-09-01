@@ -52,8 +52,9 @@ function progForGame(progKey, requestedProfile) {
   if (names.length === 0) return raw // older single-profile file, nothing to resolve
 
   const profile =
-    names.includes(requestedProfile) ? requestedProfile
-    : MapEngine.defaultProfileName(raw)
+    names.includes(requestedProfile) ? requestedProfile : (
+      MapEngine.defaultProfileName(raw)
+    )
 
   const cacheKey = `${progKey}::${profile}`
   const cached = _resolvedGraphCache[cacheKey]
@@ -67,7 +68,11 @@ function progForGame(progKey, requestedProfile) {
 // rules file, [] if that file doesn't exist or is a single-profile file.
 function profileNamesFor(progKey) {
   const raw = window.db.progFiles?.[progKey]
-  if (!raw || typeof MapEngine === "undefined" || !MapEngine.profileNamesOf)
+  if (
+    !raw ||
+    typeof MapEngine === "undefined" ||
+    !MapEngine.profileNamesOf
+  )
     return []
   return MapEngine.profileNamesOf(raw)
 }
@@ -266,7 +271,9 @@ const slotsRoot = document.getElementById("slots")
 const progRoot = document.getElementById("progFiles")
 
 function gamesWithProg() {
-  return Object.keys(window.db.progFiles || {})
+  return Object.keys(window.db.progFiles || {}).sort((a, s) =>
+    a.localeCompare(s, undefined, { numeric: true })
+  )
 }
 
 // Version comes from the rules JSON's own `.version` field, so each
@@ -301,7 +308,10 @@ function populateGameSelect() {
   // First run: the element in markup is still the old <select id="gameSelect">
   // (or nothing has replaced it yet) — swap it for our widget container,
   // preserving id/name so the rest of the app and the form keep working.
-  if (root.tagName !== "DIV" || !root.classList.contains("game-select")) {
+  if (
+    root.tagName !== "DIV" ||
+    !root.classList.contains("game-select")
+  ) {
     const replacement = newelem("div", {
       id: "gameSelect",
       class: "game-select",
@@ -330,9 +340,9 @@ function populateGameSelect() {
 
   const selectedLabel = (() => {
     if (!value) {
-      return hasAny ?
-          "Select a game"
-        : "Load a rules JSON below to select a game"
+      return hasAny ? "Select a game" : (
+          "Load a rules JSON below to select a game"
+        )
     }
     const version = progVersion(value)
     const name = progGameName(value)
@@ -537,11 +547,13 @@ function renderSlots() {
               // Each slot keeps its own `conn.profile`, so two slots on the
               // same game+version file can independently track different
               // settings (e.g. one with walls_are_checks on, one off).
-              const profileNames = hasProg ? profileNamesFor(conn.progKey) : []
+              const profileNames =
+                hasProg ? profileNamesFor(conn.progKey) : []
               if (profileNames.length <= 1) return null
 
               const options = {}
-              for (const n of profileNames) options[`Profile: ${n}`] = n
+              for (const n of profileNames)
+                options[`Profile: ${n}`] = n
 
               const profileSelect = newelem("select", {
                 title:
@@ -554,7 +566,8 @@ function renderSlots() {
                   (c) => c.id === conn.id,
                 )
                 if (idx === -1) return
-                window.db.connections[idx].profile = profileSelect.value
+                window.db.connections[idx].profile =
+                  profileSelect.value
                 if (runtime[conn.id]) {
                   maybeRecomputeProgression(conn, runtime[conn.id])
                 }
@@ -908,7 +921,9 @@ document
       return
     window.db.connections.push(conn)
     f.reset()
-    document.getElementById("gameSelect")?.removeAttribute("data-value")
+    document
+      .getElementById("gameSelect")
+      ?.removeAttribute("data-value")
     populateGameSelect()
     renderSlots()
     startConnection(conn)

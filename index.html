@@ -2006,7 +2006,7 @@
             const raw = JSON.parse(await file.text())
             const key = progKeyFor(raw)
             if (!key) {
-              continue
+            continue
             }
             db.fileHandles[key] = entry
             window.db.progFiles[key] = raw
