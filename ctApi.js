@@ -137,6 +137,18 @@ function ctBuildUpdatePayload(game, newProgressionStatus) {
     progression_status: newProgressionStatus,
     last_checked: ctNowTimestamp(),
     notes: game.notes ?? "",
+    id: game.id,
+    tracker_id: game.tracker_id,
+    position: game.position,
+    name: game.name,
+    game: game.game,
+    tracker_status: game.tracker_status,
+    checks_done: game.checks_done,
+    checks_total: game.checks_total,
+    last_activity: game.last_activity,
+    effective_discord_username: game.effective_discord_username,
+    user_is_away: game.user_is_away,
+    $newnotes: "",
   }
 }
 
