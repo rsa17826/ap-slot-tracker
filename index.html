@@ -76,10 +76,14 @@
       <section class="panel">
         <h2>
           Cheese Trackers
-          <span class="hint"
-            >API key used to update BK status for every linked
-            slot</span
-          >
+          <div>
+            <span class="hint"
+              >API key used to update BK status for every linked slot
+              - run </span
+            ><span class="hint" style="color: var(--accent)"
+              >JSON.parse(localStorage.settings).auth.token</span
+            ><span class="hint"> to get the token</span>
+          </div>
         </h2>
         <input
           id="ctApiKeyInput"
@@ -2006,7 +2010,7 @@
             const raw = JSON.parse(await file.text())
             const key = progKeyFor(raw)
             if (!key) {
-            continue
+              continue
             }
             db.fileHandles[key] = entry
             window.db.progFiles[key] = raw
