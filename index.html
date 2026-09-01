@@ -49,9 +49,10 @@
           <input
             name="hostname"
             placeholder="Server host (e.g. archipelago.gg)"
+            value="ap.localhost"
             required
           />
-          <input name="port" placeholder="Port" required />
+          <input name="port" placeholder="Port" required value="80" />
           <select id="gameSelect" name="game" required>
             <option value="" disabled selected>
               Select a game (load rules JSON below)
@@ -60,6 +61,7 @@
           <input
             name="playerName"
             placeholder="Your slot name"
+            value="nyix"
             required
           />
           <input
@@ -130,15 +132,6 @@
           </div>
           <button id="resetBtn">Reset inventory</button>
           <div id="status">No data loaded.</div>
-        </div>
-
-        <div
-          class="side-section"
-          id="profileSelectWrap"
-          style="display: none"
-        >
-          <h2>Settings profile</h2>
-          <select id="profileSelect"></select>
         </div>
 
         <div class="side-section">
@@ -291,10 +284,6 @@
         sortFnEditor: document.getElementById("sortFnEditor"),
         sortFnError: document.getElementById("sortFnError"),
         sortFnGameLabel: document.getElementById("sortFnGameLabel"),
-        profileSelectWrap: document.getElementById(
-          "profileSelectWrap",
-        ),
-        profileSelect: document.getElementById("profileSelect"),
       }
 
       /* ============================================================
@@ -974,58 +963,29 @@
         return max
       }
 
-      // Which profile should be active for a given rules JSON: whatever was
-      // last picked for this exact progKey (game+version), if it's still a
-      // valid profile name in this file, else the file's own default.
-      function activeProfileFor(key, raw) {
+      // Which profile a rules JSON should be resolved against, given a
+      // requested name (typically a slot's own conn.profile, set from the
+      // slot-controls picker in app.js): the request if it's actually a
+      // valid profile in this file, else the file's own default. Different
+      // slots can be pointed at the same rules file (progKey) but ask for
+      // different profiles here, independently of each other.
+      function resolvedProfileNameFor(raw, requestedProfile) {
         const names = profileNamesOf(raw)
         if (names.length === 0) return null
-        db.selectedProfile ??= {}
-        const saved = db.selectedProfile[key]
-        return names.includes(saved) ? saved : defaultProfileName(raw)
+        return names.includes(requestedProfile) ? requestedProfile : (
+            defaultProfileName(raw)
+          )
       }
 
-      function updateProfileSelector(raw, profile) {
-        const names = profileNamesOf(raw)
-        if (!els.profileSelectWrap || !els.profileSelect) return
-        if (names.length <= 1) {
-          els.profileSelectWrap.style.display = "none"
+      function loadGraph(raw, requestedProfile) {
+        rawGraph = raw
+        const profile = resolvedProfileNameFor(raw, requestedProfile)
+        graph = resolveProfile(raw, profile)
+        const key = progKeyFor(raw)
+        if (!key) {
+          error(name, "not valid")
           return
         }
-        els.profileSelectWrap.style.display = ""
-        els.profileSelect.replaceChildren(
-          ...names.map((n) => {
-            const opt = document.createElement("option")
-            opt.value = n
-            opt.textContent = n
-            opt.selected = n === profile
-            return opt
-          }),
-        )
-      }
-
-      // Re-resolves the already-loaded raw graph against a newly chosen
-      // profile and re-renders. Inventory/checked-locations are untouched
-      // (same game+version key => same saved progress), only the logic
-      // (rules/dependencies/region-locations, wherever they differ between
-      // profiles) changes.
-      function switchProfile(name) {
-        if (!rawGraph) return
-        const key = progKeyFor(rawGraph)
-        if (!key) error(name, "not valid")
-        db.selectedProfile ??= {}
-        db.selectedProfile[key] = name
-        db.selectedProfile = { ...db.selectedProfile } // reassign so the persistence proxy notices the change
-        loadGraph(rawGraph)
-        applyView()
-      }
-
-      function loadGraph(raw) {
-        rawGraph = raw
-        const key = progKeyFor(raw)
-        const profile = activeProfileFor(key, raw)
-        graph = resolveProfile(raw, profile)
-        updateProfileSelector(raw, profile)
         eventItemNames = collectEventItemNames()
         const itemNames = collectItemNames()
         itemMaxCounts = collectItemMaxCounts(itemNames)
@@ -1078,8 +1038,15 @@
       async function openMapForSlot(conn) {
         db.currentMapConnId = conn.id
         setMapVisible(true)
-        if (!graph || gameKeyOf() !== conn.progKey) {
-          const ok = await tryLoadFile(conn.progKey)
+        const raw = db.progFiles[conn.progKey]
+        const wantProfile =
+          raw ? resolvedProfileNameFor(raw, conn.profile) : null
+        if (
+          !graph ||
+          gameKeyOf() !== conn.progKey ||
+          graph.activeProfile !== wantProfile
+        ) {
+          const ok = await tryLoadFile(conn.progKey, conn.profile)
           if (!ok) {
             alert(
               "error, failed to load tracker for " +
@@ -1303,7 +1270,7 @@
       }`
 
       function gameKeyOf() {
-        return graph ? progKeyFor(graph) : "unknown"
+        return progKeyFor(graph)
       }
 
       function compileSortFn(src) {
@@ -1936,8 +1903,13 @@
       function saveState() {
         clearTimeout(saveTimer)
         saveTimer = setTimeout(async () => {
+          var k = progKeyFor(graph)
+          if (!k) {
+            error(name, "not valid")
+            return
+          }
           db.state = {
-            gameKey: graph ? progKeyFor(graph) : "unknown",
+            gameKey: k,
             inventory,
             checkedLocations,
           }
@@ -1948,14 +1920,19 @@
         clearTimeout(layoutTimer)
         layoutTimer = setTimeout(async () => {
           db.layout ??= {}
-          db.layout[graph ? progKeyFor(graph) : "unknown"] = positions
+          var k = progKeyFor(graph)
+          if (!k) {
+            error(name, "not valid")
+            return
+          }
+          db.layout[k] = positions
           db.view = view
         }, 250)
       }
 
       /* ============================================================
-                      WIRE UP UI
-                      ============================================================ */
+      WIRE UP UI
+      ============================================================ */
       document
         .getElementById("loadBtn")
         .addEventListener("click", async () => {
@@ -1994,6 +1971,10 @@
           try {
             const raw = JSON.parse(text)
             const key = progKeyFor(raw)
+            if (!key) {
+              error(name, "not valid")
+              return
+            }
             db.fileHandles[key] = fh
             loadGraph(raw)
             db.lastFile = key
@@ -2024,6 +2005,9 @@
             const file = await entry.getFile()
             const raw = JSON.parse(await file.text())
             const key = progKeyFor(raw)
+            if (!key) {
+              continue
+            }
             db.fileHandles[key] = entry
             window.db.progFiles[key] = raw
             if (!firstRaw) firstRaw = raw
@@ -2069,9 +2053,6 @@
           autoLayout()
           render()
         })
-      els.profileSelect.addEventListener("change", () => {
-        switchProfile(els.profileSelect.value)
-      })
       els.search.addEventListener("input", () => {
         searchQuery = els.search.value.trim().toLowerCase()
         applySearchFilter()
@@ -2107,9 +2088,9 @@
         els.search.focus()
         els.search.select()
       })
-      async function tryLoadFile(name) {
+      async function tryLoadFile(name, profile) {
         if (name && db.progFiles[name]) {
-          loadGraph(db.progFiles[name])
+          loadGraph(db.progFiles[name], profile)
         } else {
           return false
         }

@@ -27,16 +27,13 @@ function progKeyFor(raw) {
 // generate-global-tracker-data.py --options / --profiles): any rule field
 // that differs between profiles is stored as { "_by_profile": { name:
 // value, ... } } instead of a flat value. progForGame() resolves that down
-// to a plain graph for whichever profile is active for this progKey (same
-// db.selectedProfile store the map's sidebar profile picker writes to),
-// so callers here never need to know profiles exist at all.
-//
-// Resolving is a full tree walk, and this gets called on every item/check
-// event, so the result is cached per progKey and only recomputed when the
-// underlying raw file or the selected profile actually changes.
-const _resolvedGraphCache = {} // progKey -> { srcRef, profile, resolved }
+// to a plain graph for whichever profile a *slot* has picked (see the
+// profile <select> in renderSlots below) -- different slots can share the
+// same rules file (progKey) but each ask for a different profile, so the
+// resolved-graph cache is keyed by progKey+profile, not just progKey.
+const _resolvedGraphCache = {} // "progKey::profile" -> { srcRef, resolved }
 
-function progForGame(progKey) {
+function progForGame(progKey, requestedProfile) {
   const src = window.db.progFiles[progKey]
   if (!src) return null
   let raw
@@ -54,17 +51,37 @@ function progForGame(progKey) {
     []
   if (names.length === 0) return raw // older single-profile file, nothing to resolve
 
-  const saved = window.db.selectedProfile?.[progKey]
   const profile =
-    names.includes(saved) ? saved : MapEngine.defaultProfileName(raw)
+    names.includes(requestedProfile) ? requestedProfile
+    : MapEngine.defaultProfileName(raw)
 
-  const cached = _resolvedGraphCache[progKey]
-  if (cached && cached.srcRef === src && cached.profile === profile) {
-    return cached.resolved
-  }
+  const cacheKey = `${progKey}::${profile}`
+  const cached = _resolvedGraphCache[cacheKey]
+  if (cached && cached.srcRef === src) return cached.resolved
   const resolved = MapEngine.resolveProfile(raw, profile)
-  _resolvedGraphCache[progKey] = { srcRef: src, profile, resolved }
+  _resolvedGraphCache[cacheKey] = { srcRef: src, resolved }
   return resolved
+}
+
+// Names of the settings profiles available for a slot's currently-selected
+// rules file, [] if that file doesn't exist or is a single-profile file.
+function profileNamesFor(progKey) {
+  const raw = window.db.progFiles?.[progKey]
+  if (!raw || typeof MapEngine === "undefined" || !MapEngine.profileNamesOf)
+    return []
+  return MapEngine.profileNamesOf(raw)
+}
+
+// Which profile name a slot is actually using right now: its own explicit
+// choice if still valid for the currently-loaded file, else that file's
+// default profile.
+function activeProfileFor(conn) {
+  const names = profileNamesFor(conn.progKey)
+  if (names.length === 0) return null
+  const raw = window.db.progFiles[conn.progKey]
+  return names.includes(conn.profile) ?
+      conn.profile
+    : MapEngine.defaultProfileName(raw)
 }
 
 // Maps this slot's checked AP location ids to the "Room - Token" names the
@@ -157,7 +174,7 @@ function isRealLocation(graph, name) {
 }
 
 function handleReceivedItems(conn, rt, items) {
-  const graph = progForGame(conn.progKey)
+  const graph = progForGame(conn.progKey, conn.profile)
 
   items.forEach((item) => {
     rt.receivedNames.add(item.name)
@@ -224,7 +241,7 @@ function handleReceivedItems(conn, rt, items) {
 }
 
 function maybeRecomputeProgression(conn, rt) {
-  const graph = progForGame(conn.progKey)
+  const graph = progForGame(conn.progKey, conn.profile)
   if (!graph) return
   const checkedNames = checkedLocationNames(conn, rt)
   const { locations } = MapEngine.computeReachablePure(
@@ -284,10 +301,7 @@ function populateGameSelect() {
   // First run: the element in markup is still the old <select id="gameSelect">
   // (or nothing has replaced it yet) — swap it for our widget container,
   // preserving id/name so the rest of the app and the form keep working.
-  if (
-    root.tagName !== "DIV" ||
-    !root.classList.contains("game-select")
-  ) {
+  if (root.tagName !== "DIV" || !root.classList.contains("game-select")) {
     const replacement = newelem("div", {
       id: "gameSelect",
       class: "game-select",
@@ -316,9 +330,9 @@ function populateGameSelect() {
 
   const selectedLabel = (() => {
     if (!value) {
-      return hasAny ? "Select a game" : (
-          "Load a rules JSON below to select a game"
-        )
+      return hasAny ?
+          "Select a game"
+        : "Load a rules JSON below to select a game"
     }
     const version = progVersion(value)
     const name = progGameName(value)
@@ -516,6 +530,46 @@ function renderSlots() {
               }
               return modeSelect
             })(),
+            (() => {
+              // Only shown once a rules file is loaded for this slot's game
+              // AND that file actually has more than one settings profile
+              // baked in -- otherwise there's nothing to choose between.
+              // Each slot keeps its own `conn.profile`, so two slots on the
+              // same game+version file can independently track different
+              // settings (e.g. one with walls_are_checks on, one off).
+              const profileNames = hasProg ? profileNamesFor(conn.progKey) : []
+              if (profileNames.length <= 1) return null
+
+              const options = {}
+              for (const n of profileNames) options[`Profile: ${n}`] = n
+
+              const profileSelect = newelem("select", {
+                title:
+                  "Which settings profile this slot's logic (map + notifications) should use",
+                options,
+                value: activeProfileFor(conn),
+              })
+              profileSelect.onchange = () => {
+                const idx = window.db.connections.findIndex(
+                  (c) => c.id === conn.id,
+                )
+                if (idx === -1) return
+                window.db.connections[idx].profile = profileSelect.value
+                if (runtime[conn.id]) {
+                  maybeRecomputeProgression(conn, runtime[conn.id])
+                }
+                // If this slot's map is currently open, reload it against
+                // the newly chosen profile too.
+                if (
+                  db.currentMapConnId === conn.id &&
+                  typeof openMapForSlot === "function"
+                ) {
+                  openMapForSlot(window.db.connections[idx])
+                }
+                renderSlots()
+              }
+              return profileSelect
+            })(),
             newelem("div", { class: "h" }, [
               newelem(
                 "button",
@@ -647,7 +701,7 @@ function ctUnlink(conn) {
 // per its loaded rules graph. null means we can't tell (no graph loaded
 // yet), in which case BK can only be set manually.
 function ctObtainableState(conn) {
-  const graph = progForGame(conn.progKey)
+  const graph = progForGame(conn.progKey, conn.profile)
   const rt = runtime[conn.id]
   if (!graph || !rt?.prevObtainable) return null
   return rt.prevObtainable.size > 0
@@ -770,20 +824,13 @@ function renderProgFiles() {
           g && g.profiles && typeof g.profiles === "object" ?
             Object.keys(g.profiles)
           : []
-        const activeProfile =
-          profileNames.length > 1 ?
-            (window.db.selectedProfile?.[progKey] ??
-            (profileNames.includes("default") ? "default" : (
-              profileNames[0]
-            )))
-          : null
         return newelem("div", { class: "prog-row" }, [
           newelem("div", {}, [
             version ? `${name} — v${version}` : name,
             newelem("div", { class: "file-name" }, [
               `${regionCount} regions · ${locCount} locations` +
                 (profileNames.length > 1 ?
-                  ` · profile: ${activeProfile} (${profileNames.length} available — switch from the map sidebar)`
+                  ` · ${profileNames.length} settings profiles (choose per-slot below)`
                 : ""),
             ]),
           ]),
@@ -802,7 +849,13 @@ function renderProgFiles() {
                     // checked-locations/layout for a matching gameKey, so
                     // this is safe to call again on the same graph.
                     if (gameKeyOf() === progKey) {
-                      loadGraph(window.db.progFiles[progKey])
+                      // preserve whichever profile the map is currently
+                      // showing for this file, rather than snapping back to
+                      // the file's default.
+                      loadGraph(
+                        window.db.progFiles[progKey],
+                        graph?.activeProfile,
+                      )
                     } else {
                       renderProgFiles()
                     }
@@ -848,15 +901,14 @@ document
       playerName: f.playerName.value.trim(),
       password: f.password.value,
       notifyMode: "all",
+      profile: null, // which settings profile this slot uses, if its rules file has more than one; null = file's default
       ct: null, // Cheese Trackers link, set via the slot card once created
     }
     if (!conn.hostname || !progKey || !conn.game || !conn.playerName)
       return
     window.db.connections.push(conn)
     f.reset()
-    document
-      .getElementById("gameSelect")
-      ?.removeAttribute("data-value")
+    document.getElementById("gameSelect")?.removeAttribute("data-value")
     populateGameSelect()
     renderSlots()
     startConnection(conn)
