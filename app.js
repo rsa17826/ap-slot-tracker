@@ -636,6 +636,27 @@ function renderSlots() {
               ),
             ]),
             newelem("div", { class: "h" }, ctPanelFor(conn)),
+            newelem("div", { class: "h", flexGrow: "2" }, [
+              newelem(
+                "button",
+                {
+                  flexGrow: "2",
+                  onclick: async (e) => {
+                    openLink(conn)
+                  },
+                },
+                ["Launch Client"],
+              ),
+              newelem(
+                "button",
+                {
+                  onclick: async (e) => {
+                    openURLEditor(conn.game)
+                  },
+                },
+                ["✎"],
+              ),
+            ]),
           ]),
         ]),
       ])

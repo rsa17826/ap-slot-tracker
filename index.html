@@ -12,6 +12,11 @@
     <link rel="stylesheet" href="colors.css" />
     <link rel="stylesheet" href="style.css" />
     <link rel="stylesheet" href="./map.css" />
+    <!-- NOTE disable on push -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="connect-src 'self' http://localhost:* https://localhost:* http://*.localhost:* https://*.localhost:* ws://localhost:* wss://localhost:* ws://*.localhost:* wss://*.localhost:*"
+    />
   </head>
   <body>
     <script>
@@ -238,6 +243,24 @@
         </div>
       </div>
     </div>
+    <div id="launchURLModal" class="modal-overlay">
+      <div class="modal">
+        <h2>
+          url <span id="launchURLGameLabel"></span>
+        </h2>
+        <div class="modal-hint">
+          a url formatted with code><code>game</code>, <code>playerName</code>, <code>hostname</code>, <code>port</code>, and <code>password</code><br>
+          eg. http://vex2.localhost/?connect=<code>!hostname</code>:<code>!port</code>&name=<code>!playerName</code>&password=<code>!password</code><br>
+          or archipelago://<code>!game</code>?connect=<code>!hostname</code>:<code>!port</code>&name=<code>!playerName</code>&password=<code>!password</code>
+        </div>
+        <input id="launchURLEditor" spellcheck="false"></input>
+        <div id="launchURLError"></div>
+        <div class="modal-actions">
+          <button id="launchURLCancel">Cancel</button>
+          <button id="launchURLSaveRun" class="primary">Save</button>
+        </div>
+      </div>
+    </div>
     <script src="./indexeddbProxy.js"></script>
     <script>
       /* ============================================================
@@ -292,6 +315,10 @@
         sortFnEditor: document.getElementById("sortFnEditor"),
         sortFnError: document.getElementById("sortFnError"),
         sortFnGameLabel: document.getElementById("sortFnGameLabel"),
+        launchURLModal: document.getElementById("launchURLModal"),
+        launchURLEditor: document.getElementById("launchURLEditor"),
+        launchURLError: document.getElementById("launchURLError"),
+        launchURLGameLabel: document.getElementById("launchURLGameLabel"),
       }
 
       /* ============================================================
@@ -1451,6 +1478,73 @@
       })
 
       /* ============================================================
+                      LAUNCH URL EDITOR
+                      Per-game URL template (saved in db.launchURLs[game]),
+                      used by app.js's "Launch Client" button to build a
+                      client-launch link from the slot's connection info.
+                      Placeholders: !hostname !port !playerName !password !game
+                      ============================================================ */
+      function openURLEditor(game) {
+        els.launchURLGameLabel.textContent = `(${game})`
+        els.launchURLEditor.value =
+          (window.db && window.db.launchURLs && window.db.launchURLs[game]) ||
+          ""
+        els.launchURLError.textContent = ""
+        els.launchURLError.style.display = "none"
+        els.launchURLModal.dataset.game = game
+        els.launchURLModal.classList.add("visible")
+      }
+      function closeURLEditor() {
+        els.launchURLModal.classList.remove("visible")
+      }
+      function showURLEditorError(err) {
+        els.launchURLError.textContent = String(
+          (err && err.message) || err,
+        )
+        els.launchURLError.style.display = "block"
+      }
+      function buildLaunchURL(conn) {
+        const tmpl = window.db?.launchURLs?.[conn.game]
+        if (!tmpl) return null
+        return tmpl
+          .replaceAll("!hostname", conn.hostname ?? "")
+          .replaceAll("!port", conn.port ?? "")
+          .replaceAll("!playerName", conn.playerName ?? "")
+          .replaceAll("!password", conn.password ?? "")
+          .replaceAll("!game", conn.game ?? "")
+      }
+      function openLink(conn) {
+        const url = buildLaunchURL(conn)
+        if (!url) {
+          // No template saved for this game yet -- open the editor so
+          // the user can define one.
+          openURLEditor(conn.game)
+          return
+        }
+        window.open(url, "_blank")
+      }
+
+      document
+        .getElementById("launchURLCancel")
+        .addEventListener("click", closeURLEditor)
+      document
+        .getElementById("launchURLSaveRun")
+        .addEventListener("click", () => {
+          const game = els.launchURLModal.dataset.game
+          const src = els.launchURLEditor.value.trim()
+          if (!src) {
+            showURLEditorError("URL template can't be empty")
+            return
+          }
+          window.db.launchURLs ??= {}
+          window.db.launchURLs[game] = src
+          closeURLEditor()
+        })
+      els.launchURLModal.addEventListener("pointerdown", (ev) => {
+        if (ev.target === els.launchURLModal) closeURLEditor()
+      })
+
+      /* ============================================================
                       RENDER
                       ============================================================ */
       function buildItemList(itemNames) {
@@ -1967,7 +2061,6 @@
             }
             db.fileHandles[key] = fh
             loadGraph(raw)
-            db.lastFile = key
           } catch (e) {
             alert("Could not parse JSON: " + e.message)
           }
@@ -2092,6 +2185,7 @@
         window.db.connections ??= []
         window.db.progFiles ??= {}
         window.db.ctApiKey ??= ""
+        window.db.launchURLs ??= {}
         const ctApiKeyInput = document.getElementById("ctApiKeyInput")
         if (ctApiKeyInput) {
           ctApiKeyInput.value = window.db.ctApiKey || ""

@@ -142,7 +142,7 @@ button {
 }
 .slot-controls {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 8px;
   flex-wrap: wrap;
   flex-direction: column;
