@@ -95,9 +95,14 @@
       <section class="panel">
         <h2>
           Progression files
-          <span class="hint"
-            >generate with TRACKER_FILE_OUT_DIR=/trackerFiles AP_SOURCE_DIR=/Archipelago nix run . APGameName # all paths should be updated</span
-          >
+          <div>
+            <span class="hint"> generate with </span>
+            <span class="hint" style="color: var(--accent)">
+              TRACKER_FILE_OUT_DIR=/trackerFiles
+              AP_SOURCE_DIR=/Archipelago nix run . APGameName
+            </span>
+            <span class="hint"> # all paths should be updated</span>
+          </div>
         </h2>
         <div class="h">
           <button id="loadBtn">Load rules file</button>
