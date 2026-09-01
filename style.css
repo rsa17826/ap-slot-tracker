@@ -243,11 +243,10 @@ button {
   justify-content: space-between;
   gap: 8px;
   background-color: var(--color-zgom);
-}
-.game-select-item:hover,
-.game-select-group-header:hover {
-  filter: brightness(1.15);
-  background: var(--color-cxed);
+  &:hover {
+    filter: brightness(1.15);
+    background: var(--color-cxed);
+  }
 }
 .game-select-item.selected {
   font-weight: 600;

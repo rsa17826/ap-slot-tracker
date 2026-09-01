@@ -67,6 +67,9 @@ body {
   font-size: 12px;
   margin-bottom: 6px;
   transition: border-color 0.15s;
+  &:hover {
+    border-color: var(--accent);
+  }
 }
 .h {
   display: flex;
@@ -91,13 +94,6 @@ body {
   font-size: 12px;
   margin-bottom: 6px;
   transition: border-color 0.15s;
-}
-#loadBtn:hover,
-#loadFolderBtn:hover,
-#resetBtn:hover,
-#autoLayoutBtn:hover,
-#customLayoutBtn:hover {
-  border-color: var(--accent);
 }
 .btn-row {
   display: flex;
