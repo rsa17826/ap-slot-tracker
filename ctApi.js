@@ -157,7 +157,7 @@ function ctBuildUpdatePayload(game, newProgressionStatus) {
  * both avoid clobbering a status someone else set in the meantime, and know
  * the exact prior value to restore when clearing BK.
  */
-async function ctSetBk(conn, toBk) {
+async function ctSetBk(conn, toBk, shouldRefreshBkTimer = false) {
   const ct = conn.ct
   const apiKey = window.db?.ctApiKey
   if (!ct?.trackerId || ct?.gameId == null) {
@@ -173,7 +173,12 @@ async function ctSetBk(conn, toBk) {
     throw new Error("That game no longer exists on the tracker")
 
   let nextStatus = toBk ? CT_BK_VALUE : CT_NONBK_VALUE
-  if (game.progression_status !== nextStatus) {
+  // NOTE allow still bk to update timestamp
+  // TODO maybe good to also auto do if >1d?
+  if (
+    game.progression_status !== nextStatus ||
+    (nextStatus == "bk" && shouldRefreshBkTimer)
+  ) {
     return ctUpdateGame(
       ct.trackerId,
       ct.gameId,

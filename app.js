@@ -272,7 +272,7 @@ const progRoot = document.getElementById("progFiles")
 
 function gamesWithProg() {
   return Object.keys(window.db.progFiles || {}).sort((a, s) =>
-    a.localeCompare(s, undefined, { numeric: true })
+    a.localeCompare(s, undefined, { numeric: true }),
   )
 }
 
@@ -721,14 +721,18 @@ function ctObtainableState(conn) {
 }
 
 // Forces the linked slot's tracker status to the given BK state.
-async function ctApplyStatus(conn, toBk) {
+async function ctApplyStatus(
+  conn,
+  toBk,
+  shouldRefreshBkTimer = false,
+) {
   if (!conn.ct) return
   const ui = ctUi(conn.id)
   ui.busy = true
   ui.error = ""
   renderSlots()
   try {
-    const updated = await ctSetBk(conn, toBk)
+    const updated = await ctSetBk(conn, toBk, shouldRefreshBkTimer)
     conn.ct.isBk = toBk
     conn.ct.lastKnownStatus =
       updated ? updated.progression_status : conn.ct.lastKnownStatus
@@ -779,7 +783,7 @@ function ctPanelFor(conn) {
         "button",
         {
           disabled: ui.busy,
-          onclick: () => ctApplyStatus(conn, targetIsBk),
+          onclick: () => ctApplyStatus(conn, targetIsBk, true),
         },
         [label],
       ),
