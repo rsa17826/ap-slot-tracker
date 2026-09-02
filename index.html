@@ -157,6 +157,10 @@
             <input type="checkbox" id="focusModeChk" />
             Hide out-of-logic / cleared nodes
           </label>
+          <label class="toggle-row">
+            <input type="checkbox" id="noTransitChk" />
+            Skip transit nodes
+          </label>
         </div>
 
         <div class="side-section">
@@ -245,15 +249,21 @@
     </div>
     <div id="launchURLModal" class="modal-overlay">
       <div class="modal">
-        <h2>
-          url <span id="launchURLGameLabel"></span>
-        </h2>
+        <h2>url <span id="launchURLGameLabel"></span></h2>
         <div class="modal-hint">
-          a url formatted with code><code>game</code>, <code>playerName</code>, <code>hostname</code>, <code>port</code>, and <code>password</code><br>
-          eg. http://vex2.localhost/?connect=<code>!hostname</code>:<code>!port</code>&name=<code>!playerName</code>&password=<code>!password</code><br>
-          or archipelago://<code>!game</code>?connect=<code>!hostname</code>:<code>!port</code>&name=<code>!playerName</code>&password=<code>!password</code>
+          a url formatted with code><code>game</code>,
+          <code>playerName</code>, <code>hostname</code>,
+          <code>port</code>, and <code>password</code><br />
+          eg.
+          http://vex2.localhost/?connect=<code>!hostname</code>:<code>!port</code>&name=<code>!playerName</code>&password=<code
+            >!password</code
+          ><br />
+          or
+          archipelago://<code>!game</code>?connect=<code>!hostname</code>:<code>!port</code>&name=<code>!playerName</code>&password=<code
+            >!password</code
+          >
         </div>
-        <input id="launchURLEditor" spellcheck="false"></input>
+        <input id="launchURLEditor" spellcheck="false" />
         <div id="launchURLError"></div>
         <div class="modal-actions">
           <button id="launchURLCancel">Cancel</button>
@@ -280,6 +290,7 @@
       let view = { x: 0, y: 0, scale: 1 }
       let hideEvents = false
       let focusMode = false // hide nodes that are out-of-logic or fully collected already
+      let noTransit = false
       let searchQuery = "" // lowercase; filters both the inventory list and map nodes
       let customSortFns = {} // gameKey -> function source (string)
       let reach = {
@@ -311,6 +322,7 @@
         emptyMsg: document.getElementById("emptyMsg"),
         hideEventsChk: document.getElementById("hideEventsChk"),
         focusModeChk: document.getElementById("focusModeChk"),
+        noTransitChk: document.getElementById("noTransitChk"),
         sortFnModal: document.getElementById("sortFnModal"),
         sortFnEditor: document.getElementById("sortFnEditor"),
         sortFnError: document.getElementById("sortFnError"),
@@ -318,7 +330,9 @@
         launchURLModal: document.getElementById("launchURLModal"),
         launchURLEditor: document.getElementById("launchURLEditor"),
         launchURLError: document.getElementById("launchURLError"),
-        launchURLGameLabel: document.getElementById("launchURLGameLabel"),
+        launchURLGameLabel: document.getElementById(
+          "launchURLGameLabel",
+        ),
       }
 
       /* ============================================================
@@ -836,10 +850,20 @@
         return locs.every(isLocationDone)
       }
 
+      // A region counts as a "transit" node when it has no locations at
+      // all -- nothing to check there, it's just a hallway between other
+      // regions. Used by noTransit mode to hide it and let connections
+      // pass through to the next region(s) that actually have checks.
+      function isTransitRegion(rname) {
+        return graph.regions[rname]?.isTransit
+      }
+
       function isRegionVisible(rname) {
-        if (!focusMode) return true
-        if (!reach.regions.has(rname)) return false
-        if (isRegionCleared(rname)) return false
+        if (focusMode) {
+          if (!reach.regions.has(rname)) return false
+          if (isRegionCleared(rname)) return false
+        }
+        if (noTransit && isTransitRegion(rname)) return false
         return true
       }
 
@@ -848,7 +872,7 @@
       // position/pack nodes that are actually visible.
       function visibleRegionNames() {
         const names = Object.keys(graph.regions)
-        return focusMode ? names.filter(isRegionVisible) : names
+        return names.filter(isRegionVisible)
       }
 
       // A region matches the search box if its own name matches, or any of
@@ -1029,7 +1053,13 @@
             defaultProfileName(raw)
           )
       }
-
+      function markTransitLocations() {
+        for (const [lname, region] of Object.entries(graph.regions)) {
+          region.isTransit =
+            region.locations.filter((e) => !eventItemNames.has(e)) ==
+            0
+        }
+      }
       function loadGraph(raw, requestedProfile) {
         rawGraph = raw
         const profile = resolvedProfileNameFor(raw, requestedProfile)
@@ -1040,6 +1070,7 @@
           return
         }
         eventItemNames = collectEventItemNames()
+        markTransitLocations()
         const itemNames = collectItemNames()
         itemMaxCounts = collectItemMaxCounts(itemNames)
         const savedState = db.state ?? null
@@ -1487,7 +1518,9 @@
       function openURLEditor(game) {
         els.launchURLGameLabel.textContent = `(${game})`
         els.launchURLEditor.value =
-          (window.db && window.db.launchURLs && window.db.launchURLs[game]) ||
+          (window.db &&
+            window.db.launchURLs &&
+            window.db.launchURLs[game]) ||
           ""
         els.launchURLError.textContent = ""
         els.launchURLError.style.display = "none"
@@ -1716,6 +1749,66 @@
         )
       }
 
+      // When noTransit is on, walks forward from `target` through any
+      // chain of transit regions (regions with no locations) following
+      // their exits, until it reaches non-transit regions -- those are
+      // the effective endpoints an edge should be drawn to. A chain edge
+      // is only "traversable" if every hop along the way is. Cycle-safe
+      // via `visited`.
+      // Walks forward through chains of transit rooms to find the real,
+      // non-transit endpoints an edge should connect to. Iterative (not
+      // recursive) so long chains don't blow the call stack, and it
+      // memoizes which transit regions it has already expanded so that
+      // graphs with diamond-shaped transit connections (multiple paths
+      // reconverging on the same room) don't get re-expanded down every
+      // branch -- that combinatorial blowup was producing a huge/inf
+      // "out" array. A transit region is only ever expanded once per
+      // traversability tier (traversable first, since that's strictly
+      // the best case -- traversable can only AND its way down to false
+      // further along a chain, never back up to true).
+      function resolveEdgeTargets(startTarget, startTraversable, visited) {
+        const results = new Map() // to -> traversable
+
+        function expand(seedTarget, wantTraversable, seedVisited) {
+          const seen = new Set(seedVisited)
+          let stack = [seedTarget]
+          while (stack.length) {
+            const target = stack.pop()
+            if (seen.has(target)) continue
+            if (noTransit && isTransitRegion(target)) {
+              seen.add(target)
+              const tregion = graph.regions[target]
+              for (const nextExit of tregion.exits || []) {
+                const ninfo = graph.entrances[nextExit]
+                if (!ninfo || !ninfo.connects_to) continue
+                if (
+                  wantTraversable &&
+                  !reach.entrances.has(nextExit)
+                )
+                  continue // this branch stays non-traversable; leave it for the second pass
+                stack.push(ninfo.connects_to)
+              }
+            } else if (!results.has(target)) {
+              results.set(target, wantTraversable)
+            }
+          }
+        }
+
+        // Pass 1: best case -- only follow hops that are traversable, so
+        // any endpoint reachable this way is marked traversable (solid
+        // line).
+        if (startTraversable) expand(startTarget, true, visited)
+        // Pass 2: full topology regardless of traversability, so every
+        // structurally-connected endpoint still gets an (at worst dashed)
+        // edge even if pass 1 already found some of them.
+        expand(startTarget, false, visited)
+
+        return [...results].map(([to, traversable]) => ({
+          to,
+          traversable,
+        }))
+      }
+
       function renderEdges() {
         const svg = els.edges
         svg.innerHTML = ""
@@ -1724,34 +1817,51 @@
         let maxX = 0,
           maxY = 0
 
-        for (const [ename, e] of Object.entries(graph.entrances)) {
-          const from = findRegionForEntrance(ename)
-          const to = e.connects_to
-          if (!from || !to || !positions[from] || !positions[to])
-            continue
-          if (!nodeEls[from] || !nodeEls[to]) continue // skip edges touching a hidden (focus-mode) node
-          const p1 = centerOf(from),
-            p2 = centerOf(to)
-          maxX = Math.max(maxX, p1.x, p2.x)
-          maxY = Math.max(maxY, p1.y, p2.y)
+        for (const [rname, region] of Object.entries(graph.regions)) {
+          if (!nodeEls[rname]) continue // skip hidden (focus-mode/transit) source nodes
+          for (const exitName of region.exits || []) {
+            const einfo = graph.entrances[exitName]
+            if (!einfo || !einfo.connects_to) continue
+            const from = rname
+            const targets = resolveEdgeTargets(
+              einfo.connects_to,
+              reach.entrances.has(exitName),
+              new Set([from]),
+            )
+            for (const { to, traversable } of targets) {
+              if (!positions[from] || !positions[to]) continue
+              if (!nodeEls[from] || !nodeEls[to]) continue // skip edges touching a hidden (focus-mode) node
 
-          const path = document.createElementNS(ns, "path")
-          setEdgePath(path, p1, p2)
-          path.setAttribute("fill", "none")
-          const traversable = reach.entrances.has(ename)
-          path.setAttribute(
-            "stroke",
-            traversable ? "var(--accent)" : "#2a3040",
-          )
-          path.setAttribute("stroke-width", traversable ? "2" : "1.4")
-          if (!traversable)
-            path.setAttribute("stroke-dasharray", "4 4")
-          path.setAttribute("opacity", traversable ? "0.9" : "0.45")
-          svg.appendChild(path)
+              const p1 = centerOf(from),
+                p2 = centerOf(to)
+              maxX = Math.max(maxX, p1.x, p2.x)
+              maxY = Math.max(maxY, p1.y, p2.y)
 
-          const edgeEntry = { path, from, to }
-          ;(edgesByRegion[from] ||= []).push(edgeEntry)
-          if (to !== from) (edgesByRegion[to] ||= []).push(edgeEntry)
+              const path = document.createElementNS(ns, "path")
+              setEdgePath(path, p1, p2)
+              path.setAttribute("fill", "none")
+              path.setAttribute(
+                "stroke",
+                traversable ? "var(--accent)" : "#2a3040",
+              )
+              path.setAttribute(
+                "stroke-width",
+                traversable ? "2" : "1.4",
+              )
+              if (!traversable)
+                path.setAttribute("stroke-dasharray", "4 4")
+              path.setAttribute(
+                "opacity",
+                traversable ? "0.9" : "0.45",
+              )
+              svg.appendChild(path)
+
+              const edgeEntry = { path, from, to }
+              ;(edgesByRegion[from] ||= []).push(edgeEntry)
+              if (to !== from)
+                (edgesByRegion[to] ||= []).push(edgeEntry)
+            }
+          }
         }
         svg.setAttribute("width", maxX + 400 + "px")
         svg.setAttribute("height", maxY + 400 + "px")
@@ -2207,6 +2317,13 @@
         els.focusModeChk.addEventListener("change", () => {
           focusMode = els.focusModeChk.checked
           db.focusMode = focusMode
+          render()
+        })
+        noTransit = db.noTransit ?? false
+        els.noTransitChk.checked = noTransit
+        els.noTransitChk.addEventListener("change", () => {
+          noTransit = els.noTransitChk.checked
+          db.noTransit = noTransit
           render()
         })
         loadCustomSortFns()
