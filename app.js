@@ -5,7 +5,7 @@
 // ---------------------------------------------------------------------
 // Runtime state (not persisted): live clients + derived tracking info
 // ---------------------------------------------------------------------
-const runtime = {} // connId -> { client, status, statusDetail, log:[], receivedNames:Set, prevObtainable:Set }
+const runtime = {} // connId -> { client, status, statusDetail, receivedNames:Set, prevObtainable:Set }
 
 // "progFiles" now holds the same rules-JSON graph the map (index.html)
 // loads — regions/entrances/locations with rule trees — rather than the
@@ -110,19 +110,11 @@ function notify(title, body) {
   }
 }
 
-function pushLog(connId, entry) {
-  const rt = runtime[connId]
-  rt.log.push(entry)
-  if (rt.log.length > 200) rt.log.shift()
-  renderSlots()
-}
-
 function startConnection(conn) {
   const rt = {
     client: null,
     status: "connecting",
     statusDetail: "",
-    log: [],
     receivedNames: new Set(),
     receivedCounts: {}, // itemName -> count, for Has(count) rules in the map graph
     prevObtainable: new Set(),
@@ -144,10 +136,7 @@ function startConnection(conn) {
         renderSlots()
       },
       onConnected: () => {
-        pushLog(conn.id, {
-          text: `Connected as ${conn.playerName} (${conn.game})`,
-          prog: false,
-        })
+        renderSlots()
         if (conn.locationScoutsEnabled)
           client.sendLocationScouts(
             [...client.checkedLocations, ...client.missingLocations],
@@ -218,17 +207,8 @@ function handleReceivedItems(conn, rt, items) {
     rt.prevObtainable = nowObtainable
   }
 
-  items.forEach((item) => {
-    pushLog(conn.id, { text: item.name, prog: false })
-  })
-
-  if (anyNewProgression) {
-    pushLog(conn.id, {
-      text: `Unlocked ${progDeltaTokens.length} new obtainable location(s)`,
-      prog: true,
-    })
-  }
   ctAutoSync(conn)
+  renderSlots()
 
   const mode = conn.notifyMode || "all"
   const itemNames = items.map((i) => i.name).join(", ")
@@ -253,6 +233,205 @@ function handleReceivedItems(conn, rt, items) {
   }
 }
 
+// ---------------------------------------------------------------------
+// Rule -> requirement groups
+// Converts a location's rule tree (same shape evalRule() in index.html
+// understands) into an OR-of-AND list of human-readable requirement
+// tokens, e.g. [["Bow"], ["Boomerang", "Hookshot"]] meaning "Bow, OR
+// Boomerang+Hookshot". Used to show *why* a check is currently obtainable
+// in the same via/or chip format progression_overlay.js used for the old
+// PROG-array format.
+// ---------------------------------------------------------------------
+const RULE_GROUP_CAP = 8 // max OR-groups to keep per rule, avoids blowup on big And-of-Or trees
+const AND_GROUP_CAP = 6 // max AND-members to keep per group
+
+function itemToken(name, count) {
+  return count && count > 1 ? `${name} x${count}` : name
+}
+
+function capGroups(groups) {
+  return groups.slice(0, RULE_GROUP_CAP)
+}
+
+function mergeGroups(a, b) {
+  // cross product for And: every combination of one group from `a` with
+  // one group from `b`, capped so nested Ands of large Ors can't explode.
+  const out = []
+  for (const ga of a) {
+    for (const gb of b) {
+      out.push([...ga, ...gb].slice(0, AND_GROUP_CAP))
+      if (out.length >= RULE_GROUP_CAP) return out
+    }
+  }
+  return out
+}
+
+function ruleToGroups(rule) {
+  if (rule === null || rule === undefined) return [[]]
+  if (typeof rule === "boolean") return rule ? [[]] : []
+  switch (rule.type) {
+    case "True_":
+      return [[]]
+    case "False_":
+      return []
+    case "Has":
+      return [[itemToken(rule.item_name, rule.count)]]
+    case "Resolved": {
+      if (rule.children !== undefined) {
+        return capGroups(
+          rule.children.flatMap((c) => ruleToGroups(c)),
+        )
+      }
+      if (rule.item_name !== undefined) {
+        return [[itemToken(rule.item_name, rule.count)]]
+      }
+      const names = rule.item_names || rule.items || []
+      if (rule.count !== undefined) {
+        return [[`${rule.count} of: ${names.join(", ")}`]]
+      }
+      return [names.map((n) => itemToken(n))]
+    }
+    case "HasAll":
+      return [
+        (rule.item_names || rule.items || []).map((n) =>
+          itemToken(n),
+        ),
+      ]
+    case "HasAny":
+      return capGroups(
+        (rule.item_names || rule.items || []).map((n) => [
+          itemToken(n),
+        ]),
+      )
+    case "HasAllCounts": {
+      const counts = rule.item_counts || rule.counts || {}
+      return [Object.entries(counts).map(([n, c]) => itemToken(n, c))]
+    }
+    case "HasAnyCount": {
+      const need = rule.count ?? 1
+      return capGroups(
+        (rule.item_names || rule.items || []).map((n) => [
+          itemToken(n, need),
+        ]),
+      )
+    }
+    case "HasFromList":
+    case "HasFromListUnique": {
+      const need = rule.count ?? 1
+      const names = rule.item_names || rule.items || []
+      return [[`${need} of: ${names.join(", ")}`]]
+    }
+    case "HasGroup":
+    case "HasGroupUnique": {
+      const need = rule.count ?? 1
+      const groupItems = rule.items || rule.group_items || []
+      return [[`${need} of: ${groupItems.join(", ")}`]]
+    }
+    case "And": {
+      const subs = rule.rules || rule.sub_rules || []
+      return capGroups(
+        subs.reduce(
+          (acc, r) => mergeGroups(acc, ruleToGroups(r)),
+          [[]],
+        ),
+      )
+    }
+    case "Or": {
+      const subs = rule.rules || rule.sub_rules || []
+      return capGroups(subs.flatMap((r) => ruleToGroups(r)))
+    }
+    case "AtLeast": {
+      const need = rule.count ?? 1
+      const subs = rule.rules || rule.sub_rules || []
+      return [
+        [
+          `${need} of: ${subs
+            .map((r) => ruleToGroups(r)[0]?.join("+") ?? "?")
+            .join(", ")}`,
+        ],
+      ]
+    }
+    case "Filtered":
+    case "WrapperRule":
+      return ruleToGroups(rule.rule || rule.wrapped || rule.sub_rule)
+    case "CanReachRegion":
+      return [[`reach: ${rule.region_name || rule.name}`]]
+    case "CanReachLocation":
+      return [[`reach: ${rule.location_name || rule.name}`]]
+    case "CanReachEntrance":
+      return [[`reach: ${rule.entrance_name || rule.name}`]]
+    default:
+      return [[]] // permissive fallback, matches evalRule's default case
+  }
+}
+
+function requirementGroupsFor(graph, locationName) {
+  const linfo = graph.locations[locationName]
+  return ruleToGroups(linfo.rule)
+}
+
+function itemChip(text) {
+  return newelem(
+    "span",
+    {
+      display: "inline-block",
+      padding: "2px 8px",
+      borderRadius: "999px",
+      fontSize: "12px",
+      fontWeight: "500",
+      margin: "2px 4px 2px 0",
+      background: "#3b82f61a",
+      color: "#3b82f6",
+      border: "1px solid #3b82f640",
+      whiteSpace: "nowrap",
+    },
+    [text],
+  )
+}
+
+function checkRow(locationName, groups) {
+  const row = newelem("div", {
+    class: "row",
+    display: "flex",
+    flexDirection: "column",
+    gap: "4px",
+    padding: "4px 0",
+  })
+  row.appendChild(
+    newelem("div", { fontSize: "13px" }, [locationName]),
+  )
+  if (groups.length > 0) {
+    const viaWrap = newelem("div", {
+      display: "flex",
+      flexDirection: "column",
+      gap: "2px",
+    })
+    groups.forEach((group, idx) => {
+      const groupRow = newelem("div", {
+        display: "flex",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: "2px",
+      })
+      groupRow.appendChild(
+        newelem(
+          "span",
+          { fontSize: "10px", color: "#6b7280", marginRight: "4px" },
+          [idx === 0 ? "via:" : "or:"],
+        ),
+      )
+      if (group.length === 0) {
+        groupRow.appendChild(itemChip("(no requirements)"))
+      } else {
+        group.forEach((tok) => groupRow.appendChild(itemChip(tok)))
+      }
+      viaWrap.appendChild(groupRow)
+    })
+    row.appendChild(viaWrap)
+  }
+  return row
+}
+
 function maybeRecomputeProgression(conn, rt) {
   const graph = progForGame(conn.progKey, conn.profile)
   if (!graph) return
@@ -270,6 +449,7 @@ function maybeRecomputeProgression(conn, rt) {
   // Locations just got checked off (possibly clearing the last obtainable
   // one) -- re-sync BK status to match.
   ctAutoSync(conn)
+  renderSlots()
 }
 
 // ---------------------------------------------------------------------
@@ -496,22 +676,36 @@ function renderSlots() {
       const status = rt?.status || "disconnected"
 
       const hasProg = gamesWithProg().includes(conn.progKey)
+      const graph =
+        hasProg ? progForGame(conn.progKey, conn.profile) : null
+      const obtainable =
+        graph ?
+          [...(rt?.prevObtainable || [])].sort((a, b) =>
+            a.localeCompare(b),
+          )
+        : []
       return newelem("div", { class: "slot-card" }, [
         newelem(
           "div",
           { class: "slot-log" },
-          (rt?.log || []).map((entry) =>
-            newelem(
-              "div",
-              { class: `row${entry.prog ? " new-prog" : ""}` },
-              [
-                entry.prog ?
-                  newelem("span", { class: "badge" }, ["PROG"])
-                : null,
-                entry.text,
-              ],
+          !graph ?
+            [
+              newelem("div", { fontSize: "13px", color: "#6b7280" }, [
+                "No map data loaded for this slot's game.",
+              ]),
+            ]
+          : obtainable.length === 0 ?
+            [
+              newelem("div", { fontSize: "13px", color: "#6b7280" }, [
+                "No obtainable checks right now.",
+              ]),
+            ]
+          : obtainable.map((locationName) =>
+              checkRow(
+                locationName,
+                requirementGroupsFor(graph, locationName),
+              ),
             ),
-          ),
         ),
         newelem("div", { class: "slot-top" }, [
           newelem("div", {}, [
