@@ -22,6 +22,7 @@ class APSlotClient {
     this.missingLocations = []
     this.slotData = {}
     this.slotInfo = {}
+    this.scoutedItems = {}
     this.players = []
     this.isAuthenticated = false
     this.itemCount = 0
@@ -115,7 +116,7 @@ class APSlotClient {
             },
             items_handling: 7,
             tags: ["Tracker", "AP"],
-            slot_data: true,
+            slot_data: false,
           },
         ])
         break
@@ -159,6 +160,24 @@ class APSlotClient {
           "error",
           (packet.errors || []).join(", ") || "connection refused",
         )
+        break
+      case "LocationInfo":
+        const myGame = this.slotInfo?.[this.slot]?.game
+
+        for (const entry of packet.locations || []) {
+          const { location, item, player, flags } = entry
+          const itemName = this.getItemName(item, player)
+          const locationName =
+            (myGame && this.locationIdToName?.[myGame]?.[location]) ??
+            `Unknown Location (${location})`
+
+          this.scoutedItems[location] = {
+            itemName,
+            itemPlayer: player,
+            locationName,
+            flags,
+          }
+        }
         break
       case "ReceivedItems": {
         const items = []

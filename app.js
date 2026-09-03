@@ -148,10 +148,11 @@ function startConnection(conn) {
           text: `Connected as ${conn.playerName} (${conn.game})`,
           prog: false,
         })
-        client.sendLocationScouts(
-          Object.keys(client.itemIdToName[conn.game]),
-          0,
-        )
+        if (conn.locationScoutsEnabled)
+          client.sendLocationScouts(
+            [...client.checkedLocations, ...client.missingLocations],
+            0,
+          )
       },
       onCheckedLocations: () => {
         maybeRecomputeProgression(conn, rt)
@@ -621,8 +622,44 @@ function renderSlots() {
                 ["Remove"],
               ),
               newelem(
+                "label",
+                {
+                  class: "h",
+                  checked: conn.locationScoutsEnabled,
+                  flexGrow: 2,
+                },
+                [
+                  newelem("input", {
+                    type: "checkbox",
+                    flexGrow: 0.5,
+                    padding: 0,
+                    margin: 0,
+                    onclick() {
+                      conn.locationScoutsEnabled = this.checked
+                      const client = runtime[conn.id].client
+                      if (
+                        !conn.scoutedLocations &&
+                        conn.locationScoutsEnabled &&
+                        client?.isAuthenticated
+                      ) {
+                        client.sendLocationScouts(
+                          [
+                            ...client.checkedLocations,
+                            ...client.missingLocations,
+                          ],
+                          0,
+                        )
+                      }
+                    },
+                    checked: conn.locationScoutsEnabled,
+                  }),
+                  "Enable LocationScouts",
+                ],
+              ),
+              newelem(
                 "button",
                 {
+                  flexGrow: 1,
                   onclick: async (e) => {
                     // Defined in index.html's map script: loads this game's
                     // rules JSON (if already known) and syncs the map's
@@ -821,6 +858,7 @@ function ctPanelFor(conn) {
   // Not linked yet: just a tracker link/ID -- the game is auto-matched by
   // slot name, and the API key is the global one set above.
   const trackerInput = newelem("input", {
+    flexGrow: 2,
     placeholder: "Tracker link or ID (e.g. .../tracker/AAA or AAA)",
     value: ui.trackerInput,
     width: "300px",
