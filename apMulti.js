@@ -82,7 +82,20 @@ class APSlotClient {
       this.socket.send(JSON.stringify(arr))
     }
   }
-
+  /**
+   * Scout locations to see what item they contain, optionally creating a hint.
+   * @param {number[]} locationIds - Array of location IDs to scout.
+   * @param {number} createAsHint - 0: Don't hint, 1: Hint & broadcast all, 2: Hint & broadcast only new.
+   */
+  sendLocationScouts(locationIds, createAsHint = 0) {
+    this.sendPackets([
+      {
+        cmd: "LocationScouts",
+        locations: locationIds,
+        create_as_hint: createAsHint,
+      },
+    ])
+  }
   handlePacket(packet) {
     switch (packet.cmd) {
       case "RoomInfo":

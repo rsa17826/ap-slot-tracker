@@ -148,6 +148,10 @@ function startConnection(conn) {
           text: `Connected as ${conn.playerName} (${conn.game})`,
           prog: false,
         })
+        client.sendLocationScouts(
+          Object.keys(client.itemIdToName[conn.game]),
+          0,
+        )
       },
       onCheckedLocations: () => {
         maybeRecomputeProgression(conn, rt)
@@ -555,33 +559,28 @@ function renderSlots() {
               for (const n of profileNames)
                 options[`Profile: ${n}`] = n
 
-              const profileSelect = newelem("select", {
+              return newelem("select", {
                 title:
                   "Which settings profile this slot's logic (map + notifications) should use",
                 options,
                 value: activeProfileFor(conn),
+                onchange() {
+                  const idx = window.db.connections.findIndex(
+                    (c) => c.id === conn.id,
+                  )
+                  if (idx === -1) return
+                  window.db.connections[idx].profile = this.value
+                  if (runtime[conn.id]) {
+                    maybeRecomputeProgression(conn, runtime[conn.id])
+                  }
+                  if (db.currentMapConnId === conn.id) {
+                    if (appEl.classList.contains("visible"))
+                      openMapForSlot(window.db.connections[idx])
+                    else syncFromSlot(window.db.connections[idx])
+                  }
+                  renderSlots()
+                },
               })
-              profileSelect.onchange = () => {
-                const idx = window.db.connections.findIndex(
-                  (c) => c.id === conn.id,
-                )
-                if (idx === -1) return
-                window.db.connections[idx].profile =
-                  profileSelect.value
-                if (runtime[conn.id]) {
-                  maybeRecomputeProgression(conn, runtime[conn.id])
-                }
-                // If this slot's map is currently open, reload it against
-                // the newly chosen profile too.
-                if (
-                  db.currentMapConnId === conn.id &&
-                  typeof openMapForSlot === "function"
-                ) {
-                  openMapForSlot(window.db.connections[idx])
-                }
-                renderSlots()
-              }
-              return profileSelect
             })(),
             newelem("div", { class: "h" }, [
               newelem(
