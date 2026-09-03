@@ -275,3 +275,40 @@ button {
 * {
   outline-color: var(--accent);
 }
+input[type="checkbox"] {
+  accent-color: var(--accent);
+  appearance: none;
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--color-zgom, #050308);
+  border: 1px solid var(--panel-border, var(--color-scpx, #2e2843));
+  border-radius: 3px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  padding: 4px;
+  margin: 4px;
+  &:checked {
+    background-color: var(--accent);
+    border-color: var(--accent);
+    &::after {
+      content: "";
+      position: absolute;
+      left: 4px;
+      top: 1px;
+      width: 3px;
+      height: 7px;
+      border: solid var(--color-givd, #eeecf5);
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+  }
+  &:checked {
+    background-color: var(--accent, var(--color-cblc, #8b7bf7));
+    border-color: var(--accent, var(--color-cblc, #8b7bf7));
+  }
+}

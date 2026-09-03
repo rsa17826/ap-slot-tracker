@@ -1723,25 +1723,6 @@
                               (isEvent ? " event" : ""),
                           },
                           [
-                            newelem("input", {
-                              type: "checkbox",
-                              class: "ck",
-                              checked: isChecked,
-                              onchange(ev) {
-                                checkedLocations[lname] =
-                                  ev.target.checked
-                                lrow.classList.toggle(
-                                  "checked",
-                                  ev.target.checked,
-                                )
-                                // In focus mode a node disappears once its
-                                // last location is checked, so a full
-                                // re-render is needed to reflect that;
-                                // otherwise the lightweight class toggle
-                                // above is enough.
-                                if (focusMode) render()
-                              },
-                            }),
                             newelem("span", {
                               class: "dot",
                             }),
