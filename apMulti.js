@@ -11,6 +11,7 @@ class APSlotClient {
    *   onConnected?: (info:object)=>void,
    *   onItems?: (items:{name:string, id:number, index:number}[])=>void,
    *   onCheckedLocations?: (ids:number[])=>void,
+   *   onScoutedItems?: ()=>void,
    * }} callbacks
    */
   constructor(opts, callbacks = {}) {
@@ -185,6 +186,7 @@ class APSlotClient {
             flags,
           }
         }
+        this.cb?.onScoutedItems()
         break
       case "ReceivedItems": {
         const items = []

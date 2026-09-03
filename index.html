@@ -161,6 +161,10 @@
             <input type="checkbox" id="noTransitChk" />
             Skip transit nodes
           </label>
+          <label class="toggle-row">
+            <input type="checkbox" id="showScoutsChk" />
+            Show scouted items
+          </label>
         </div>
 
         <div class="side-section">
@@ -283,6 +287,10 @@
       let eventItemNames = new Set() // item names that come from is_event locations (colored + read-only)
       let itemMaxCounts = {} // itemName -> highest count ever required by a rule
       let checkedLocations = {} // locationName -> bool
+      let scoutedItems = {} // locationName -> {itemName, itemPlayer, flags}, from AP LocationScouts (synced from a live slot)
+      let showScouts = false // View toggle: show scouted item names in the location rows
+      let scoutOwnSlot = null // this slot's own AP slot number, for telling "your item" apart from other players'
+      let scoutPlayerNames = {} // slot number -> player name, for labeling scouted items that belong to other players
       let positions = {} // regionName -> {x,y}
       let nodeEls = {} // regionName -> node DOM element (avoids querySelector during drag)
       let nodeSizeCache = {} // regionName -> {w,h} (cached; cleared on renderNodes)
@@ -323,6 +331,7 @@
         hideEventsChk: document.getElementById("hideEventsChk"),
         focusModeChk: document.getElementById("focusModeChk"),
         noTransitChk: document.getElementById("noTransitChk"),
+        showScoutsChk: document.getElementById("showScoutsChk"),
         sortFnModal: document.getElementById("sortFnModal"),
         sortFnEditor: document.getElementById("sortFnEditor"),
         sortFnError: document.getElementById("sortFnError"),
@@ -1073,15 +1082,16 @@
         markTransitLocations()
         const itemNames = collectItemNames()
         itemMaxCounts = collectItemMaxCounts(itemNames)
-        const savedState = db.state ?? null
-        if (savedState && savedState.gameKey === key) {
-          inventory = savedState.inventory || {}
-          checkedLocations = savedState.checkedLocations || {}
-        } else {
-          inventory = {}
-          checkedLocations = {}
-          for (const n of itemNames) inventory[n] = 0
-        }
+        // const savedState = db.state ?? null
+        // if (savedState && savedState.gameKey === key) {
+        //   inventory = savedState.inventory || {}
+        //   checkedLocations = savedState.checkedLocations || {}
+        // } else {
+        //   inventory = {}
+        //   checkedLocations = {}
+        //   for (const n of itemNames) inventory[n] = 0
+        // }
+        scoutedItems = {} // scouted data is per-slot/live, not part of saved graph state
         for (const n of itemNames)
           if (!(n in inventory)) inventory[n] = 0
         db.layout ??= {}
@@ -1095,7 +1105,6 @@
         buildItemList(itemNames)
         layoutIfNeeded()
         render()
-        saveState()
 
         // Publish this graph into the tracker's shared store so app.js can
         // use it for progression notifications too — the map is now the
@@ -1119,7 +1128,7 @@
                       an item or sends a new check, so the open map re-syncs
                       without needing "Show Map" clicked again.
                       ============================================================ */
-      async function openMapForSlot(conn) {
+      function openMapForSlot(conn) {
         db.currentMapConnId = conn.id
         setMapVisible(true)
         syncFromSlot(conn)
@@ -1179,6 +1188,9 @@
         const rt =
           typeof runtime !== "undefined" ? runtime[conn.id] : null
         if (!rt || !rt.client || !graph) {
+          scoutedItems = {}
+          scoutOwnSlot = null
+          scoutPlayerNames = {}
           applyView()
           return
         }
@@ -1195,6 +1207,19 @@
         for (const id of rt.client.checkedLocations || []) {
           const lname = idToName[id]
           if (lname) checkedLocations[lname] = true
+        }
+
+        scoutedItems = {}
+        for (const entry of Object.values(
+          rt.client.scoutedItems || {},
+        )) {
+          scoutedItems[entry.locationName] = entry
+        }
+        scoutOwnSlot = rt.client.slot
+        scoutPlayerNames = {}
+        for (const p of rt.client.players || []) {
+          if (p.team === rt.client.team)
+            scoutPlayerNames[p.slot] = p.name
         }
 
         syncItemListUI()
@@ -1633,7 +1658,6 @@
 
       function onInventoryChange() {
         render()
-        saveState()
       }
 
       function render() {
@@ -1688,6 +1712,7 @@
                         const isChecked = !!checkedLocations[lname]
                         const linfo = graph.locations[lname]
                         const isEvent = !!(linfo && linfo.is_event)
+                        const scout = scoutedItems[lname]
                         const lrow = newelem(
                           "label",
                           {
@@ -1709,7 +1734,6 @@
                                   "checked",
                                   ev.target.checked,
                                 )
-                                saveState()
                                 // In focus mode a node disappears once its
                                 // last location is checked, so a full
                                 // re-render is needed to reflect that;
@@ -1735,6 +1759,26 @@
                                 : lname,
                               ],
                             ),
+                            scout ?
+                              newelem(
+                                "span",
+                                {
+                                  class:
+                                    "loc-scout" +
+                                    (scout.flags & 1 ? " progression"
+                                    : scout.flags & 4 ? " trap"
+                                    : ""),
+                                  title:
+                                    (
+                                      scout.itemPlayer !==
+                                      scoutOwnSlot
+                                    ) ?
+                                      `${scout.itemName} (for ${scoutPlayerNames[scout.itemPlayer] ?? `Player ${scout.itemPlayer}`})`
+                                    : scout.itemName,
+                                },
+                                [scout.itemName],
+                              )
+                            : null,
                           ],
                         )
                         return lrow
@@ -1766,7 +1810,11 @@
       // traversability tier (traversable first, since that's strictly
       // the best case -- traversable can only AND its way down to false
       // further along a chain, never back up to true).
-      function resolveEdgeTargets(startTarget, startTraversable, visited) {
+      function resolveEdgeTargets(
+        startTarget,
+        startTraversable,
+        visited,
+      ) {
         const results = new Map() // to -> traversable
 
         function expand(seedTarget, wantTraversable, seedVisited) {
@@ -1781,10 +1829,7 @@
               for (const nextExit of tregion.exits || []) {
                 const ninfo = graph.entrances[nextExit]
                 if (!ninfo || !ninfo.connects_to) continue
-                if (
-                  wantTraversable &&
-                  !reach.entrances.has(nextExit)
-                )
+                if (wantTraversable && !reach.entrances.has(nextExit))
                   continue // this branch stays non-traversable; leave it for the second pass
                 stack.push(ninfo.connects_to)
               }
@@ -2093,22 +2138,6 @@
       /* ============================================================
                       PERSISTENCE
                       ============================================================ */
-      let saveTimer = null
-      function saveState() {
-        clearTimeout(saveTimer)
-        saveTimer = setTimeout(async () => {
-          var k = progKeyFor(graph)
-          if (!k) {
-            error(name, "not valid")
-            return
-          }
-          db.state = {
-            gameKey: k,
-            inventory,
-            checkedLocations,
-          }
-        }, 250)
-      }
       let layoutTimer = null
       function saveLayout() {
         clearTimeout(layoutTimer)
@@ -2292,7 +2321,7 @@
       }
       ;(async () => {
         window.db = await createDB("ap_tracker")
-        window.db.connections ??= []
+        window.db.connections ??= {}
         window.db.progFiles ??= {}
         window.db.ctApiKey ??= ""
         window.db.launchURLs ??= {}
@@ -2326,8 +2355,16 @@
           db.noTransit = noTransit
           render()
         })
+        showScouts = db.showScouts ?? false
+        els.showScoutsChk.checked = showScouts
+        els.showScoutsChk.addEventListener("change", () => {
+          showScouts = els.showScoutsChk.checked
+          db.showScouts = showScouts
+          render()
+        })
         loadCustomSortFns()
-        tryLoadFile(db.state?.gameKey)
+        const lastConn = db.connections?.[db.currentMapConnId]
+        if (lastConn) syncFromSlot(lastConn)
         refreshNotifBtn()
         renderProgFiles()
         renderSlots()
@@ -2352,11 +2389,11 @@
           })()
         }
         // Auto-reconnect any saved slots
-        window.db.connections.forEach((conn) => startConnection(conn))
+        Object.values(window.db.connections).forEach((conn) =>
+          startConnection(conn),
+        )
         if (db.currentMapConnId) {
-          var s = db.connections.find(
-            (e) => e.id == db.currentMapConnId,
-          )
+          var s = db.connections[db.currentMapConnId]
           if (s) syncFromSlot(s)
         }
       })()

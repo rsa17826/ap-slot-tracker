@@ -366,10 +366,30 @@ svg#edges {
     height: 5px;
   }
   .ck {
-    width: 11px;
-    height: 11px;
+    width: 12px;
+    height: 12px;
     flex-shrink: 0;
-    accent-color: var(--warn);
+    margin: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .loc-scout {
+    flex-shrink: 0;
+    margin-left: auto;
+    padding-left: 6px;
+    font-size: 10px;
+    font-style: normal;
+    color: var(--text-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 45%;
+    &.progression {
+      color: var(--accent);
+    }
+    &.trap {
+      color: var(--danger);
+    }
   }
 }
 #topbar {

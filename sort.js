@@ -25,7 +25,8 @@
     return { x: 0, y: 0 }
   }
 
-  const layout = db.layout[db.state.gameKey]
+  const layout =
+    db.layout[db.connections[db.currentMapConnId]?.progKey] ?? {}
   const positions = {}
 
   // Logical positions
@@ -95,6 +96,4 @@
       y: rowY[y],
     }
   }
-
-  tryLoadFile(db.state.gameKey)
 })()

@@ -158,6 +158,9 @@ function startConnection(conn) {
         maybeRecomputeProgression(conn, rt)
         notifyMapOfSlotUpdate(conn)
       },
+      onScoutedItems: () => {
+        syncFromSlot(conn)
+      },
       onItems: (items) => {
         handleReceivedItems(conn, rt, items)
         notifyMapOfSlotUpdate(conn)
@@ -478,7 +481,7 @@ document.addEventListener("click", (e) => {
 })
 
 function renderSlots() {
-  const conns = [...window.db.connections]
+  const conns = Object.values(window.db.connections)
   if (conns.length === 0) {
     slotsRoot?.replaceChildren(
       newelem("div", { class: "empty" }, [
@@ -536,12 +539,9 @@ function renderSlots() {
                 value: conn.notifyMode || "all",
               })
               modeSelect.onchange = () => {
-                const idx = window.db.connections.findIndex(
-                  (c) => c.id === conn.id,
-                )
-                if (idx === -1) return
-                window.db.connections[idx].notifyMode =
-                  modeSelect.value
+                const cc = window.db.connections[conn.id]
+                if (!cc) return
+                cc.notifyMode = modeSelect.value
               }
               return modeSelect
             })(),
@@ -566,18 +566,16 @@ function renderSlots() {
                 options,
                 value: activeProfileFor(conn),
                 onchange() {
-                  const idx = window.db.connections.findIndex(
-                    (c) => c.id === conn.id,
-                  )
-                  if (idx === -1) return
-                  window.db.connections[idx].profile = this.value
+                  const cc = window.db.connections[conn.id]
+                  if (!cc) return
+                  cc.profile = this.value
                   if (runtime[conn.id]) {
                     maybeRecomputeProgression(conn, runtime[conn.id])
                   }
                   if (db.currentMapConnId === conn.id) {
                     if (appEl.classList.contains("visible"))
-                      openMapForSlot(window.db.connections[idx])
-                    else syncFromSlot(window.db.connections[idx])
+                      openMapForSlot(cc)
+                    else syncFromSlot(cc)
                   }
                   renderSlots()
                 },
@@ -611,11 +609,7 @@ function renderSlots() {
                   class: "danger",
                   onclick() {
                     stopConnection(conn.id)
-                    const idx = window.db.connections.findIndex(
-                      (c) => c.id === conn.id,
-                    )
-                    if (idx !== -1)
-                      window.db.connections.splice(idx, 1)
+                    delete window.db.connections[conn.id]
                     renderSlots()
                   },
                 },
@@ -665,7 +659,7 @@ function renderSlots() {
                     // rules JSON (if already known) and syncs the map's
                     // inventory/checked-locations from this slot's live AP
                     // state.
-                    await openMapForSlot(conn)
+                    openMapForSlot(conn)
                   },
                 },
                 ["Show Map"],
@@ -717,8 +711,8 @@ function ctUi(connId) {
 }
 
 function ctSaveConn(conn) {
-  const idx = window.db.connections.findIndex((c) => c.id === conn.id)
-  if (idx !== -1) window.db.connections[idx].ct = conn.ct
+  const cc = window.db.connections[conn.id]
+  if (cc) cc.ct = conn.ct
 }
 
 async function ctDoLink(conn) {
@@ -981,7 +975,7 @@ document
     }
     if (!conn.hostname || !progKey || !conn.game || !conn.playerName)
       return
-    window.db.connections.push(conn)
+    window.db.connections[conn.id] = conn
     f.reset()
     document
       .getElementById("gameSelect")
