@@ -276,21 +276,21 @@ function ruleToGroups(rule) {
       return []
     case "Has":
       return [[itemToken(rule.item_name, rule.count)]]
-    case "Resolved": {
-      if (rule.children !== undefined) {
-        return capGroups(
-          rule.children.flatMap((c) => ruleToGroups(c)),
-        )
-      }
-      if (rule.item_name !== undefined) {
-        return [[itemToken(rule.item_name, rule.count)]]
-      }
-      const names = rule.item_names || rule.items || []
-      if (rule.count !== undefined) {
-        return [[`${rule.count} of: ${names.join(", ")}`]]
-      }
-      return [names.map((n) => itemToken(n))]
-    }
+    // case "Resolved": {
+    //   if (rule.children !== undefined) {
+    //     return capGroups(
+    //       rule.children.flatMap((c) => ruleToGroups(c)),
+    //     )
+    //   }
+    //   if (rule.item_name !== undefined) {
+    //     return [[itemToken(rule.item_name, rule.count)]]
+    //   }
+    //   const names = rule.item_names || rule.items || []
+    //   if (rule.count !== undefined) {
+    //     return [[`${rule.count} of: ${names.join(", ")}`]]
+    //   }
+    //   return [names.map((n) => itemToken(n))]
+    // }
     case "HasAll":
       return [
         (rule.item_names || rule.items || []).map((n) =>

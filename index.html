@@ -377,22 +377,22 @@
               return false
             case "Has":
               return countHave(rule.item_name) >= (rule.count ?? 1)
-            case "Resolved": {
-              if (rule.children !== undefined) {
-                return rule.children.some((c) => evalRule(c))
-              }
-              if (rule.item_name !== undefined) {
-                return countHave(rule.item_name) >= (rule.count ?? 1)
-              }
-              const names = rule.item_names || rule.items || []
-              if (rule.count !== undefined) {
-                return (
-                  names.filter((n) => countHave(n) > 0).length >=
-                  rule.count
-                )
-              }
-              return names.every((n) => countHave(n) >= 1)
-            }
+            // case "Resolved": {
+            //   if (rule.children !== undefined) {
+            //     return rule.children.some((c) => evalRule(c))
+            //   }
+            //   if (rule.item_name !== undefined) {
+            //     return countHave(rule.item_name) >= (rule.count ?? 1)
+            //   }
+            //   const names = rule.item_names || rule.items || []
+            //   if (rule.count !== undefined) {
+            //     return (
+            //       names.filter((n) => countHave(n) > 0).length >=
+            //       rule.count
+            //     )
+            //   }
+            //   return names.every((n) => countHave(n) >= 1)
+            // }
             case "HasAll":
               return (rule.item_names || rule.items || []).every(
                 (n) => countHave(n) >= 1,
@@ -641,51 +641,44 @@
             return true
           case "False_":
             return false
-
           case "Has":
             return countHave(rule.item_name) >= (rule.count ?? 1)
-
-          case "Resolved": {
-            if (rule.children !== undefined) {
-              return rule.children.some((c) => evalRule(c, visiting))
-            }
-            if (rule.item_name !== undefined) {
-              return countHave(rule.item_name) >= (rule.count ?? 1)
-            }
-            const names = rule.item_names || rule.items || []
-            if (rule.count !== undefined) {
-              return (
-                names.filter((n) => countHave(n) > 0).length >=
-                rule.count
-              )
-            }
-            return names.every((n) => countHave(n) >= 1)
-          }
-
+          // case "Resolved": {
+          //   if (rule.children !== undefined) {
+          //     return rule.children.some((c) => evalRule(c, visiting))
+          //   }
+          //   if (rule.item_name !== undefined) {
+          //     return countHave(rule.item_name) >= (rule.count ?? 1)
+          //   }
+          //   const names = rule.item_names || rule.items || []
+          //   if (rule.count !== undefined) {
+          //     return (
+          //       names.filter((n) => countHave(n) > 0).length >=
+          //       rule.count
+          //     )
+          //   }
+          //   return names.every((n) => countHave(n) >= 1)
+          // }
           case "HasAll":
             return (rule.item_names || rule.items || []).every(
               (n) => countHave(n) >= 1,
             )
-
           case "HasAny":
             return (rule.item_names || rule.items || []).some(
               (n) => countHave(n) >= 1,
             )
-
           case "HasAllCounts": {
             const counts = rule.item_counts || rule.counts || {}
             return Object.entries(counts).every(
               ([n, c]) => countHave(n) >= c,
             )
           }
-
           case "HasAnyCount": {
             const need = rule.count ?? 1
             return (rule.item_names || rule.items || []).some(
               (n) => countHave(n) >= need,
             )
           }
-
           case "HasFromList": {
             const need = rule.count ?? 1
             const names = rule.item_names || rule.items || []
@@ -695,14 +688,12 @@
             )
             return have >= need
           }
-
           case "HasFromListUnique": {
             const need = rule.count ?? 1
             const names = rule.item_names || rule.items || []
             const have = names.filter((n) => countHave(n) > 0).length
             return have >= need
           }
-
           case "HasGroup": {
             const need = rule.count ?? 1
             const groupItems = rule.items || rule.group_items || []
@@ -712,7 +703,6 @@
             )
             return have >= need
           }
-
           case "HasGroupUnique": {
             const need = rule.count ?? 1
             const groupItems = rule.items || rule.group_items || []
@@ -721,17 +711,14 @@
             ).length
             return have >= need
           }
-
           case "And":
             return (rule.rules || rule.sub_rules || []).every((r) =>
               evalRule(r, visiting),
             )
-
           case "Or":
             return (rule.rules || rule.sub_rules || []).some((r) =>
               evalRule(r, visiting),
             )
-
           case "AtLeast": {
             const need = rule.count ?? 1
             const subs = rule.rules || rule.sub_rules || []
@@ -740,27 +727,22 @@
             ).length
             return passing >= need
           }
-
           case "Filtered":
           case "WrapperRule":
             return evalRule(
               rule.rule || rule.wrapped || rule.sub_rule,
               visiting,
             )
-
           case "CanReachRegion":
             return reach.regions.has(rule.region_name || rule.name)
-
           case "CanReachLocation":
             return reach.locations.has(
               rule.location_name || rule.name,
             )
-
           case "CanReachEntrance":
             return reach.entrances.has(
               rule.entrance_name || rule.name,
             )
-
           default:
             warnOnce(t || JSON.stringify(rule))
             return true // permissive fallback for unrecognized/unserializable rule shapes

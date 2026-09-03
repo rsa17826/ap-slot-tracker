@@ -121,7 +121,7 @@ def serialize_rule(rule):
   if not dataclasses.is_dataclass(rule):
     return _serialize_value(rule)
 
-  out = {"type": type(rule).__name__}
+  out = {"type": type(rule).__qualname__.replace(".Resolved", "")}
   for f in dataclasses.fields(rule):
     if f.name in ("options", "filtered_resolution"):
       continue # internal/solver state, not logic data
