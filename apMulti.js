@@ -78,6 +78,13 @@ class APSlotClient {
     } catch (e) {}
   }
 
+  getItemName(itemId, sendingSlot) {
+    // log(itemId, this.slotInfo?.[sendingSlot]?.game, format, "itemId, sendingSlot, format")
+    const game = this.slotInfo?.[sendingSlot]?.game
+    const name = game && this.itemIdToName?.[game]?.[itemId]
+    return name ?? `Unknown Item ${game} - (${itemId})`
+  }
+
   sendPackets(arr) {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify(arr))
