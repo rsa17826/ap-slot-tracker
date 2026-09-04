@@ -1445,7 +1445,10 @@
       function openSortEditor(src) {
         els.sortFnGameLabel.textContent = `(${gameKeyOf()})`
         els.sortFnEditor.value =
-          src ?? customSortFns[gameKeyOf()] ?? DEFAULT_SORT_FN_SRC
+          src ??
+          customSortFns[gameKeyOf()] ??
+          customSortFns[graph.game] ??
+          DEFAULT_SORT_FN_SRC
         els.sortFnError.textContent = ""
         els.sortFnError.style.display = "none"
         els.sortFnModal.classList.add("visible")
@@ -1463,7 +1466,8 @@
       function customLayoutClicked() {
         if (!graph) return
         const gameKey = gameKeyOf()
-        const src = customSortFns[gameKey]
+        const src =
+          customSortFns[gameKey] ?? customSortFns[graph.game]
         if (!src) {
           // No saved function for this game yet -- open the editor so
           // the user can write one.
@@ -1504,7 +1508,7 @@
           const src = els.sortFnEditor.value
           try {
             runCustomLayout(gameKey, src)
-            customSortFns[gameKey] = src
+            customSortFns[graph.game] = customSortFns[gameKey] = src
             saveCustomSortFns()
             closeSortEditor()
           } catch (err) {
