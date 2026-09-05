@@ -152,6 +152,7 @@ function startConnection(conn) {
       },
       onItems: (items) => {
         handleReceivedItems(conn, rt, items)
+        maybeRecomputeProgression(conn, rt)
         notifyMapOfSlotUpdate(conn)
       },
     },
@@ -365,9 +366,48 @@ function ruleToGroups(rule) {
   }
 }
 
-function requirementGroupsFor(graph, locationName) {
+// A group's tokens are plain item/flag names (optionally "Name xN"), or
+// unverifiable forms like "N of: ..." / "reach: ...". We only drop a group
+// when every token in it is a plain item/flag we can check against
+// receivedCounts and it's NOT satisfied. Unverifiable tokens are left in
+// (we can't confirm or deny them from receivedCounts alone), so filtering
+// never hides a group we're unsure about.
+function tokenOwned(token, receivedCounts) {
+  const m = token.match(/^(.+) x(\d+)$/)
+  const name = m ? m[1] : token
+  const count = m ? parseInt(m[2], 10) : 1
+  return (receivedCounts[name] ?? 0) >= count
+}
+
+function tokenVerifiable(token) {
+  return !token.startsWith("reach: ") && !token.includes(" of: ")
+}
+
+function filterGroupsByOwned(groups, receivedCounts) {
+  return groups.filter((group) =>
+    group.every(
+      (tok) =>
+        !tokenVerifiable(tok) || tokenOwned(tok, receivedCounts),
+    ),
+  )
+}
+
+// Counts actually available to logic: received items plus flags/items
+// auto-granted by reachable event locations (e.g. "flag:beat stage1").
+// Only called once obtainable locations exist, which means
+// maybeRecomputeProgression has already run and set rt.eventInventory.
+function ownedCounts(rt) {
+  const out = { ...rt.receivedCounts }
+  for (const [name, count] of Object.entries(rt.eventInventory)) {
+    out[name] = (out[name] || 0) + count
+  }
+  return out
+}
+
+function requirementGroupsFor(graph, locationName, receivedCounts) {
   const linfo = graph.locations[locationName]
-  return ruleToGroups(linfo.rule)
+  const groups = ruleToGroups(linfo.rule)
+  return filterGroupsByOwned(groups, receivedCounts)
 }
 
 function itemChip(text) {
@@ -436,11 +476,13 @@ function maybeRecomputeProgression(conn, rt) {
   const graph = progForGame(conn.progKey, conn.profile)
   if (!graph) return
   const checkedNames = checkedLocationNames(conn, rt)
-  const { locations } = MapEngine.computeReachablePure(
-    graph,
-    rt.receivedCounts,
-    checkedNames,
-  )
+  const { locations, eventInventory } =
+    MapEngine.computeReachablePure(
+      graph,
+      rt.receivedCounts,
+      checkedNames,
+    )
+  rt.eventInventory = eventInventory
   rt.prevObtainable = new Set(
     [...locations].filter(
       (l) => !checkedNames[l] && isRealLocation(graph, l),
@@ -703,7 +745,11 @@ function renderSlots() {
           : obtainable.map((locationName) =>
               checkRow(
                 locationName,
-                requirementGroupsFor(graph, locationName),
+                requirementGroupsFor(
+                  graph,
+                  locationName,
+                  ownedCounts(rt),
+                ),
               ),
             ),
         ),
