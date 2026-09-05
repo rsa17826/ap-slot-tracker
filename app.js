@@ -329,7 +329,7 @@ function ruleToGroups(rule) {
       return [[`${need} of: ${groupItems.join(", ")}`]]
     }
     case "And": {
-      const subs = rule.rules || rule.sub_rules || []
+      const subs = rule.rules || rule.sub_rules || rule.children || []
       return capGroups(
         subs.reduce(
           (acc, r) => mergeGroups(acc, ruleToGroups(r)),
@@ -338,12 +338,12 @@ function ruleToGroups(rule) {
       )
     }
     case "Or": {
-      const subs = rule.rules || rule.sub_rules || []
+      const subs = rule.rules || rule.sub_rules || rule.children || []
       return capGroups(subs.flatMap((r) => ruleToGroups(r)))
     }
     case "AtLeast": {
       const need = rule.count ?? 1
-      const subs = rule.rules || rule.sub_rules || []
+      const subs = rule.rules || rule.sub_rules || rule.children || []
       return [
         [
           `${need} of: ${subs

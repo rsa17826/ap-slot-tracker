@@ -345,6 +345,124 @@
       }
 
       /* ============================================================
+                      RULE EVALUATION
+                      Handles the rule_builder tree shape produced by the exporter:
+                      { "type": "Has"|"And"|"Or"|"True_"|... , ...fields }
+                      Single shared implementation used by both the live UI
+                      reachability pass (computeReachability) and the headless
+                      MapEngine pass (computeReachablePure) below, so rule-type
+                      handling only ever needs to be updated in one place.
+                      ctx = { countHave(name), reach: {regions,locations,entrances}, warnOnce? }
+                      Falls back to permissive (true) for unrecognized shapes so a
+                      single unmapped rule type doesn't lock out an entire branch
+                      silently.
+                      ============================================================ */
+      function evalRule(rule, ctx) {
+        const { countHave, reach, warnOnce } = ctx
+        if (rule === null || rule === undefined) return true
+        if (typeof rule === "boolean") return rule
+        const t = rule.type
+        switch (t) {
+          case "True_":
+            return true
+          case "False_":
+            return false
+          case "Has":
+            return countHave(rule.item_name) >= (rule.count ?? 1)
+          case "HasAll":
+            return (rule.item_names || rule.items || []).every(
+              (n) => countHave(n) >= 1,
+            )
+          case "HasAny":
+            return (rule.item_names || rule.items || []).some(
+              (n) => countHave(n) >= 1,
+            )
+          case "HasAllCounts": {
+            const counts = rule.item_counts || rule.counts || {}
+            return Object.entries(counts).every(
+              ([n, c]) => countHave(n) >= c,
+            )
+          }
+          case "HasAnyCount": {
+            const need = rule.count ?? 1
+            return (rule.item_names || rule.items || []).some(
+              (n) => countHave(n) >= need,
+            )
+          }
+          case "HasFromList": {
+            const need = rule.count ?? 1
+            const names = rule.item_names || rule.items || []
+            const have = names.reduce(
+              (s, n) => s + (countHave(n) > 0 ? 1 : 0),
+              0,
+            )
+            return have >= need
+          }
+          case "HasFromListUnique": {
+            const need = rule.count ?? 1
+            const names = rule.item_names || rule.items || []
+            return (
+              names.filter((n) => countHave(n) > 0).length >= need
+            )
+          }
+          case "HasGroup": {
+            const need = rule.count ?? 1
+            const groupItems = rule.items || rule.group_items || []
+            return (
+              groupItems.reduce((s, n) => s + countHave(n), 0) >= need
+            )
+          }
+          case "HasGroupUnique": {
+            const need = rule.count ?? 1
+            const groupItems = rule.items || rule.group_items || []
+            return (
+              groupItems.filter((n) => countHave(n) > 0).length >=
+              need
+            )
+          }
+          case "And":
+            return (
+              rule.rules ||
+              rule.sub_rules ||
+              rule.children ||
+              []
+            ).every((r) => evalRule(r, ctx))
+          case "Or":
+            return (
+              rule.rules ||
+              rule.sub_rules ||
+              rule.children ||
+              []
+            ).some((r) => evalRule(r, ctx))
+          case "AtLeast": {
+            const need = rule.count ?? 1
+            const subs =
+              rule.rules || rule.sub_rules || rule.children || []
+            return subs.filter((r) => evalRule(r, ctx)).length >= need
+          }
+          case "Filtered":
+          case "WrapperRule":
+            return evalRule(
+              rule.rule || rule.wrapped || rule.sub_rule,
+              ctx,
+            )
+          case "CanReachRegion":
+            return reach.regions.has(rule.region_name || rule.name)
+          case "CanReachLocation":
+            return reach.locations.has(
+              rule.location_name || rule.name,
+            )
+          case "CanReachEntrance":
+            return reach.entrances.has(
+              rule.entrance_name || rule.name,
+            )
+          default:
+            if (warnOnce) warnOnce(t || JSON.stringify(rule))
+            return true // permissive fallback for unrecognized/unserializable rule shapes
+        }
+      }
+
+      /* ============================================================
                       MAP ENGINE (headless)
                       A pure, side-effect-free copy of the reachability logic
                       below, callable with an arbitrary graph/inventory/checked
@@ -362,136 +480,25 @@
         function countHave(name) {
           return (inventory[name] || 0) + (eventInventory[name] || 0)
         }
-        let reach = {
-          regions: new Set([graph.origin_region_name]),
-          locations: new Set(),
-          entrances: new Set(),
-        }
-        function evalRule(rule) {
-          if (rule === null || rule === undefined) return true
-          if (typeof rule === "boolean") return rule
-          switch (rule.type) {
-            case "True_":
-              return true
-            case "False_":
-              return false
-            case "Has":
-              return countHave(rule.item_name) >= (rule.count ?? 1)
-            // case "Resolved": {
-            //   if (rule.children !== undefined) {
-            //     return rule.children.some((c) => evalRule(c))
-            //   }
-            //   if (rule.item_name !== undefined) {
-            //     return countHave(rule.item_name) >= (rule.count ?? 1)
-            //   }
-            //   const names = rule.item_names || rule.items || []
-            //   if (rule.count !== undefined) {
-            //     return (
-            //       names.filter((n) => countHave(n) > 0).length >=
-            //       rule.count
-            //     )
-            //   }
-            //   return names.every((n) => countHave(n) >= 1)
-            // }
-            case "HasAll":
-              return (rule.item_names || rule.items || []).every(
-                (n) => countHave(n) >= 1,
-              )
-            case "HasAny":
-              return (rule.item_names || rule.items || []).some(
-                (n) => countHave(n) >= 1,
-              )
-            case "HasAllCounts": {
-              const counts = rule.item_counts || rule.counts || {}
-              return Object.entries(counts).every(
-                ([n, c]) => countHave(n) >= c,
-              )
-            }
-            case "HasAnyCount": {
-              const need = rule.count ?? 1
-              return (rule.item_names || rule.items || []).some(
-                (n) => countHave(n) >= need,
-              )
-            }
-            case "HasFromList": {
-              const need = rule.count ?? 1
-              const names = rule.item_names || rule.items || []
-              const have = names.reduce(
-                (s, n) => s + (countHave(n) > 0 ? 1 : 0),
-                0,
-              )
-              return have >= need
-            }
-            case "HasFromListUnique": {
-              const need = rule.count ?? 1
-              const names = rule.item_names || rule.items || []
-              return (
-                names.filter((n) => countHave(n) > 0).length >= need
-              )
-            }
-            case "HasGroup": {
-              const need = rule.count ?? 1
-              const groupItems = rule.items || rule.group_items || []
-              return (
-                groupItems.reduce((s, n) => s + countHave(n), 0) >=
-                need
-              )
-            }
-            case "HasGroupUnique": {
-              const need = rule.count ?? 1
-              const groupItems = rule.items || rule.group_items || []
-              return (
-                groupItems.filter((n) => countHave(n) > 0).length >=
-                need
-              )
-            }
-            case "And":
-              return (rule.rules || rule.sub_rules || []).every((r) =>
-                evalRule(r),
-              )
-            case "Or":
-              return (rule.rules || rule.sub_rules || []).some((r) =>
-                evalRule(r),
-              )
-            case "AtLeast": {
-              const need = rule.count ?? 1
-              const subs = rule.rules || rule.sub_rules || []
-              return subs.filter((r) => evalRule(r)).length >= need
-            }
-            case "Filtered":
-            case "WrapperRule":
-              return evalRule(
-                rule.rule || rule.wrapped || rule.sub_rule,
-              )
-            case "CanReachRegion":
-              return reach.regions.has(rule.region_name || rule.name)
-            case "CanReachLocation":
-              return reach.locations.has(
-                rule.location_name || rule.name,
-              )
-            case "CanReachEntrance":
-              return reach.entrances.has(
-                rule.entrance_name || rule.name,
-              )
-            default:
-              return true // permissive fallback, matches the UI evaluator
-          }
-        }
-
         const regionNames = Object.keys(graph.regions)
-        let regions = new Set([graph.origin_region_name])
-        let entrances = new Set()
-        let locations = new Set()
+        const regions = new Set([graph.origin_region_name])
+        const entrances = new Set()
+        const locations = new Set()
+        // Sets are mutated in place below, so one ctx built up front stays
+        // valid for the whole fixed-point loop -- no per-iteration reassignment needed.
+        const ctx = {
+          countHave,
+          reach: { regions, locations, entrances },
+        }
         for (let iter = 0; iter < 20; iter++) {
           let changed = false
-          reach = { regions, locations, entrances }
           for (const rname of regionNames) {
             if (!regions.has(rname)) continue
             const region = graph.regions[rname]
             for (const exitName of region.exits || []) {
               const einfo = graph.entrances[exitName]
               if (!einfo) continue
-              if (evalRule(einfo.rule)) {
+              if (evalRule(einfo.rule, ctx)) {
                 if (!entrances.has(exitName)) {
                   entrances.add(exitName)
                   changed = true
@@ -515,7 +522,10 @@
             graph.locations,
           )) {
             if (locations.has(lname)) continue
-            if (regions.has(linfo.region) && evalRule(linfo.rule)) {
+            if (
+              regions.has(linfo.region) &&
+              evalRule(linfo.rule, ctx)
+            ) {
               locations.add(lname)
               changed = true
               if (linfo.is_event) {
@@ -538,7 +548,6 @@
           }
           if (!changed) break
         }
-        reach = { regions, locations, entrances }
         return { regions, locations, entrances, eventInventory }
       }
       /* ============================================================
@@ -610,14 +619,9 @@
         defaultProfileName,
       }
 
-      /* ============================================================
-                      RULE EVALUATION
-                      Handles the rule_builder tree shape produced by the exporter:
-                      { "type": "Has"|"And"|"Or"|"True_"|... , ...fields }
-                      Falls back to permissive (true) for unrecognized shapes so a
-                      single unmapped rule type doesn't lock out an entire branch
-                      silently -- unresolved rules are logged to console once.
-                      ============================================================ */
+      // Unhandled-rule-type logging for the shared evalRule's ctx.warnOnce,
+      // used by the live UI reachability pass (computeReachability) so an
+      // unmapped rule type is reported to console once instead of silently.
       const warnedTypes = new Set()
       function warnOnce(t) {
         if (!warnedTypes.has(t)) {
@@ -630,125 +634,6 @@
         return (inventory[name] || 0) + (eventInventory[name] || 0)
       }
 
-      // evalRule returns boolean. `visiting` guards against infinite recursion
-      // for CanReachRegion/Location/Entrance cycles during fixed-point iteration.
-      function evalRule(rule, visiting) {
-        if (rule === null || rule === undefined) return true
-        if (typeof rule === "boolean") return rule
-        const t = rule.type
-        switch (t) {
-          case "True_":
-            return true
-          case "False_":
-            return false
-          case "Has":
-            return countHave(rule.item_name) >= (rule.count ?? 1)
-          // case "Resolved": {
-          //   if (rule.children !== undefined) {
-          //     return rule.children.some((c) => evalRule(c, visiting))
-          //   }
-          //   if (rule.item_name !== undefined) {
-          //     return countHave(rule.item_name) >= (rule.count ?? 1)
-          //   }
-          //   const names = rule.item_names || rule.items || []
-          //   if (rule.count !== undefined) {
-          //     return (
-          //       names.filter((n) => countHave(n) > 0).length >=
-          //       rule.count
-          //     )
-          //   }
-          //   return names.every((n) => countHave(n) >= 1)
-          // }
-          case "HasAll":
-            return (rule.item_names || rule.items || []).every(
-              (n) => countHave(n) >= 1,
-            )
-          case "HasAny":
-            return (rule.item_names || rule.items || []).some(
-              (n) => countHave(n) >= 1,
-            )
-          case "HasAllCounts": {
-            const counts = rule.item_counts || rule.counts || {}
-            return Object.entries(counts).every(
-              ([n, c]) => countHave(n) >= c,
-            )
-          }
-          case "HasAnyCount": {
-            const need = rule.count ?? 1
-            return (rule.item_names || rule.items || []).some(
-              (n) => countHave(n) >= need,
-            )
-          }
-          case "HasFromList": {
-            const need = rule.count ?? 1
-            const names = rule.item_names || rule.items || []
-            const have = names.reduce(
-              (s, n) => s + (countHave(n) > 0 ? 1 : 0),
-              0,
-            )
-            return have >= need
-          }
-          case "HasFromListUnique": {
-            const need = rule.count ?? 1
-            const names = rule.item_names || rule.items || []
-            const have = names.filter((n) => countHave(n) > 0).length
-            return have >= need
-          }
-          case "HasGroup": {
-            const need = rule.count ?? 1
-            const groupItems = rule.items || rule.group_items || []
-            const have = groupItems.reduce(
-              (s, n) => s + countHave(n),
-              0,
-            )
-            return have >= need
-          }
-          case "HasGroupUnique": {
-            const need = rule.count ?? 1
-            const groupItems = rule.items || rule.group_items || []
-            const have = groupItems.filter(
-              (n) => countHave(n) > 0,
-            ).length
-            return have >= need
-          }
-          case "And":
-            return (rule.rules || rule.sub_rules || []).every((r) =>
-              evalRule(r, visiting),
-            )
-          case "Or":
-            return (rule.rules || rule.sub_rules || []).some((r) =>
-              evalRule(r, visiting),
-            )
-          case "AtLeast": {
-            const need = rule.count ?? 1
-            const subs = rule.rules || rule.sub_rules || []
-            const passing = subs.filter((r) =>
-              evalRule(r, visiting),
-            ).length
-            return passing >= need
-          }
-          case "Filtered":
-          case "WrapperRule":
-            return evalRule(
-              rule.rule || rule.wrapped || rule.sub_rule,
-              visiting,
-            )
-          case "CanReachRegion":
-            return reach.regions.has(rule.region_name || rule.name)
-          case "CanReachLocation":
-            return reach.locations.has(
-              rule.location_name || rule.name,
-            )
-          case "CanReachEntrance":
-            return reach.entrances.has(
-              rule.entrance_name || rule.name,
-            )
-          default:
-            warnOnce(t || JSON.stringify(rule))
-            return true // permissive fallback for unrecognized/unserializable rule shapes
-        }
-      }
-
       /* ============================================================
                       REACHABILITY (fixed point over regions/entrances/locations,
                       needed because CanReachX rules can reference other regions)
@@ -757,14 +642,21 @@
         const regionNames = Object.keys(graph.regions)
         const startRegion = graph.origin_region_name
 
-        let regions = new Set([startRegion])
-        let entrances = new Set()
-        let locations = new Set()
+        const regions = new Set([startRegion])
+        const entrances = new Set()
+        const locations = new Set()
         eventInventory = {}
+
+        // Sets are mutated in place below, so one ctx built up front stays
+        // valid for the whole fixed-point loop -- no per-iteration reassignment needed.
+        const ctx = {
+          countHave,
+          reach: { regions, locations, entrances },
+          warnOnce,
+        }
 
         for (let iter = 0; iter < 20; iter++) {
           let changed = false
-          reach = { regions, locations, entrances } // expose current pass for CanReachX rules
 
           for (const rname of regionNames) {
             if (!regions.has(rname)) continue
@@ -772,7 +664,7 @@
             for (const exitName of region.exits || []) {
               const einfo = graph.entrances[exitName]
               if (!einfo) continue
-              const ok = evalRule(einfo.rule, null)
+              const ok = evalRule(einfo.rule, ctx)
               if (ok) {
                 if (!entrances.has(exitName)) {
                   entrances.add(exitName)
@@ -798,7 +690,7 @@
             if (locations.has(lname)) continue
             if (
               regions.has(linfo.region) &&
-              evalRule(linfo.rule, null)
+              evalRule(linfo.rule, ctx)
             ) {
               locations.add(lname)
               changed = true
