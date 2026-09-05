@@ -1216,7 +1216,6 @@ document
     if (!conn.hostname || !progKey || !conn.game || !conn.playerName)
       return
     window.db.connections[conn.id] = conn
-    f.reset()
     document
       .getElementById("gameSelect")
       ?.removeAttribute("data-value")
