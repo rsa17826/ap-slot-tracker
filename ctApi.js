@@ -135,7 +135,10 @@ function ctBuildUpdatePayload(game, newProgressionStatus) {
     availability_status: game.availability_status,
     completion_status: game.completion_status,
     progression_status: newProgressionStatus,
-    last_checked: ctNowTimestamp(),
+    last_checked:
+      newProgressionStatus == CT_BK_VALUE ? ctNowTimestamp() : (
+        game.last_checked
+      ),
     notes: game.notes ?? "",
     id: game.id,
     tracker_id: game.tracker_id,

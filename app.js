@@ -1048,7 +1048,7 @@ function ctAutoSync(conn) {
   if (state === null) return
   const shouldBeBk = !state
   if (conn.ct.isBk === shouldBeBk) return
-  ctApplyStatus(conn, shouldBeBk)
+  ctApplyStatus(conn, shouldBeBk, false)
 }
 
 function ctPanelFor(conn) {
