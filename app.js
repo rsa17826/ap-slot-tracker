@@ -1043,6 +1043,7 @@ async function ctApplyStatus(
 // what it should be and it's not already correct.
 function ctAutoSync(conn) {
   if (!conn.ct) return
+  if (!conn.autoUpdateCTStatus) return
   const state = ctObtainableState(conn)
   if (state === null) return
   const shouldBeBk = !state
@@ -1083,6 +1084,16 @@ function ctPanelFor(conn) {
         { class: "danger", onclick: () => ctUnlink(conn) },
         ["Unlink"],
       ),
+      newelem("label", { class: "h" }, [
+        newelem("input", {
+          type: "checkbox",
+          onchange() {
+            conn.autoUpdateCTStatus = this.checked
+          },
+          checked: conn.autoUpdateCTStatus,
+        }),
+        "Auto Update Status",
+      ]),
       ui.error ?
         newelem("span", { class: "slot-sub" }, [ui.error])
       : null,
@@ -1202,6 +1213,7 @@ document
     const f = e.target
     const progKey = f.game.value.trim()
     const conn = {
+      autoUpdateCTStatus: true,
       id: Math.random().toString(36).slice(2, 10),
       hostname: f.hostname.value.trim(),
       port: f.port.value.trim(),
