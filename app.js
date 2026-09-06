@@ -209,7 +209,7 @@ function handleReceivedItems(conn, rt, items) {
     rt.prevObtainable = nowObtainable
   }
 
-  error(conn, 1)
+  // error(conn, 1)
   ctAutoSync(conn)
   renderSlots()
 
