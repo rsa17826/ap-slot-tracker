@@ -154,6 +154,7 @@ function startConnection(conn) {
         handleReceivedItems(conn, rt, items)
         maybeRecomputeProgression(conn, rt)
         notifyMapOfSlotUpdate(conn)
+        ctAutoSync(conn)
       },
     },
   )
@@ -208,6 +209,7 @@ function handleReceivedItems(conn, rt, items) {
     rt.prevObtainable = nowObtainable
   }
 
+  error(conn, 1)
   ctAutoSync(conn)
   renderSlots()
 
@@ -490,7 +492,6 @@ function maybeRecomputeProgression(conn, rt) {
   )
   // Locations just got checked off (possibly clearing the last obtainable
   // one) -- re-sync BK status to match.
-  ctAutoSync(conn)
   renderSlots()
 }
 
@@ -811,6 +812,7 @@ function renderSlots() {
                   cc.profile = this.value
                   if (runtime[conn.id]) {
                     maybeRecomputeProgression(conn, runtime[conn.id])
+                    ctAutoSync(conn)
                   }
                   if (db.currentMapConnId === conn.id) {
                     if (appEl.classList.contains("visible"))
@@ -1023,6 +1025,7 @@ async function ctApplyStatus(
   ui.error = ""
   renderSlots()
   try {
+    warn(conn, toBk, shouldRefreshBkTimer)
     const updated = await ctSetBk(conn, toBk, shouldRefreshBkTimer)
     conn.ct.isBk = toBk
     conn.ct.lastKnownStatus =

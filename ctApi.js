@@ -35,6 +35,16 @@ async function ctRequest(
   // CORS headers permitting cross-origin browser requests.
   let res
   try {
+    // log(`${CT_BASE}${path}`, {
+    //   method,
+    //   headers: {
+    //     ...(body ? { "Content-Type": "application/json" } : {}),
+    //     ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+    //     ...(headers || {}),
+    //   },
+    //   data: body ? JSON.stringify(body) : undefined,
+    // })
+    // if (method != "GET") throw new Error()
     res = await globalrequest(`${CT_BASE}${path}`, {
       method,
       headers: {
