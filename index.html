@@ -1123,7 +1123,8 @@
           const linfo = graph.locations[lname]
           const isEvent = !!(linfo && linfo.is_event)
           if (hideEvents && isEvent) return false
-          if (hideOOL && !isEvent && !reach.locations.has(lname)) return false // out of logic
+          if (hideOOL && !isEvent && !reach.locations.has(lname))
+            return false // out of logic
           if (hideCleared && isLocationDone(lname)) return false // already cleared / auto-granted
           return true
         })
@@ -1185,8 +1186,10 @@
       // either side actually get trimmed.
       function splitRowBudget(budget, need1, need2) {
         const half = budget / 2
-        if (need1 <= half) return [need1, Math.min(need2, budget - need1)]
-        if (need2 <= half) return [Math.min(need1, budget - need2), need2]
+        if (need1 <= half)
+          return [need1, Math.min(need2, budget - need1)]
+        if (need2 <= half)
+          return [Math.min(need1, budget - need2), need2]
         return [half, half]
       }
 
@@ -1739,16 +1742,19 @@
       const COLORS = {}
       function loadColors() {
         const s = getComputedStyle(document.documentElement)
-        const get = (name, fallback) =>
-          (s.getPropertyValue(name) || "").trim() || fallback
-        COLORS.nodeBg = get("--node-bg", "#0d0a18")
-        COLORS.borderDim = get("--danger-dim", "#3a1f2b")
-        COLORS.accent = get("--accent", "#8b7bf7")
-        COLORS.text = get("--text", "#e4e2ec")
-        COLORS.textDim = get("--text-dim", "#6b6580")
-        COLORS.event = get("--event", "#b565f0")
-        COLORS.panelBorder = get("--panel-border", "#1c1830")
-        COLORS.danger = get("--danger", "#ff4d6d")
+        const get = (name) => {
+          var r = (s.getPropertyValue(name) || "").trim()
+          if (r) return r
+          throw new Error(name)
+        }
+        COLORS.nodeBg = get("--node-bg")
+        COLORS.borderDim = get("--danger-dim")
+        COLORS.accent = get("--accent")
+        COLORS.text = get("--text")
+        COLORS.textDim = get("--text-dim")
+        COLORS.event = get("--event")
+        COLORS.panelBorder = get("--panel-border")
+        COLORS.danger = get("--danger")
       }
 
       function roundRectPath(x, y, w, h, r) {
