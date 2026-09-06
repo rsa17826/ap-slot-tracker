@@ -217,10 +217,7 @@
           <button id="zoomOut">－</button>
           <button id="zoomReset">reset view</button>
         </div>
-        <div id="world">
-          <svg id="edges"></svg>
-          <div id="nodes"></div>
-        </div>
+        <canvas id="mapCanvas"></canvas>
         <div id="emptyMsg">
           <div>
             No graph loaded.<br /><b>Load rules JSON</b> to begin.
@@ -292,9 +289,8 @@
       let scoutOwnSlot = null // this slot's own AP slot number, for telling "your item" apart from other players'
       let scoutPlayerNames = {} // slot number -> player name, for labeling scouted items that belong to other players
       let positions = {} // regionName -> {x,y}
-      let nodeEls = {} // regionName -> node DOM element (avoids querySelector during drag)
-      let nodeSizeCache = {} // regionName -> {w,h} (cached; cleared on renderNodes)
-      let edgesByRegion = {} // regionName -> [{path, from, to}] touching that region (for fast drag updates)
+      let nodeLayouts = {} // regionName -> {w,h,reachable,rows:[...]} (rebuilt by renderNodes; drawn fresh onto canvas every frame, not kept as DOM elements)
+      let edgeList = [] // [{from,to,traversable}] (rebuilt by renderEdges; drawn fresh onto canvas every frame)
       let view = { x: 0, y: 0, scale: 1 }
       let hideEvents = false
       let focusMode = false // hide nodes that are out-of-logic or fully collected already
@@ -323,9 +319,7 @@
         itemList: document.getElementById("itemList"),
         status: document.getElementById("status"),
         search: document.getElementById("search"),
-        world: document.getElementById("world"),
-        nodes: document.getElementById("nodes"),
-        edges: document.getElementById("edges"),
+        canvas: document.getElementById("mapCanvas"),
         canvasWrap: document.getElementById("canvasWrap"),
         emptyMsg: document.getElementById("emptyMsg"),
         hideEventsChk: document.getElementById("hideEventsChk"),
@@ -770,9 +764,10 @@
       }
 
       // Applies the current search query to both the inventory list and the
-      // map, without rebuilding any DOM -- just toggling display on
-      // already-rendered rows/nodes/edges, so it's cheap to run on every
-      // keystroke even on large graphs.
+      // map. The map side no longer touches any DOM -- draw() already
+      // checks regionMatchesSearch per node/edge every frame (cheap: a
+      // couple of string comparisons per region), so a search keystroke
+      // just needs to trigger a redraw.
       function applySearchFilter() {
         const q = searchQuery
 
@@ -787,23 +782,7 @@
             : "none"
         })
 
-        if (!graph) return
-
-        for (const [rname, node] of Object.entries(nodeEls)) {
-          node.style.display =
-            regionMatchesSearch(rname, q) ? "" : "none"
-        }
-        for (const edges of Object.values(edgesByRegion)) {
-          for (const edge of edges) {
-            const fromEl = nodeEls[edge.from]
-            const toEl = nodeEls[edge.to]
-            const fromVisible =
-              fromEl && fromEl.style.display !== "none"
-            const toVisible = toEl && toEl.style.display !== "none"
-            edge.path.style.display =
-              fromVisible && toVisible ? "" : "none"
-          }
-        }
+        scheduleDraw()
       }
 
       /* ============================================================
@@ -1108,33 +1087,45 @@
         if (missing) autoLayout()
       }
 
-      // Measures actual on-screen size for already-rendered nodes; for any
-      // name that isn't rendered yet (e.g. the very first auto-layout pass
-      // on a freshly loaded graph, before any nodes exist in the DOM) it
-      // falls back to a rough estimate from the node's content so the
-      // layout still avoids overlap on that first pass too.
-      function measureNodeSizes(names) {
-        const rendered = {}
-        els.nodes.querySelectorAll(".node").forEach((e) => {
-          const rname = e.dataset.region
-          if (!rname) return
-          const rect = e.getBoundingClientRect()
-          rendered[rname] = {
-            width: rect.width / view.scale,
-            height: rect.height / view.scale,
+      // Location rows actually shown inside a region's node, after
+      // hideEvents/focusMode filtering -- shared by node-size calculations
+      // (layout algorithms + canvas draw sizing) and by the canvas draw
+      // itself, so they never disagree about how tall a node is.
+      function computeNodeRows(region) {
+        return (region.locations || []).filter((lname) => {
+          const linfo = graph.locations[lname]
+          const isEvent = !!(linfo && linfo.is_event)
+          if (hideEvents && isEvent) return false
+          if (focusMode) {
+            if (!reach.locations.has(lname)) return false // out of logic
+            if (isLocationDone(lname)) return false // already cleared / auto-granted
           }
+          return true
         })
+      }
+
+      const NODE_WIDTH = 440
+      const NODE_HEADER_H = 20
+      const NODE_BODY_PAD = 12
+      const NODE_ROW_H = 20
+
+      // Deterministic size for a region's node -- no DOM measurement
+      // needed since nodes are canvas-drawn, not real elements.
+      function computeNodeSize(rname) {
+        const region = graph.regions[rname]
+        if (!region) return { w: NODE_WIDTH, h: NODE_HEADER_H }
+        const rowCount = computeNodeRows(region).length
+        return {
+          w: NODE_WIDTH,
+          h: NODE_HEADER_H + NODE_BODY_PAD + rowCount * NODE_ROW_H,
+        }
+      }
+
+      function measureNodeSizes(names) {
         const sizes = {}
         for (const n of names) {
-          if (rendered[n]) {
-            sizes[n] = rendered[n]
-            continue
-          }
-          const locCount = (graph.regions[n]?.locations || []).length
-          sizes[n] = {
-            width: 190,
-            height: 34 + Math.max(1, locCount) * 19 + 10,
-          }
+          const { w, h } = computeNodeSize(n)
+          sizes[n] = { width: w, height: h }
         }
         return sizes
       }
@@ -1488,11 +1479,6 @@
           ...itemNames.map((name) => {
             const maxCount = itemMaxCounts[name] ?? 1
             const isEvent = eventItemNames.has(name)
-            const ck = newelem("input", {
-              type: "checkbox",
-              class: "ck",
-              disabled: isEvent,
-            })
             return newelem(
               "div",
               {
@@ -1544,112 +1530,168 @@
         syncItemListUI()
         renderNodes()
         renderEdges()
-        applySearchFilter()
+        applySearchFilter() // also schedules a redraw
+      }
+
+      // ------------------------------------------------------------
+      // CANVAS RENDERING
+      //
+      // Region nodes used to be one real DOM element per region (plus one
+      // per visible location row inside it). At 1000+ regions that means
+      // thousands of styled boxes with box-shadow/gradients that the
+      // browser has to lay out, paint, and re-rasterize as soon as a pan
+      // exposes new screen area -- that per-pixel paint cost, not any of
+      // our own JS, was the actual source of the lag, and no amount of
+      // throttling JS writes fixes it.
+      //
+      // Instead, nodes/edges are now drawn directly onto a single
+      // <canvas> every frame. Off-screen content is simply never drawn
+      // (a couple of comparisons per region to check), so cost scales
+      // with how much is actually on screen, not with the total graph
+      // size -- this is the same approach tools like Figma/Obsidian's
+      // graph view use for large canvases.
+      //
+      // renderNodes()/renderEdges() still run only when the underlying
+      // data changes (same call sites as before); they build plain data
+      // (nodeLayouts/edgeList), not DOM. draw() is the only thing that
+      // runs every frame, and it's cheap: iterate + cull + drawing calls.
+      // ------------------------------------------------------------
+      const ctx = els.canvas.getContext("2d")
+      let drawScheduled = false
+
+      function scheduleDraw() {
+        if (drawScheduled) return
+        drawScheduled = true
+        requestAnimationFrame(() => {
+          drawScheduled = false
+          draw()
+        })
+      }
+
+      function resizeCanvas() {
+        const rect = els.canvasWrap.getBoundingClientRect()
+        const dpr = window.devicePixelRatio || 1
+        const w = Math.max(1, Math.round(rect.width * dpr))
+        const h = Math.max(1, Math.round(rect.height * dpr))
+        if (els.canvas.width !== w || els.canvas.height !== h) {
+          els.canvas.width = w
+          els.canvas.height = h
+        }
+        els.canvas.style.width = rect.width + "px"
+        els.canvas.style.height = rect.height + "px"
+        return { rect, dpr }
+      }
+
+      // Colors read once from the CSS custom properties in colors.css so
+      // the canvas stays in sync with the theme without hardcoding hex
+      // values here.
+      const COLORS = {}
+      function loadColors() {
+        const s = getComputedStyle(document.documentElement)
+        const get = (name, fallback) =>
+          (s.getPropertyValue(name) || "").trim() || fallback
+        COLORS.nodeBg = get("--node-bg", "#0d0a18")
+        COLORS.borderDim = get("--danger-dim", "#3a1f2b")
+        COLORS.accent = get("--accent", "#8b7bf7")
+        COLORS.text = get("--text", "#e4e2ec")
+        COLORS.textDim = get("--text-dim", "#6b6580")
+        COLORS.event = get("--event", "#b565f0")
+        COLORS.panelBorder = get("--panel-border", "#1c1830")
+        COLORS.danger = get("--danger", "#ff4d6d")
+      }
+
+      function roundRectPath(x, y, w, h, r) {
+        ctx.beginPath()
+        if (ctx.roundRect) {
+          ctx.roundRect(x, y, w, h, r)
+          return
+        }
+        ctx.moveTo(x + r, y)
+        ctx.arcTo(x + w, y, x + w, y + h, r)
+        ctx.arcTo(x + w, y + h, x, y + h, r)
+        ctx.arcTo(x, y + h, x, y, r)
+        ctx.arcTo(x, y, x + w, y, r)
+        ctx.closePath()
+      }
+
+      // Draws text truncated with an ellipsis to fit maxWidth, optionally
+      // with a strikethrough (for checked locations) or right-aligned
+      // (for the scouted-item label). Returns nothing -- draws directly.
+      function drawFitText(
+        text,
+        x,
+        y,
+        maxWidth,
+        { strike = false, align = "left" } = {},
+      ) {
+        let t = text
+        if (ctx.measureText(t).width > maxWidth) {
+          while (
+            t.length > 1 &&
+            ctx.measureText(t + "\u2026").width > maxWidth
+          )
+            t = t.slice(0, -1)
+          t = t.length > 1 ? t + "\u2026" : t
+        }
+        const prevAlign = ctx.textAlign
+        ctx.textAlign = align
+        ctx.fillText(t, x, y)
+        if (strike) {
+          const w = ctx.measureText(t).width
+          const startX = align === "right" ? x - w : x
+          ctx.save()
+          ctx.strokeStyle = ctx.fillStyle
+          ctx.lineWidth = 1
+          ctx.beginPath()
+          ctx.moveTo(startX, y)
+          ctx.lineTo(startX + w, y)
+          ctx.stroke()
+          ctx.restore()
+        }
+        ctx.textAlign = prevAlign
       }
 
       function renderNodes() {
-        nodeEls = {}
-        nodeSizeCache = {}
-        els.nodes.replaceChildren(
-          ...Object.entries(graph.regions)
-            .filter(([rname]) => isRegionVisible(rname))
-            .map(([rname, region]) => {
-              const pos = positions[rname] || { x: 0, y: 0 }
-              const node = newelem(
-                "div",
-                {
-                  class:
-                    "node" +
-                    (reach.regions.has(rname) ? " reachable" : ""),
-                  left: pos.x + "px",
-                  top: pos.y + "px",
-                  dataset: { region: rname },
-                },
-                [
-                  newelem("div", { class: "node-head" }, [
-                    newelem("span", { class: "dot" }),
-                    rname,
-                  ]),
-                  newelem(
-                    "div",
-                    { class: "node-body" },
-                    (region.locations || [])
-                      .filter((lname) => {
-                        const linfo = graph.locations[lname]
-                        const isEvent = !!(linfo && linfo.is_event)
-                        if (hideEvents && isEvent) return false
-                        if (focusMode) {
-                          if (!reach.locations.has(lname))
-                            return false // out of logic
-                          if (isLocationDone(lname)) return false // already cleared / auto-granted
-                        }
-                        return true
-                      })
-                      .map((lname) => {
-                        const isReach = reach.locations.has(lname)
-                        const isChecked = !!checkedLocations[lname]
-                        const linfo = graph.locations[lname]
-                        const isEvent = !!(linfo && linfo.is_event)
-                        const scout = scoutedItems[lname]
-                        const lrow = newelem(
-                          "label",
-                          {
-                            class:
-                              "loc-row" +
-                              (isReach ? " reachable" : "") +
-                              (isChecked ? " checked" : "") +
-                              (isEvent ? " event" : ""),
-                          },
-                          [
-                            newelem("span", {
-                              class: "dot",
-                            }),
-                            newelem(
-                              "span",
-                              {
-                                title: lname,
-                              },
-                              [
-                                lname.includes(" - ") ?
-                                  lname
-                                    .split(" - ")
-                                    .slice(1)
-                                    .join(" - ")
-                                : lname,
-                              ],
-                            ),
-                            showScouts && scout ?
-                              newelem(
-                                "span",
-                                {
-                                  class:
-                                    "loc-scout" +
-                                    (scout.flags & 1 ? " progression"
-                                    : scout.flags & 4 ? " trap"
-                                    : ""),
-                                  title:
-                                    (
-                                      scout.itemPlayer !==
-                                      scoutOwnSlot
-                                    ) ?
-                                      `${scout.itemName} (for ${scoutPlayerNames[scout.itemPlayer] ?? `Player ${scout.itemPlayer}`})`
-                                    : scout.itemName,
-                                },
-                                [scout.itemName],
-                              )
-                            : null,
-                          ],
-                        )
-                        return lrow
-                      }),
-                  ),
-                ],
-              )
-              makeDraggable(node, rname)
-              nodeEls[rname] = node
-              return node
-            }),
-        )
+        nodeLayouts = {}
+        for (const [rname, region] of Object.entries(graph.regions)) {
+          if (!isRegionVisible(rname)) continue
+          const rows = computeNodeRows(region).map((lname) => {
+            const linfo = graph.locations[lname]
+            const isEvent = !!(linfo && linfo.is_event)
+            const scout = scoutedItems[lname]
+            let scoutText = null,
+              scoutClass = null
+            if (showScouts && scout) {
+              scoutClass =
+                scout.flags & 1 ? "progression"
+                : scout.flags & 4 ? "trap"
+                : null
+              scoutText =
+                scout.itemPlayer !== scoutOwnSlot ?
+                  `${scout.itemName} (for ${scoutPlayerNames[scout.itemPlayer] ?? `Player ${scout.itemPlayer}`})`
+                : scout.itemName
+            }
+            return {
+              lname,
+              displayText:
+                lname.includes(" - ") ?
+                  lname.split(" - ").slice(1).join(" - ")
+                : lname,
+              isReach: reach.locations.has(lname),
+              isChecked: !!checkedLocations[lname],
+              isEvent,
+              scoutText,
+              scoutClass,
+            }
+          })
+          nodeLayouts[rname] = {
+            reachable: reach.regions.has(rname),
+            w: NODE_WIDTH,
+            h: NODE_HEADER_H + NODE_BODY_PAD + rows.length * NODE_ROW_H,
+            rows,
+          }
+        }
+        scheduleDraw()
       }
 
       // When noTransit is on, walks forward from `target` through any
@@ -1714,79 +1756,25 @@
       }
 
       function renderEdges() {
-        const svg = els.edges
-        svg.innerHTML = ""
-        edgesByRegion = {}
-        const ns = "http://www.w3.org/2000/svg"
-        let maxX = 0,
-          maxY = 0
-
+        edgeList = []
         for (const [rname, region] of Object.entries(graph.regions)) {
-          if (!nodeEls[rname]) continue // skip hidden (focus-mode/transit) source nodes
+          if (!nodeLayouts[rname]) continue // skip hidden (focus-mode/transit) source nodes
           for (const exitName of region.exits || []) {
             const einfo = graph.entrances[exitName]
             if (!einfo || !einfo.connects_to) continue
-            const from = rname
             const targets = resolveEdgeTargets(
               einfo.connects_to,
               reach.entrances.has(exitName),
-              new Set([from]),
+              new Set([rname]),
             )
             for (const { to, traversable } of targets) {
-              if (!positions[from] || !positions[to]) continue
-              if (!nodeEls[from] || !nodeEls[to]) continue // skip edges touching a hidden (focus-mode) node
-
-              const p1 = centerOf(from),
-                p2 = centerOf(to)
-              maxX = Math.max(maxX, p1.x, p2.x)
-              maxY = Math.max(maxY, p1.y, p2.y)
-
-              const path = document.createElementNS(ns, "path")
-              setEdgePath(path, p1, p2)
-              path.setAttribute("fill", "none")
-              path.setAttribute(
-                "stroke",
-                traversable ? "var(--accent)" : "#2a3040",
-              )
-              path.setAttribute(
-                "stroke-width",
-                traversable ? "2" : "1.4",
-              )
-              if (!traversable)
-                path.setAttribute("stroke-dasharray", "4 4")
-              path.setAttribute(
-                "opacity",
-                traversable ? "0.9" : "0.45",
-              )
-              svg.appendChild(path)
-
-              const edgeEntry = { path, from, to }
-              ;(edgesByRegion[from] ||= []).push(edgeEntry)
-              if (to !== from)
-                (edgesByRegion[to] ||= []).push(edgeEntry)
+              if (!positions[rname] || !positions[to]) continue
+              if (!nodeLayouts[rname] || !nodeLayouts[to]) continue // skip edges touching a hidden (focus-mode) node
+              edgeList.push({ from: rname, to, traversable })
             }
           }
         }
-        svg.setAttribute("width", maxX + 400 + "px")
-        svg.setAttribute("height", maxY + 400 + "px")
-      }
-
-      function setEdgePath(path, p1, p2) {
-        const dx = (p2.x - p1.x) * 0.5
-        const d = `M ${p1.x} ${p1.y} C ${p1.x + dx} ${p1.y}, ${p2.x - dx} ${p2.y}, ${p2.x} ${p2.y}`
-        path.setAttribute("d", d)
-      }
-
-      // Fast path used while dragging a single node: only recompute the
-      // handful of edges touching that region instead of rebuilding the
-      // whole SVG (which is O(edges) and was the source of the slowdown
-      // on large graphs with 1000+ regions/edges).
-      function updateEdgesForRegion(rname) {
-        const edges = edgesByRegion[rname]
-        if (!edges) return
-        for (const { path, from, to } of edges) {
-          setEdgePath(path, centerOf(from), centerOf(to))
-        }
+        scheduleDraw()
       }
 
       function findRegionForEntrance(ename) {
@@ -1796,18 +1784,16 @@
         return null
       }
 
+      // Right-edge, roughly-vertical-center anchor point for an edge
+      // endpoint. Uses the real node size when it's currently laid out
+      // (nodeLayouts), else falls back to the same deterministic formula
+      // -- there's no DOM element to measure any more either way.
       function centerOf(rname) {
         const pos = positions[rname] || { x: 0, y: 0 }
-        let size = nodeSizeCache[rname]
-        if (!size) {
-          const node = nodeEls[rname]
-          size =
-            node ?
-              { w: node.offsetWidth, h: node.offsetHeight }
-            : { w: 190, h: 40 }
-          nodeSizeCache[rname] = size
-        }
-        return { x: pos.x + size.w, y: pos.y + size.h / 2 } // right edge, roughly vertical center
+        const layout = nodeLayouts[rname]
+        const size =
+          layout ? { w: layout.w, h: layout.h } : computeNodeSize(rname)
+        return { x: pos.x + size.w, y: pos.y + size.h / 2 }
       }
 
       function escapeHtml(s) {
@@ -1827,117 +1813,304 @@
         return String(s).replace(/["\\]/g, "\\$&")
       }
 
+      function rectsIntersect(ax0, ay0, ax1, ay1, bx0, by0, bx1, by1) {
+        return ax0 <= bx1 && ax1 >= bx0 && ay0 <= by1 && ay1 >= by0
+      }
+
+      // World-space rect currently on screen, expanded by a small margin
+      // so nodes/edges just outside the edge of the viewport are drawn
+      // too (avoids a visible pop-in strip while panning).
+      function visibleWorldRect(marginPx = 150) {
+        const rect = els.canvasWrap.getBoundingClientRect()
+        return {
+          x0: (-view.x - marginPx) / view.scale,
+          y0: (-view.y - marginPx) / view.scale,
+          x1: (-view.x + rect.width + marginPx) / view.scale,
+          y1: (-view.y + rect.height + marginPx) / view.scale,
+        }
+      }
+
+      function drawEdge(p1, p2, traversable) {
+        const dx = (p2.x - p1.x) * 0.5
+        ctx.beginPath()
+        ctx.moveTo(p1.x, p1.y)
+        ctx.bezierCurveTo(p1.x + dx, p1.y, p2.x - dx, p2.y, p2.x, p2.y)
+        ctx.strokeStyle = traversable ? COLORS.accent : "#2a3040"
+        ctx.lineWidth = traversable ? 2 : 1.4
+        ctx.globalAlpha = traversable ? 0.9 : 0.45
+        ctx.setLineDash(traversable ? [] : [4, 4])
+        ctx.stroke()
+        ctx.setLineDash([])
+        ctx.globalAlpha = 1
+      }
+
+      function drawNode(rname, pos, layout) {
+        const { x, y } = pos
+        const w = layout.w,
+          h = layout.h
+
+        roundRectPath(x, y, w, h, 10)
+        ctx.fillStyle = COLORS.nodeBg
+        ctx.fill()
+        ctx.lineWidth = 1.5
+        ctx.strokeStyle =
+          layout.reachable ? COLORS.accent : COLORS.borderDim
+        ctx.stroke()
+
+        if (layout.reachable) {
+          ctx.save()
+          roundRectPath(x, y, w, h, 10)
+          ctx.clip()
+          ctx.fillStyle = "rgba(94, 230, 180, 0.10)"
+          ctx.fillRect(x, y, w, NODE_HEADER_H)
+          ctx.restore()
+        }
+
+        ctx.beginPath()
+        ctx.moveTo(x, y + NODE_HEADER_H)
+        ctx.lineTo(x + w, y + NODE_HEADER_H)
+        ctx.strokeStyle = COLORS.panelBorder
+        ctx.lineWidth = 1
+        ctx.stroke()
+
+        const headMidY = y + NODE_HEADER_H / 2
+        ctx.beginPath()
+        ctx.arc(x + 15, headMidY, 3.5, 0, Math.PI * 2)
+        ctx.fillStyle = layout.reachable ? COLORS.accent : COLORS.danger
+        ctx.fill()
+
+        ctx.textBaseline = "middle"
+        ctx.font = "600 12px var(--mono), monospace"
+        ctx.fillStyle = COLORS.text
+        drawFitText(rname, x + 27, headMidY, w - 37)
+
+        let rowY = y + NODE_HEADER_H + NODE_BODY_PAD / 2
+        for (const row of layout.rows) {
+          const cy = rowY + NODE_ROW_H / 2
+
+          let dotColor = COLORS.textDim
+          if (row.isReach) dotColor = COLORS.accent
+          if (row.isEvent) dotColor = COLORS.event
+          ctx.beginPath()
+          ctx.arc(x + 13, cy, 2.5, 0, Math.PI * 2)
+          ctx.fillStyle = dotColor
+          ctx.fill()
+
+          let textColor = COLORS.textDim
+          if (row.isReach) textColor = COLORS.text
+          if (row.isEvent) textColor = COLORS.event
+          ctx.font =
+            (row.isEvent ? "italic " : "") + "11px var(--mono), monospace"
+          ctx.fillStyle = textColor
+          ctx.globalAlpha = row.isChecked ? 0.4 : 1
+          const maxTextW = w - (row.scoutText ? 240 : 40)
+          drawFitText(row.displayText, x + 21, cy, maxTextW, {
+            strike: row.isChecked,
+          })
+          ctx.globalAlpha = 1
+
+          if (row.scoutText) {
+            ctx.font = "10px var(--mono), monospace"
+            ctx.fillStyle =
+              row.scoutClass === "progression" ? COLORS.accent
+              : row.scoutClass === "trap" ? COLORS.danger
+              : COLORS.textDim
+            drawFitText(row.scoutText, x + w - 8, cy, 210, {
+              align: "right",
+            })
+          }
+
+          rowY += NODE_ROW_H
+        }
+      }
+
+      function draw() {
+        const { rect, dpr } = resizeCanvas()
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+        ctx.clearRect(0, 0, rect.width, rect.height)
+        if (!graph) return
+
+        ctx.save()
+        ctx.translate(view.x, view.y)
+        ctx.scale(view.scale, view.scale)
+
+        const vp = visibleWorldRect()
+        const q = searchQuery
+
+        for (const { from, to, traversable } of edgeList) {
+          if (
+            !regionMatchesSearch(from, q) ||
+            !regionMatchesSearch(to, q)
+          )
+            continue
+          const p1 = centerOf(from),
+            p2 = centerOf(to)
+          if (
+            !rectsIntersect(
+              Math.min(p1.x, p2.x),
+              Math.min(p1.y, p2.y),
+              Math.max(p1.x, p2.x),
+              Math.max(p1.y, p2.y),
+              vp.x0,
+              vp.y0,
+              vp.x1,
+              vp.y1,
+            )
+          )
+            continue
+          drawEdge(p1, p2, traversable)
+        }
+
+        for (const rname in nodeLayouts) {
+          if (!regionMatchesSearch(rname, q)) continue
+          const pos = positions[rname]
+          const layout = nodeLayouts[rname]
+          if (!pos) continue
+          if (
+            !rectsIntersect(
+              pos.x,
+              pos.y,
+              pos.x + layout.w,
+              pos.y + layout.h,
+              vp.x0,
+              vp.y0,
+              vp.x1,
+              vp.y1,
+            )
+          )
+            continue
+          drawNode(rname, pos, layout)
+        }
+
+        ctx.restore()
+      }
+
       /* ============================================================
                       DRAG (nodes) + PAN/ZOOM (canvas)
                       ============================================================ */
-      function makeDraggable(node, rname) {
-        let dragging = false,
-          lastX = 0,
-          lastY = 0
-        function stopDragging() {
-          if (!dragging) return
-          dragging = false
-          document.body.style.userSelect = ""
-          saveLayout()
+      function screenToWorld(clientX, clientY) {
+        const rect = els.canvasWrap.getBoundingClientRect()
+        const localX = clientX - rect.left,
+          localY = clientY - rect.top
+        return {
+          x: (localX - view.x) / view.scale,
+          y: (localY - view.y) / view.scale,
         }
-        node.addEventListener("pointerdown", (ev) => {
-          if (ev.target.closest(".ck")) return
-          if (ev.button === 2) return // right-click is reserved for panning
-          dragging = true
-          node.setPointerCapture(ev.pointerId)
-          document.body.style.userSelect = "none"
-          lastX = ev.clientX
-          lastY = ev.clientY
-          ev.stopPropagation()
-          ev.preventDefault()
-        })
-        node.addEventListener("pointermove", (ev) => {
-          if (!dragging) return
-          // Incremental delta (since the last move), computed at the
-          // *current* zoom level -- not an absolute delta from drag-start.
-          // That way if the user zooms mid-drag (wheel while dragging),
-          // this frame's movement is still correct instead of jumping,
-          // since it never depends on a scale/position snapshot that the
-          // zoom could have invalidated.
-          const dx = (ev.clientX - lastX) / view.scale
-          const dy = (ev.clientY - lastY) / view.scale
-          lastX = ev.clientX
-          lastY = ev.clientY
-          const pos = positions[rname] || { x: 0, y: 0 }
-          positions[rname] = { x: pos.x + dx, y: pos.y + dy }
-          node.style.left = positions[rname].x + "px"
-          node.style.top = positions[rname].y + "px"
-          updateEdgesForRegion(rname)
-          ev.stopPropagation()
-        })
-        node.addEventListener("pointerup", (ev) => {
-          try {
-            node.releasePointerCapture(ev.pointerId)
-          } catch (e) {}
-          stopDragging()
-          ev.stopPropagation()
-        })
-        node.addEventListener("pointercancel", stopDragging)
-        node.addEventListener("lostpointercapture", stopDragging)
+      }
+
+      // Topmost node whose bounding box contains this world point, or
+      // null. Nodes rarely overlap in practice so plain last-match-wins
+      // is enough -- this is a handful of comparisons per region, cheap
+      // even at 1000+ regions, and only runs on pointerdown/hover, not
+      // every frame.
+      function findNodeAtWorldPoint(wx, wy) {
+        let found = null
+        for (const rname in nodeLayouts) {
+          const pos = positions[rname]
+          const layout = nodeLayouts[rname]
+          if (!pos) continue
+          if (
+            wx >= pos.x &&
+            wx <= pos.x + layout.w &&
+            wy >= pos.y &&
+            wy <= pos.y + layout.h
+          )
+            found = rname
+        }
+        return found
       }
 
       function setupPanZoom() {
         let panning = false,
+          dragging = false,
+          draggingRegion = null,
           sx = 0,
           sy = 0
-        function stopPanning() {
-          if (!panning) return
-          panning = false
-          els.canvasWrap.classList.remove("panning")
-          document.body.style.userSelect = ""
-          saveLayout()
+
+        function stopInteraction() {
+          if (dragging) {
+            dragging = false
+            draggingRegion = null
+            document.body.style.userSelect = ""
+            saveLayout()
+          }
+          if (panning) {
+            panning = false
+            els.canvasWrap.classList.remove("panning")
+            document.body.style.userSelect = ""
+            saveLayout()
+          }
         }
-        els.canvasWrap.addEventListener("pointerdown", (ev) => {
+
+        els.canvas.addEventListener("pointerdown", (ev) => {
           if (ev.target.closest("button")) return
-          const overNode = ev.target.closest(".node")
-          if (overNode && ev.button !== 2) return // left-click on a node drags it, not the canvas
-          if (ev.target.closest(".ck")) return
-          panning = true
-          els.canvasWrap.classList.add("panning")
-          els.canvasWrap.setPointerCapture(ev.pointerId)
+          const world = screenToWorld(ev.clientX, ev.clientY)
+          const hit =
+            ev.button !== 2 ?
+              findNodeAtWorldPoint(world.x, world.y)
+            : null
+          if (hit) {
+            dragging = true
+            draggingRegion = hit
+          } else {
+            if (ev.button === 2) {
+              // right-click always pans, even over a node
+            }
+            panning = true
+            els.canvasWrap.classList.add("panning")
+          }
+          els.canvas.setPointerCapture(ev.pointerId)
           document.body.style.userSelect = "none"
           sx = ev.clientX
           sy = ev.clientY
           ev.preventDefault()
         })
-        els.canvasWrap.addEventListener("contextmenu", (ev) => {
+        els.canvas.addEventListener("contextmenu", (ev) => {
           ev.preventDefault()
         })
-        els.canvasWrap.addEventListener("pointermove", (ev) => {
-          if (!panning) return
-          // Incremental delta since the last move, applied to the *current*
-          // view.x/y -- not an absolute delta from an (ox,oy) snapshot taken
-          // at pointerdown. zoomAt() mutates view.x/y directly on wheel, so
-          // an absolute-from-start baseline goes stale the moment the user
-          // zooms mid-pan, causing the view to jump back toward the old
-          // baseline on the next move. Incremental deltas can't go stale.
-          view.x += ev.clientX - sx
-          view.y += ev.clientY - sy
-          sx = ev.clientX
-          sy = ev.clientY
-          applyView()
+
+        let moveRAF = null
+        els.canvas.addEventListener("pointermove", (ev) => {
+          if (!panning && !dragging) return
+          if (dragging) {
+            const dx = (ev.clientX - sx) / view.scale
+            const dy = (ev.clientY - sy) / view.scale
+            sx = ev.clientX
+            sy = ev.clientY
+            const pos = positions[draggingRegion] || { x: 0, y: 0 }
+            positions[draggingRegion] = { x: pos.x + dx, y: pos.y + dy }
+          } else {
+            view.x += ev.clientX - sx
+            view.y += ev.clientY - sy
+            sx = ev.clientX
+            sy = ev.clientY
+          }
+          // Coalesce to one draw per animation frame -- pointer events
+          // can fire faster than the display refreshes.
+          if (moveRAF === null) {
+            moveRAF = requestAnimationFrame(() => {
+              moveRAF = null
+              draw()
+            })
+          }
         })
-        els.canvasWrap.addEventListener("pointerup", (ev) => {
+        els.canvas.addEventListener("pointerup", (ev) => {
           try {
-            els.canvasWrap.releasePointerCapture(ev.pointerId)
+            els.canvas.releasePointerCapture(ev.pointerId)
           } catch (e) {}
-          stopPanning()
+          stopInteraction()
         })
-        els.canvasWrap.addEventListener("pointercancel", stopPanning)
-        els.canvasWrap.addEventListener(
+        els.canvas.addEventListener("pointercancel", stopInteraction)
+        els.canvas.addEventListener(
           "lostpointercapture",
-          stopPanning,
+          stopInteraction,
         )
         // Safety net: if the pointer is released anywhere outside the
-        // canvas (or capture is somehow lost), don't leave panning stuck.
-        window.addEventListener("pointerup", stopPanning)
-        window.addEventListener("blur", stopPanning)
-        els.canvasWrap.addEventListener(
+        // canvas (or capture is somehow lost), don't leave panning/
+        // dragging stuck.
+        window.addEventListener("pointerup", stopInteraction)
+        window.addEventListener("blur", stopInteraction)
+        els.canvas.addEventListener(
           "wheel",
           (ev) => {
             ev.preventDefault()
@@ -1946,6 +2119,10 @@
           },
           { passive: false },
         )
+        window.addEventListener("resize", () => {
+          resizeCanvas()
+          scheduleDraw()
+        })
 
         document
           .getElementById("closeMapBtn")
@@ -1991,8 +2168,9 @@
       }
 
       function applyView() {
-        els.world.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`
+        scheduleDraw()
       }
+
 
       /* ============================================================
                       PERSISTENCE
@@ -2191,6 +2369,7 @@
             window.db.ctApiKey = ctApiKeyInput.value.trim()
           }
         }
+        loadColors()
         setupPanZoom()
         view = db.view ?? { x: 40, y: 40, scale: 1 }
         hideEvents = db.hideEvents ?? false

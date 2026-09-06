@@ -269,6 +269,12 @@ body {
   left: 0;
   transform-origin: 0 0;
 }
+#mapCanvas {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+  display: block;
+}
 svg#edges {
   position: absolute;
   top: 0;
