@@ -1210,22 +1210,19 @@
           }
         const rows = computeNodeRows(region).map(buildRowData)
 
-        ctx.font = "600 12px var(--mono), monospace"
+        ctx.font = `600 12px ${COLORS.mono}, monospace`
         let w = Math.max(
           NODE_MIN_WIDTH,
           ctx.measureText(rname).width + 27 + 10,
         )
         for (const row of rows) {
-          if (row.lname=='15_16 - magic:ice')
-          debugger
-
           ctx.font =
             (row.isEvent ? "italic " : "") +
-            "11px var(--mono), monospace"
+            `11px ${COLORS.mono}, monospace`
           row.textWidth = ctx.measureText(row.displayText).width
           row.scoutWidth = 0
           if (row.scoutText) {
-            ctx.font = "10px var(--mono), monospace"
+            ctx.font = `10px ${COLORS.mono}, monospace`
             row.scoutWidth = ctx.measureText(row.scoutText).width
           }
           let rowW = ROW_LEFT_PAD + row.textWidth + ROW_RIGHT_PAD
@@ -2019,7 +2016,7 @@
         ctx.fill()
 
         ctx.textBaseline = "middle"
-        ctx.font = "600 12px var(--mono), monospace"
+        ctx.font = `600 12px ${COLORS.mono}, monospace`
         ctx.fillStyle = COLORS.text
         drawFitText(rname, x + 27, headMidY, w - 37)
 
@@ -2040,7 +2037,7 @@
           if (row.isEvent) textColor = COLORS.event
           ctx.font =
             (row.isEvent ? "italic " : "") +
-            "11px var(--mono), monospace"
+            `11px ${COLORS.mono}, monospace`
           ctx.fillStyle = textColor
           ctx.globalAlpha = row.isChecked ? 0.4 : 1
           drawFitText(row.displayText, x + 21, cy, row.textAlloc, {
@@ -2058,7 +2055,7 @@
           }
 
           if (row.scoutText) {
-            ctx.font = "10px var(--mono), monospace"
+            ctx.font = `10px ${COLORS.mono}, monospace`
             ctx.fillStyle =
               row.scoutClass === "progression" ? COLORS.accent
               : row.scoutClass === "trap" ? COLORS.danger
