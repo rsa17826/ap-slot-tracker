@@ -1058,10 +1058,11 @@ function ctPanelFor(conn) {
   // status the current logic says this slot should have. With no rules
   // graph loaded we can't compute that, so it falls back to a manual
   // toggle of whatever it's currently set to.
-  if (conn.ct?.trackerId && conn.ct?.gameId != null) {
-    const state = ctObtainableState(conn)
-    const targetIsBk = state === null ? !conn.ct.isBk : !state
-    const label =
+  var connected = conn.ct?.trackerId && conn.ct?.gameId != null
+  if (connected) {
+    var state = ctObtainableState(conn)
+    var targetIsBk = state === null ? !conn.ct.isBk : !state
+    var label =
       ui.busy ? "…"
       : state === null ?
         conn.ct.isBk ?
@@ -1069,57 +1070,63 @@ function ctPanelFor(conn) {
         : "Mark BK'd"
       : targetIsBk ? "Mark BK'd"
       : "Mark Unblocked"
-
-    return [
-      newelem(
-        "button",
-        {
-          disabled: ui.busy,
-          onclick: () => ctApplyStatus(conn, targetIsBk, true),
-        },
-        [label],
-      ),
-      newelem(
-        "button",
-        { class: "danger", onclick: () => ctUnlink(conn) },
-        ["Unlink"],
-      ),
-      newelem("label", { class: "h" }, [
-        newelem("input", {
-          type: "checkbox",
-          onchange() {
-            conn.autoUpdateCTStatus = this.checked
-          },
-          checked: conn.autoUpdateCTStatus,
-        }),
-        "Auto Update Status",
-      ]),
-      ui.error ?
-        newelem("span", { class: "slot-sub" }, [ui.error])
-      : null,
-    ]
   }
 
-  // Not linked yet: just a tracker link/ID -- the game is auto-matched by
-  // slot name, and the API key is the global one set above.
-  const trackerInput = newelem("input", {
-    flexGrow: 2,
-    placeholder: "Tracker link or ID (e.g. .../tracker/AAA or AAA)",
-    value: ui.trackerInput,
-    width: "300px",
-  })
-  trackerInput.oninput = () => (ui.trackerInput = trackerInput.value)
-
   return [
-    trackerInput,
-    newelem(
-      "button",
-      { disabled: ui.busy, onclick: () => ctDoLink(conn) },
-      [ui.busy ? "…" : "Link Cheese Tracker"],
-    ),
-    ui.error ?
-      newelem("span", { class: "slot-sub" }, [ui.error])
-    : null,
+    newelem("label", { class: "v" }, [
+      newelem(
+        "label",
+        { class: "h" },
+        connected ?
+          [
+            newelem(
+              "button",
+              {
+                disabled: ui.busy,
+                onclick: () => ctApplyStatus(conn, targetIsBk, true),
+              },
+              [label],
+            ),
+            newelem(
+              "button",
+              { class: "danger", onclick: () => ctUnlink(conn) },
+              ["Unlink"],
+            ),
+            newelem("label", { class: "h" }, [
+              newelem("input", {
+                type: "checkbox",
+                onchange() {
+                  conn.autoUpdateCTStatus = this.checked
+                },
+                checked: conn.autoUpdateCTStatus,
+              }),
+              "Auto Update Status",
+            ]),
+          ]
+        : [
+            newelem("input", {
+              flexGrow: 2,
+              placeholder:
+                "Tracker link or ID (e.g. .../tracker/AAA or AAA)",
+              value: ui.trackerInput,
+              width: "300px",
+              oninput() {
+                ui.trackerInput = this.value
+              },
+            }),
+            newelem(
+              "button",
+              { disabled: ui.busy, onclick: () => ctDoLink(conn) },
+              [ui.busy ? "…" : "Link Cheese Tracker"],
+            ),
+          ],
+      ),
+      ui.error ?
+        newelem("label", { class: "h" }, [
+          newelem("span", { class: "slot-sub" }, [ui.error]),
+        ])
+      : null,
+    ]),
   ]
 }
 
