@@ -1020,6 +1020,7 @@
       })
 
       async function syncFromSlot(conn) {
+        if (!conn || conn.id !== db.currentMapConnId) return
         const raw = db.progFiles[conn.progKey]
         const wantProfile =
           raw ? resolvedProfileNameFor(raw, conn.profile) : null
