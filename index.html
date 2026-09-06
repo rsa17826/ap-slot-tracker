@@ -2032,6 +2032,7 @@
 
           let dotColor = COLORS.textDim
           if (row.isReach) dotColor = COLORS.accent
+          else dotColor = COLORS.danger
           if (row.isEvent) dotColor = COLORS.event
           ctx.beginPath()
           ctx.arc(x + 13, cy, 2.5, 0, Math.PI * 2)
