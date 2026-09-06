@@ -1105,21 +1105,102 @@
         })
       }
 
-      const NODE_WIDTH = 440
-      const NODE_HEADER_H = 20
+      const NODE_MIN_WIDTH = 190
+      const NODE_MAX_WIDTH = 520
+      const NODE_HEADER_H = 33
       const NODE_BODY_PAD = 12
       const NODE_ROW_H = 20
+      const ROW_LEFT_PAD = 21 // dot + gap before the location text
+      const ROW_RIGHT_PAD = 8
+      const ROW_SCOUT_GAP = 14 // gap between location text and scout label
+      const ROW_SCOUT_MAX_ALLOC = 200 // how much room the scout label is allowed to claim
 
-      // Deterministic size for a region's node -- no DOM measurement
-      // needed since nodes are canvas-drawn, not real elements.
-      function computeNodeSize(rname) {
-        const region = graph.regions[rname]
-        if (!region) return { w: NODE_WIDTH, h: NODE_HEADER_H }
-        const rowCount = computeNodeRows(region).length
-        return {
-          w: NODE_WIDTH,
-          h: NODE_HEADER_H + NODE_BODY_PAD + rowCount * NODE_ROW_H,
+      function buildRowData(lname) {
+        const linfo = graph.locations[lname]
+        const isEvent = !!(linfo && linfo.is_event)
+        const scout = scoutedItems[lname]
+        let scoutText = null,
+          scoutClass = null
+        if (showScouts && scout) {
+          scoutClass =
+            scout.flags & 1 ? "progression"
+            : scout.flags & 4 ? "trap"
+            : null
+          scoutText =
+            scout.itemPlayer !== scoutOwnSlot ?
+              `${scout.itemName} (for ${scoutPlayerNames[scout.itemPlayer] ?? `Player ${scout.itemPlayer}`})`
+            : scout.itemName
         }
+        return {
+          lname,
+          displayText:
+            lname.includes(" - ") ?
+              lname.split(" - ").slice(1).join(" - ")
+            : lname,
+          isReach: reach.locations.has(lname),
+          isChecked: !!checkedLocations[lname],
+          isEvent,
+          scoutText,
+          scoutClass,
+        }
+      }
+
+      // Builds the full layout (size + row data) for a region's node.
+      // Width is derived from actual content -- the header title and the
+      // widest row (location text, plus its scout label if shown) --
+      // rather than a fixed box, so a node with short labels and no
+      // scout text shrinks instead of leaving blank space, and a node
+      // that needs more room for a scout label gets it (up to
+      // NODE_MAX_WIDTH, beyond which text still ellipsizes).
+      function computeNodeLayout(rname) {
+        const region = graph.regions[rname]
+        if (!region)
+          return {
+            reachable: false,
+            w: NODE_MIN_WIDTH,
+            h: NODE_HEADER_H,
+            rows: [],
+          }
+        const rows = computeNodeRows(region).map(buildRowData)
+
+        ctx.font = "600 12px var(--mono), monospace"
+        let w = Math.max(
+          NODE_MIN_WIDTH,
+          ctx.measureText(rname).width + 27 + 10,
+        )
+        for (const row of rows) {
+          ctx.font =
+            (row.isEvent ? "italic " : "") + "11px var(--mono), monospace"
+          row.textWidth = ctx.measureText(row.displayText).width
+          row.scoutWidth = 0
+          row.scoutAlloc = 0
+          if (row.scoutText) {
+            ctx.font = "10px var(--mono), monospace"
+            row.scoutWidth = ctx.measureText(row.scoutText).width
+            row.scoutAlloc = Math.min(
+              row.scoutWidth,
+              ROW_SCOUT_MAX_ALLOC,
+            )
+          }
+          let rowW = ROW_LEFT_PAD + row.textWidth + ROW_RIGHT_PAD
+          if (row.scoutText) rowW += ROW_SCOUT_GAP + row.scoutAlloc
+          w = Math.max(w, rowW)
+        }
+        w = Math.min(w, NODE_MAX_WIDTH)
+
+        return {
+          reachable: reach.regions.has(rname),
+          w,
+          h: NODE_HEADER_H + NODE_BODY_PAD + rows.length * NODE_ROW_H,
+          rows,
+        }
+      }
+
+      // Deterministic size for a region's node, used by layout algorithms
+      // (autoLayout/customLayout) before any canvas draw has happened.
+      function computeNodeSize(rname) {
+        const layout = computeNodeLayout(rname)
+        return { w: layout.w, h: layout.h }
       }
 
       function measureNodeSizes(names) {
@@ -1654,43 +1735,9 @@
 
       function renderNodes() {
         nodeLayouts = {}
-        for (const [rname, region] of Object.entries(graph.regions)) {
+        for (const rname of Object.keys(graph.regions)) {
           if (!isRegionVisible(rname)) continue
-          const rows = computeNodeRows(region).map((lname) => {
-            const linfo = graph.locations[lname]
-            const isEvent = !!(linfo && linfo.is_event)
-            const scout = scoutedItems[lname]
-            let scoutText = null,
-              scoutClass = null
-            if (showScouts && scout) {
-              scoutClass =
-                scout.flags & 1 ? "progression"
-                : scout.flags & 4 ? "trap"
-                : null
-              scoutText =
-                scout.itemPlayer !== scoutOwnSlot ?
-                  `${scout.itemName} (for ${scoutPlayerNames[scout.itemPlayer] ?? `Player ${scout.itemPlayer}`})`
-                : scout.itemName
-            }
-            return {
-              lname,
-              displayText:
-                lname.includes(" - ") ?
-                  lname.split(" - ").slice(1).join(" - ")
-                : lname,
-              isReach: reach.locations.has(lname),
-              isChecked: !!checkedLocations[lname],
-              isEvent,
-              scoutText,
-              scoutClass,
-            }
-          })
-          nodeLayouts[rname] = {
-            reachable: reach.regions.has(rname),
-            w: NODE_WIDTH,
-            h: NODE_HEADER_H + NODE_BODY_PAD + rows.length * NODE_ROW_H,
-            rows,
-          }
+          nodeLayouts[rname] = computeNodeLayout(rname)
         }
         scheduleDraw()
       }
@@ -1904,7 +1951,11 @@
             (row.isEvent ? "italic " : "") + "11px var(--mono), monospace"
           ctx.fillStyle = textColor
           ctx.globalAlpha = row.isChecked ? 0.4 : 1
-          const maxTextW = w - (row.scoutText ? 240 : 40)
+          const maxTextW =
+            w -
+            ROW_LEFT_PAD -
+            ROW_RIGHT_PAD -
+            (row.scoutText ? ROW_SCOUT_GAP + row.scoutAlloc : 0)
           drawFitText(row.displayText, x + 21, cy, maxTextW, {
             strike: row.isChecked,
           })
@@ -1916,7 +1967,7 @@
               row.scoutClass === "progression" ? COLORS.accent
               : row.scoutClass === "trap" ? COLORS.danger
               : COLORS.textDim
-            drawFitText(row.scoutText, x + w - 8, cy, 210, {
+            drawFitText(row.scoutText, x + w - ROW_RIGHT_PAD, cy, row.scoutAlloc, {
               align: "right",
             })
           }

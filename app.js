@@ -1062,14 +1062,6 @@ function ctPanelFor(conn) {
   if (connected) {
     var state = ctObtainableState(conn)
     var targetIsBk = state === null ? !conn.ct.isBk : !state
-    var label =
-      ui.busy ? "…"
-      : state === null ?
-        conn.ct.isBk ?
-          "Marked BK'd (tap to clear)"
-        : "Mark BK'd"
-      : targetIsBk ? "Mark BK'd"
-      : "Mark Unblocked"
   }
 
   return [
@@ -1085,7 +1077,15 @@ function ctPanelFor(conn) {
                 disabled: ui.busy,
                 onclick: () => ctApplyStatus(conn, targetIsBk, true),
               },
-              [label],
+              [
+                ui.busy ? "…"
+                : state === null ?
+                  conn.ct.isBk ?
+                    "Marked BK'd (tap to clear)"
+                  : "Mark BK'd"
+                : targetIsBk ? "Mark BK'd"
+                : "Mark Unblocked",
+              ],
             ),
             newelem(
               "button",
