@@ -1170,7 +1170,8 @@
         )
         for (const row of rows) {
           ctx.font =
-            (row.isEvent ? "italic " : "") + "11px var(--mono), monospace"
+            (row.isEvent ? "italic " : "") +
+            "11px var(--mono), monospace"
           row.textWidth = ctx.measureText(row.displayText).width
           row.scoutWidth = 0
           row.scoutAlloc = 0
@@ -1840,7 +1841,9 @@
         const pos = positions[rname] || { x: 0, y: 0 }
         const layout = nodeLayouts[rname]
         const size =
-          layout ? { w: layout.w, h: layout.h } : computeNodeSize(rname)
+          layout ?
+            { w: layout.w, h: layout.h }
+          : computeNodeSize(rname)
         return { x: pos.x + size.w, y: pos.y + size.h / 2 }
       }
 
@@ -1861,7 +1864,16 @@
         return String(s).replace(/["\\]/g, "\\$&")
       }
 
-      function rectsIntersect(ax0, ay0, ax1, ay1, bx0, by0, bx1, by1) {
+      function rectsIntersect(
+        ax0,
+        ay0,
+        ax1,
+        ay1,
+        bx0,
+        by0,
+        bx1,
+        by1,
+      ) {
         return ax0 <= bx1 && ax1 >= bx0 && ay0 <= by1 && ay1 >= by0
       }
 
@@ -1882,7 +1894,14 @@
         const dx = (p2.x - p1.x) * 0.5
         ctx.beginPath()
         ctx.moveTo(p1.x, p1.y)
-        ctx.bezierCurveTo(p1.x + dx, p1.y, p2.x - dx, p2.y, p2.x, p2.y)
+        ctx.bezierCurveTo(
+          p1.x + dx,
+          p1.y,
+          p2.x - dx,
+          p2.y,
+          p2.x,
+          p2.y,
+        )
         ctx.strokeStyle = traversable ? COLORS.accent : "#2a3040"
         ctx.lineWidth = traversable ? 2 : 1.4
         ctx.globalAlpha = traversable ? 0.9 : 0.45
@@ -1924,7 +1943,8 @@
         const headMidY = y + NODE_HEADER_H / 2
         ctx.beginPath()
         ctx.arc(x + 15, headMidY, 3.5, 0, Math.PI * 2)
-        ctx.fillStyle = layout.reachable ? COLORS.accent : COLORS.danger
+        ctx.fillStyle =
+          layout.reachable ? COLORS.accent : COLORS.danger
         ctx.fill()
 
         ctx.textBaseline = "middle"
@@ -1948,7 +1968,8 @@
           if (row.isReach) textColor = COLORS.text
           if (row.isEvent) textColor = COLORS.event
           ctx.font =
-            (row.isEvent ? "italic " : "") + "11px var(--mono), monospace"
+            (row.isEvent ? "italic " : "") +
+            "11px var(--mono), monospace"
           ctx.fillStyle = textColor
           ctx.globalAlpha = row.isChecked ? 0.4 : 1
           const maxTextW =
@@ -1967,9 +1988,16 @@
               row.scoutClass === "progression" ? COLORS.accent
               : row.scoutClass === "trap" ? COLORS.danger
               : COLORS.textDim
-            drawFitText(row.scoutText, x + w - ROW_RIGHT_PAD, cy, row.scoutAlloc, {
-              align: "right",
-            })
+            drawFitText(
+              row.scoutText,
+              x + w - ROW_RIGHT_PAD,
+              cy,
+              row.scoutAlloc,
+              {
+                align: "right",
+                strike: row.isChecked,
+              },
+            )
           }
 
           rowY += NODE_ROW_H
@@ -2130,7 +2158,10 @@
             sx = ev.clientX
             sy = ev.clientY
             const pos = positions[draggingRegion] || { x: 0, y: 0 }
-            positions[draggingRegion] = { x: pos.x + dx, y: pos.y + dy }
+            positions[draggingRegion] = {
+              x: pos.x + dx,
+              y: pos.y + dy,
+            }
           } else {
             view.x += ev.clientX - sx
             view.y += ev.clientY - sy
@@ -2222,7 +2253,6 @@
       function applyView() {
         scheduleDraw()
       }
-
 
       /* ============================================================
                       PERSISTENCE
