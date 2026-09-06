@@ -154,8 +154,12 @@
             Hide event checks
           </label>
           <label class="toggle-row">
-            <input type="checkbox" id="focusModeChk" />
-            Hide out-of-logic / cleared nodes
+            <input type="checkbox" id="hideOOLChk" />
+            Hide out-of-logic checks
+          </label>
+          <label class="toggle-row">
+            <input type="checkbox" id="hideClearedChk" />
+            Hide cleared checks
           </label>
           <label class="toggle-row">
             <input type="checkbox" id="noTransitChk" />
@@ -293,7 +297,8 @@
       let edgeList = [] // [{from,to,traversable}] (rebuilt by renderEdges; drawn fresh onto canvas every frame)
       let view = { x: 0, y: 0, scale: 1 }
       let hideEvents = false
-      let focusMode = false // hide nodes that are out-of-logic or fully collected already
+      let hideOOL = false // hide nodes that are out-of-logic or fully collected already
+      let hideCleared = false // hide nodes that are out-of-logic or fully collected already
       let noTransit = false
       let searchQuery = "" // lowercase; filters both the inventory list and map nodes
       let customSortFns = {} // gameKey -> function source (string)
@@ -323,7 +328,8 @@
         canvasWrap: document.getElementById("canvasWrap"),
         emptyMsg: document.getElementById("emptyMsg"),
         hideEventsChk: document.getElementById("hideEventsChk"),
-        focusModeChk: document.getElementById("focusModeChk"),
+        hideOOLChk: document.getElementById("hideOOLChk"),
+        hideClearedChk: document.getElementById("hideClearedChk"),
         noTransitChk: document.getElementById("noTransitChk"),
         showScoutsChk: document.getElementById("showScoutsChk"),
         sortFnModal: document.getElementById("sortFnModal"),
@@ -736,10 +742,8 @@
       }
 
       function isRegionVisible(rname) {
-        if (focusMode) {
-          if (!reach.regions.has(rname)) return false
-          if (isRegionCleared(rname)) return false
-        }
+        if (hideOOL && !reach.regions.has(rname)) return false
+        if (hideCleared && isRegionCleared(rname)) return false
         if (noTransit && isTransitRegion(rname)) return false
         return true
       }
@@ -1089,7 +1093,7 @@
       }
 
       // Location rows actually shown inside a region's node, after
-      // hideEvents/focusMode filtering -- shared by node-size calculations
+      // hideEvents/hideOOL filtering -- shared by node-size calculations
       // (layout algorithms + canvas draw sizing) and by the canvas draw
       // itself, so they never disagree about how tall a node is.
       function computeNodeRows(region) {
@@ -1097,10 +1101,8 @@
           const linfo = graph.locations[lname]
           const isEvent = !!(linfo && linfo.is_event)
           if (hideEvents && isEvent) return false
-          if (focusMode) {
-            if (!reach.locations.has(lname)) return false // out of logic
-            if (isLocationDone(lname)) return false // already cleared / auto-granted
-          }
+          if (hideOOL && !reach.locations.has(lname)) return false // out of logic
+          if (hideCleared && isLocationDone(lname)) return false // already cleared / auto-granted
           return true
         })
       }
@@ -2461,11 +2463,18 @@
           db.hideEvents = hideEvents
           render()
         })
-        focusMode = db.focusMode ?? false
-        els.focusModeChk.checked = focusMode
-        els.focusModeChk.addEventListener("change", () => {
-          focusMode = els.focusModeChk.checked
-          db.focusMode = focusMode
+        hideOOL = db.hideOOL ?? false
+        els.hideOOLChk.checked = hideOOL
+        els.hideOOLChk.addEventListener("change", () => {
+          hideOOL = els.hideOOLChk.checked
+          db.hideOOL = hideOOL
+          render()
+        })
+        hideCleared = db.hideCleared ?? false
+        els.hideClearedChk.checked = hideCleared
+        els.hideClearedChk.addEventListener("change", () => {
+          hideCleared = els.hideClearedChk.checked
+          db.hideCleared = hideCleared
           render()
         })
         noTransit = db.noTransit ?? false
