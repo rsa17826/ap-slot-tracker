@@ -292,6 +292,7 @@
       let showScouts = false // View toggle: show scouted item names in the location rows
       let scoutOwnSlot = null // this slot's own AP slot number, for telling "your item" apart from other players'
       let scoutPlayerNames = {} // slot number -> player name, for labeling scouted items that belong to other players
+      let scoutTrackedSlots = new Set() // slot numbers, on the same hostname:port as the synced slot, that also have an open/tracked connection -- used to star scouted items bound for a slot we're already tracking
       let positions = {} // regionName -> {x,y}
       let nodeLayouts = {} // regionName -> {w,h,reachable,rows:[...]} (rebuilt by renderNodes; drawn fresh onto canvas every frame, not kept as DOM elements)
       let edgeList = [] // [{from,to,traversable}] (rebuilt by renderEdges; drawn fresh onto canvas every frame)
@@ -722,15 +723,15 @@
         return false
       }
 
-      // A region counts as "cleared" (nothing left to do there) once every
-      // one of its locations is already checked. Used by focus mode to hide
-      // nodes that are either unreachable or fully cleared, so the map only
-      // shows what's actually actionable right now.
-      function isRegionCleared(rname) {
+      // A region counts as "empty" once none of its locations would actually
+      // be drawn after applying the active row filters (hideEvents/hideOOL/
+      // hideCleared) -- whatever combination emptied it out. Used so a node
+      // doesn't linger on the map showing nothing.
+      function isRegionEmptyAfterFilters(rname) {
         const region = graph.regions[rname]
         const locs = (region && region.locations) || []
         if (locs.length === 0) return false
-        return locs.every(isLocationDone)
+        return computeNodeRows(region).length === 0
       }
 
       // A region counts as a "transit" node when it has no locations at
@@ -743,7 +744,11 @@
 
       function isRegionVisible(rname) {
         if (hideOOL && !reach.regions.has(rname)) return false
-        if (hideCleared && isRegionCleared(rname)) return false
+        if (
+          (hideEvents || hideCleared || hideOOL) &&
+          isRegionEmptyAfterFilters(rname)
+        )
+          return false
         if (noTransit && isTransitRegion(rname)) return false
         return true
       }
@@ -1049,6 +1054,7 @@
           scoutedItems = {}
           scoutOwnSlot = null
           scoutPlayerNames = {}
+          scoutTrackedSlots = new Set()
           applyView()
           return
         }
@@ -1080,6 +1086,22 @@
             scoutPlayerNames[p.slot] = p.name
         }
 
+        // Any other connection pointed at the same AP server (same
+        // hostname:port) is a slot we're also actively tracking -- used to
+        // draw a green star on scouted items instead of a yellow one.
+        scoutTrackedSlots = new Set()
+        for (const conn2 of Object.values(db.connections)) {
+          if (
+            conn2.hostname !== conn.hostname ||
+            conn2.port !== conn.port
+          )
+            continue
+          const rt2 =
+            typeof runtime !== "undefined" ? runtime[conn2.id] : null
+          if (rt2?.client?.slot != null)
+            scoutTrackedSlots.add(rt2.client.slot)
+        }
+
         syncItemListUI()
         onInventoryChange()
       }
@@ -1101,7 +1123,7 @@
           const linfo = graph.locations[lname]
           const isEvent = !!(linfo && linfo.is_event)
           if (hideEvents && isEvent) return false
-          if (hideOOL && !reach.locations.has(lname)) return false // out of logic
+          if (hideOOL && !isEvent && !reach.locations.has(lname)) return false // out of logic
           if (hideCleared && isLocationDone(lname)) return false // already cleared / auto-granted
           return true
         })
@@ -1115,14 +1137,15 @@
       const ROW_LEFT_PAD = 21 // dot + gap before the location text
       const ROW_RIGHT_PAD = 8
       const ROW_SCOUT_GAP = 14 // gap between location text and scout label
-      const ROW_SCOUT_MAX_ALLOC = 200 // how much room the scout label is allowed to claim
+      const ROW_STAR_W = 12 // width reserved for the scout star icon + its gap
 
       function buildRowData(lname) {
         const linfo = graph.locations[lname]
         const isEvent = !!(linfo && linfo.is_event)
         const scout = scoutedItems[lname]
         let scoutText = null,
-          scoutClass = null
+          scoutClass = null,
+          scoutStar = null
         if (showScouts && scout) {
           scoutClass =
             scout.flags & 1 ? "progression"
@@ -1132,6 +1155,10 @@
             scout.itemPlayer !== scoutOwnSlot ?
               `${scout.itemName} (for ${scoutPlayerNames[scout.itemPlayer] ?? `Player ${scout.itemPlayer}`})`
             : scout.itemName
+          scoutStar =
+            scout.itemPlayer === scoutOwnSlot ? "yellow"
+            : scoutTrackedSlots.has(scout.itemPlayer) ? "green"
+            : null
         }
         return {
           lname,
@@ -1144,7 +1171,23 @@
           isEvent,
           scoutText,
           scoutClass,
+          scoutStar,
         }
+      }
+
+      // Given a row's actual available budget (after paddings/star/gap are
+      // already subtracted) and how much room the location text and the
+      // scout label would each like, split the budget "water-filling"
+      // style: each side gets up to half, but if one side needs less than
+      // its half, the unused remainder rolls over to the other side (up to
+      // what it actually needs). Only once BOTH sides still want more than
+      // their half does the split become a flat 50/50, and only then does
+      // either side actually get trimmed.
+      function splitRowBudget(budget, need1, need2) {
+        const half = budget / 2
+        if (need1 <= half) return [need1, Math.min(need2, budget - need1)]
+        if (need2 <= half) return [Math.min(need1, budget - need2), need2]
+        return [half, half]
       }
 
       // Builds the full layout (size + row data) for a region's node.
@@ -1153,7 +1196,9 @@
       // rather than a fixed box, so a node with short labels and no
       // scout text shrinks instead of leaving blank space, and a node
       // that needs more room for a scout label gets it (up to
-      // NODE_MAX_WIDTH, beyond which text still ellipsizes).
+      // NODE_MAX_WIDTH). Once a node hits that cap, each row's location
+      // text and scout label fair-share the remaining space instead of
+      // the location text hogging it (see splitRowBudget).
       function computeNodeLayout(rname) {
         const region = graph.regions[rname]
         if (!region)
@@ -1171,25 +1216,49 @@
           ctx.measureText(rname).width + 27 + 10,
         )
         for (const row of rows) {
+          if (row.lname=='15_16 - magic:ice')
+          debugger
+
           ctx.font =
             (row.isEvent ? "italic " : "") +
             "11px var(--mono), monospace"
           row.textWidth = ctx.measureText(row.displayText).width
           row.scoutWidth = 0
-          row.scoutAlloc = 0
           if (row.scoutText) {
             ctx.font = "10px var(--mono), monospace"
             row.scoutWidth = ctx.measureText(row.scoutText).width
-            row.scoutAlloc = Math.min(
-              row.scoutWidth,
-              ROW_SCOUT_MAX_ALLOC,
-            )
           }
           let rowW = ROW_LEFT_PAD + row.textWidth + ROW_RIGHT_PAD
-          if (row.scoutText) rowW += ROW_SCOUT_GAP + row.scoutAlloc
+          if (row.scoutText) rowW += ROW_SCOUT_GAP + row.scoutWidth
+          if (row.scoutStar) rowW += ROW_STAR_W
           w = Math.max(w, rowW)
         }
         w = Math.min(w, NODE_MAX_WIDTH)
+
+        // Second pass: now that the node's final width is locked in, give
+        // each row its real allocation. A row only needs fair-sharing once
+        // its ideal width doesn't fit -- otherwise both sides just get
+        // exactly what they asked for.
+        for (const row of rows) {
+          const fixed =
+            ROW_LEFT_PAD +
+            ROW_RIGHT_PAD +
+            (row.scoutStar ? ROW_STAR_W : 0) +
+            (row.scoutText ? ROW_SCOUT_GAP : 0)
+          const budget = w - fixed
+          if (row.scoutText) {
+            const [textAlloc, scoutAlloc] = splitRowBudget(
+              budget,
+              row.textWidth,
+              row.scoutWidth,
+            )
+            row.textAlloc = textAlloc
+            row.scoutAlloc = scoutAlloc
+          } else {
+            row.textAlloc = Math.min(row.textWidth, budget)
+            row.scoutAlloc = 0
+          }
+        }
 
         return {
           reachable: reach.regions.has(rname),
@@ -1974,15 +2043,19 @@
             "11px var(--mono), monospace"
           ctx.fillStyle = textColor
           ctx.globalAlpha = row.isChecked ? 0.4 : 1
-          const maxTextW =
-            w -
-            ROW_LEFT_PAD -
-            ROW_RIGHT_PAD -
-            (row.scoutText ? ROW_SCOUT_GAP + row.scoutAlloc : 0)
-          drawFitText(row.displayText, x + 21, cy, maxTextW, {
+          drawFitText(row.displayText, x + 21, cy, row.textAlloc, {
             strike: row.isChecked,
           })
           ctx.globalAlpha = 1
+
+          if (row.scoutStar) {
+            ctx.font = "11px sans-serif"
+            ctx.fillStyle =
+              row.scoutStar === "yellow" ? "#f5d33c" : "#4ade80"
+            ctx.textAlign = "right"
+            ctx.fillText("★", x + w - ROW_RIGHT_PAD, cy)
+            ctx.textAlign = "left"
+          }
 
           if (row.scoutText) {
             ctx.font = "10px var(--mono), monospace"
@@ -1992,7 +2065,10 @@
               : COLORS.textDim
             drawFitText(
               row.scoutText,
-              x + w - ROW_RIGHT_PAD,
+              x +
+                w -
+                ROW_RIGHT_PAD -
+                (row.scoutStar ? ROW_STAR_W : 0),
               cy,
               row.scoutAlloc,
               {
