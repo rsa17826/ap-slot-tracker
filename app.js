@@ -843,7 +843,7 @@ function renderSlots() {
                 [
                   newelem("input", {
                     type: "checkbox",
-                    flexGrow: 0.5,
+                    flexGrow: 0,
                     padding: 0,
                     margin: 0,
                     onclick() {

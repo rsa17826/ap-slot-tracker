@@ -1,0 +1,5 @@
+[...document.querySelectorAll(".prog-row>div")].map(e=>e.firstChild.textContent.match(/^(.*?) — v(\d+)/)).filter(Boolean).forEach(ee=>{Object.values(db.connections).forEach(e=>{
+    if (e.game==ee[1]){
+        e.progKey=e.game+"@v"+ee[2]
+    }
+})})
