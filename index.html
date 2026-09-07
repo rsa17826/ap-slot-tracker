@@ -222,6 +222,7 @@
           <button id="zoomReset">reset view</button>
         </div>
         <canvas id="mapCanvas"></canvas>
+        <div id="checkHoverPopup"></div>
         <div id="emptyMsg">
           <div>
             No graph loaded.<br /><b>Load rules JSON</b> to begin.
@@ -308,6 +309,7 @@
         locations: new Set(),
         entrances: new Set(),
       }
+      let hoveredCheck = null // {rname, lname} | null -- row the pointer is currently over, for the requirements popup
 
       // The rules JSON has no explicit "item for this event location" field,
       // so by convention the event's item is named after the location: its
@@ -327,6 +329,7 @@
         search: document.getElementById("search"),
         canvas: document.getElementById("mapCanvas"),
         canvasWrap: document.getElementById("canvasWrap"),
+        checkHoverPopup: document.getElementById("checkHoverPopup"),
         emptyMsg: document.getElementById("emptyMsg"),
         hideEventsChk: document.getElementById("hideEventsChk"),
         hideOOLChk: document.getElementById("hideOOLChk"),
@@ -371,94 +374,87 @@
           case "Has":
             return countHave(rule.item_name) >= (rule.count ?? 1)
           case "HasAll":
-            return (rule.item_names || rule.items || []).every(
-              (n) => countHave(n) >= 1,
-            )
+            return rule.item_names.every((n) => countHave(n) >= 1)
           case "HasAny":
-            return (rule.item_names || rule.items || []).some(
-              (n) => countHave(n) >= 1,
-            )
+            return rule.item_names.some((n) => countHave(n) >= 1)
           case "HasAllCounts": {
-            const counts = rule.item_counts || rule.counts || {}
-            return Object.entries(counts).every(
+            return rule.item_counts.every(
               ([n, c]) => countHave(n) >= c,
             )
           }
           case "HasAnyCount": {
-            const need = rule.count ?? 1
-            return (rule.item_names || rule.items || []).some(
-              (n) => countHave(n) >= need,
+            return rule.item_counts.some(
+              ([name, need]) => countHave(name) >= need,
             )
           }
-          case "HasFromList": {
-            const need = rule.count ?? 1
-            const names = rule.item_names || rule.items || []
-            const have = names.reduce(
-              (s, n) => s + (countHave(n) > 0 ? 1 : 0),
-              0,
-            )
-            return have >= need
-          }
-          case "HasFromListUnique": {
-            const need = rule.count ?? 1
-            const names = rule.item_names || rule.items || []
-            return (
-              names.filter((n) => countHave(n) > 0).length >= need
-            )
-          }
-          case "HasGroup": {
-            const need = rule.count ?? 1
-            const groupItems = rule.items || rule.group_items || []
-            return (
-              groupItems.reduce((s, n) => s + countHave(n), 0) >= need
-            )
-          }
-          case "HasGroupUnique": {
-            const need = rule.count ?? 1
-            const groupItems = rule.items || rule.group_items || []
-            return (
-              groupItems.filter((n) => countHave(n) > 0).length >=
-              need
-            )
-          }
+          // case "HasFromList": {
+          //   debugger
+          //   const need = rule.count ?? 1
+          //   const names = rule.item_names || rule.items || []
+          //   const have = names.reduce(
+          //     (s, n) => s + (countHave(n) > 0 ? 1 : 0),
+          //     0,
+          //   )
+          //   return have >= need
+          // }
+          // case "HasFromListUnique": {
+          //   debugger
+          //   const need = rule.count ?? 1
+          //   const names = rule.item_names || rule.items || []
+          //   return (
+          //     names.filter((n) => countHave(n) > 0).length >= need
+          //   )
+          // }
+          // case "HasGroup": {
+          //   debugger
+          //   const need = rule.count ?? 1
+          //   const groupItems = rule.items || rule.group_items || []
+          //   return (
+          //     groupItems.reduce((s, n) => s + countHave(n), 0) >= need
+          //   )
+          // }
+          // case "HasGroupUnique": {
+          //   debugger
+          //   const need = rule.count ?? 1
+          //   const groupItems = rule.items || rule.group_items || []
+          //   return (
+          //     groupItems.filter((n) => countHave(n) > 0).length >=
+          //     need
+          //   )
+          // }
           case "And":
-            return (
-              rule.rules ||
-              rule.sub_rules ||
-              rule.children ||
-              []
-            ).every((r) => evalRule(r, ctx))
+            return rule.children.every((r) => evalRule(r, ctx))
           case "Or":
-            return (
-              rule.rules ||
-              rule.sub_rules ||
-              rule.children ||
-              []
-            ).some((r) => evalRule(r, ctx))
-          case "AtLeast": {
-            const need = rule.count ?? 1
-            const subs =
-              rule.rules || rule.sub_rules || rule.children || []
-            return subs.filter((r) => evalRule(r, ctx)).length >= need
-          }
-          case "Filtered":
-          case "WrapperRule":
-            return evalRule(
-              rule.rule || rule.wrapped || rule.sub_rule,
-              ctx,
-            )
-          case "CanReachRegion":
-            return reach.regions.has(rule.region_name || rule.name)
-          case "CanReachLocation":
-            return reach.locations.has(
-              rule.location_name || rule.name,
-            )
-          case "CanReachEntrance":
-            return reach.entrances.has(
-              rule.entrance_name || rule.name,
-            )
+            return rule.children.some((r) => evalRule(r, ctx))
+          // case "AtLeast": {
+          //   debugger
+          //   const need = rule.count ?? 1
+          //   const subs =
+          //     rule.rules || rule.sub_rules || rule.children || []
+          //   return subs.filter((r) => evalRule(r, ctx)).length >= need
+          // }
+          // case "Filtered":
+          // case "WrapperRule":
+          //   debugger
+          //   return evalRule(
+          //     rule.rule || rule.wrapped || rule.sub_rule,
+          //     ctx,
+          //   )
+          // case "CanReachRegion":
+          //   debugger
+          //   return reach.regions.has(rule.region_name || rule.name)
+          // case "CanReachLocation":
+          //   debugger
+          //   return reach.locations.has(
+          //     rule.location_name || rule.name,
+          //   )
+          // case "CanReachEntrance":
+          //   debugger
+          //   return reach.entrances.has(
+          //     rule.entrance_name || rule.name,
+          //   )
           default:
-            if (warnOnce) warnOnce(t || JSON.stringify(rule))
+            if (warnOnce) warnOnce(t, JSON.stringify(rule))
             return true // permissive fallback for unrecognized/unserializable rule shapes
         }
       }
@@ -1685,6 +1681,17 @@
         renderNodes()
         renderEdges()
         applySearchFilter() // also schedules a redraw
+        // Keep the requirements popup's ownership colors in sync when
+        // inventory changes without the pointer moving (e.g. clicking an
+        // item checkbox while still hovering a check).
+        if (hoveredCheck) {
+          if (graph.locations[hoveredCheck.lname]) {
+            renderCheckHoverPopup(hoveredCheck.lname)
+          } else {
+            hoveredCheck = null
+            hideCheckHoverPopup()
+          }
+        }
       }
 
       // ------------------------------------------------------------
@@ -2182,6 +2189,94 @@
         return found
       }
 
+      // Which location row (if any) sits under this world point, drilling
+      // into the topmost node the same way findNodeAtWorldPoint does, then
+      // mapping the y offset within its body to a row index.
+      function findRowAtWorldPoint(wx, wy) {
+        const rname = findNodeAtWorldPoint(wx, wy)
+        if (!rname) return null
+        const pos = positions[rname]
+        const layout = nodeLayouts[rname]
+        if (!pos || !layout) return null
+        const bodyTop = pos.y + NODE_HEADER_H + NODE_BODY_PAD / 2
+        if (wy < bodyTop) return null
+        const idx = Math.floor((wy - bodyTop) / NODE_ROW_H)
+        const row = layout.rows[idx]
+        return row ? { rname, lname: row.lname } : null
+      }
+
+      // Same shape as app.js's ownedCounts(rt) (received items plus
+      // anything auto-granted by reachable events), built from this map's
+      // own inventory/eventInventory globals instead of a live slot's
+      // runtime, so the hover popup can reuse app.js's ruleToGroups/
+      // tokenOwned/tokenVerifiable exactly as they are.
+      function mapOwnedCounts() {
+        const out = { ...inventory }
+        for (const [name, count] of Object.entries(eventInventory)) {
+          out[name] = (out[name] || 0) + count
+        }
+        return out
+      }
+
+      // Same pill look as app.js's itemChip, but colored by whether the
+      // token is currently owned -- labels in parens ("(no requirements)")
+      // and unverifiable tokens (reach:/N of:) fall back to a neutral color
+      // since ownership can't be determined for them from counts alone.
+      function hoverChip(token, ownedCounts) {
+        let cls = "unknown"
+        if (!token.startsWith("(") && tokenVerifiable(token)) {
+          cls = tokenOwned(token, ownedCounts) ? "have" : "missing"
+        }
+        return newelem("span", { class: `check-hover-chip ${cls}` }, [
+          token,
+        ])
+      }
+
+      function renderCheckHoverPopup(lname) {
+        const linfo = graph.locations[lname]
+        if (!linfo) return
+        const groups = ruleToGroups(linfo.rule)
+        const counts = mapOwnedCounts()
+        const body = [
+          newelem("div", { class: "check-hover-title" }, [lname]),
+        ]
+        if (groups.length === 0) {
+          body.push(
+            newelem("div", { class: "check-hover-group" }, [
+              hoverChip("(unreachable)", counts),
+            ]),
+          )
+        } else {
+          groups.forEach((group, idx) => {
+            const groupRow = newelem(
+              "div",
+              { class: "check-hover-group" },
+              [
+                newelem("span", { class: "check-hover-label" }, [
+                  idx === 0 ? "via:" : "or:",
+                ]),
+              ],
+            )
+            if (group.length === 0) {
+              groupRow.appendChild(
+                hoverChip("(no requirements)", counts),
+              )
+            } else {
+              group.forEach((tok) =>
+                groupRow.appendChild(hoverChip(tok, counts)),
+              )
+            }
+            body.push(groupRow)
+          })
+        }
+        els.checkHoverPopup.replaceChildren(...body)
+        els.checkHoverPopup.classList.add("visible")
+      }
+
+      function hideCheckHoverPopup() {
+        els.checkHoverPopup.classList.remove("visible")
+      }
+
       function setupPanZoom() {
         let panning = false,
           dragging = false,
@@ -2233,7 +2328,26 @@
 
         let moveRAF = null
         els.canvas.addEventListener("pointermove", (ev) => {
-          if (!panning && !dragging) return
+          if (!panning && !dragging) {
+            const world = screenToWorld(ev.clientX, ev.clientY)
+            const hit =
+              graph ? findRowAtWorldPoint(world.x, world.y) : null
+            const changed =
+              (hit ? hit.lname : null) !==
+                (hoveredCheck ? hoveredCheck.lname : null) ||
+              (hit ? hit.rname : null) !==
+                (hoveredCheck ? hoveredCheck.rname : null)
+            if (changed) {
+              hoveredCheck = hit
+              if (hit) renderCheckHoverPopup(hit.lname)
+              else hideCheckHoverPopup()
+            }
+            return
+          }
+          if (hoveredCheck) {
+            hoveredCheck = null
+            hideCheckHoverPopup()
+          }
           if (dragging) {
             const dx = (ev.clientX - sx) / view.scale
             const dy = (ev.clientY - sy) / view.scale
@@ -2266,6 +2380,10 @@
           stopInteraction()
         })
         els.canvas.addEventListener("pointercancel", stopInteraction)
+        els.canvas.addEventListener("pointerleave", () => {
+          hoveredCheck = null
+          hideCheckHoverPopup()
+        })
         els.canvas.addEventListener(
           "lostpointercapture",
           stopInteraction,

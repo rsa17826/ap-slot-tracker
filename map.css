@@ -421,6 +421,70 @@ svg#edges {
     }
   }
 }
+#checkHoverPopup {
+  position: absolute;
+  top: 50px;
+  right: 14px;
+  z-index: 6;
+  max-width: 320px;
+  max-height: 60vh;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+  pointer-events: none;
+  display: none;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  &.visible {
+    display: block;
+  }
+}
+.check-hover-title {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text);
+  margin-bottom: 6px;
+  word-break: break-word;
+}
+.check-hover-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-bottom: 2px;
+}
+.check-hover-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+.check-hover-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  margin: 2px 4px 2px 0;
+  white-space: nowrap;
+  &.have {
+    background: rgba(139, 123, 247, 0.12);
+    color: var(--accent);
+    border: 1px solid rgba(139, 123, 247, 0.35);
+  }
+  &.missing {
+    background: var(--danger-dim);
+    color: var(--danger);
+    border: 1px solid rgba(255, 77, 109, 0.35);
+  }
+  &.unknown {
+    background: rgba(107, 101, 128, 0.15);
+    color: var(--text-dim);
+    border: 1px solid var(--panel-border);
+  }
+}
 #emptyMsg {
   position: absolute;
   inset: 0;

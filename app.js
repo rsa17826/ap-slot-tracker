@@ -279,84 +279,60 @@ function ruleToGroups(rule) {
       return []
     case "Has":
       return [[itemToken(rule.item_name, rule.count)]]
-    // case "Resolved": {
-    //   if (rule.children !== undefined) {
-    //     return capGroups(
-    //       rule.children.flatMap((c) => ruleToGroups(c)),
-    //     )
-    //   }
-    //   if (rule.item_name !== undefined) {
-    //     return [[itemToken(rule.item_name, rule.count)]]
-    //   }
-    //   const names = rule.item_names || rule.items || []
-    //   if (rule.count !== undefined) {
-    //     return [[`${rule.count} of: ${names.join(", ")}`]]
-    //   }
-    //   return [names.map((n) => itemToken(n))]
-    // }
     case "HasAll":
-      return [
-        (rule.item_names || rule.items || []).map((n) =>
-          itemToken(n),
-        ),
-      ]
+      return [rule.item_names.map((n) => itemToken(n))]
     case "HasAny":
-      return capGroups(
-        (rule.item_names || rule.items || []).map((n) => [
-          itemToken(n),
-        ]),
-      )
+      return capGroups(rule.item_names.map((n) => [itemToken(n)]))
     case "HasAllCounts": {
-      const counts = rule.item_counts || rule.counts || {}
-      return [Object.entries(counts).map(([n, c]) => itemToken(n, c))]
+      return [rule.item_counts.map(([n, c]) => itemToken(n, c))]
     }
     case "HasAnyCount": {
-      const need = rule.count ?? 1
       return capGroups(
-        (rule.item_names || rule.items || []).map((n) => [
-          itemToken(n, need),
+        rule.item_names.map(([name, need]) => [
+          itemToken(name, need),
         ]),
       )
     }
-    case "HasFromList":
-    case "HasFromListUnique": {
-      const need = rule.count ?? 1
-      const names = rule.item_names || rule.items || []
-      return [[`${need} of: ${names.join(", ")}`]]
-    }
-    case "HasGroup":
-    case "HasGroupUnique": {
-      const need = rule.count ?? 1
-      const groupItems = rule.items || rule.group_items || []
-      return [[`${need} of: ${groupItems.join(", ")}`]]
-    }
+    // case "HasFromList":
+    // case "HasFromListUnique": {
+    //   debugger
+    //   const need = rule.count ?? 1
+    //   const names = rule.item_names || rule.items || []
+    //   return [[`${need} of: ${names.join(", ")}`]]
+    // }
+    // case "HasGroup":
+    // case "HasGroupUnique": {
+    //   debugger
+    //   const need = rule.count ?? 1
+    //   const groupItems = rule.items || rule.group_items || []
+    //   return [[`${need} of: ${groupItems.join(", ")}`]]
+    // }
     case "And": {
-      const subs = rule.rules || rule.sub_rules || rule.children || []
       return capGroups(
-        subs.reduce(
+        rule.children.reduce(
           (acc, r) => mergeGroups(acc, ruleToGroups(r)),
           [[]],
         ),
       )
     }
     case "Or": {
-      const subs = rule.rules || rule.sub_rules || rule.children || []
-      return capGroups(subs.flatMap((r) => ruleToGroups(r)))
+      return capGroups(rule.children.flatMap((r) => ruleToGroups(r)))
     }
-    case "AtLeast": {
-      const need = rule.count ?? 1
-      const subs = rule.rules || rule.sub_rules || rule.children || []
-      return [
-        [
-          `${need} of: ${subs
-            .map((r) => ruleToGroups(r)[0]?.join("+") ?? "?")
-            .join(", ")}`,
-        ],
-      ]
-    }
-    case "Filtered":
-    case "WrapperRule":
-      return ruleToGroups(rule.rule || rule.wrapped || rule.sub_rule)
+    // case "AtLeast": {
+    //   debugger
+    //   const need = rule.count ?? 1
+    //   const subs = rule.rules || rule.sub_rules || rule.children || []
+    //   return [
+    //     [
+    //       `${need} of: ${subs
+    //         .map((r) => ruleToGroups(r)[0]?.join("+") ?? "?")
+    //         .join(", ")}`,
+    //     ],
+    //   ]
+    // }
+    // case "Filtered":
+    // case "WrapperRule":
+    //   return ruleToGroups(rule.rule || rule.wrapped || rule.sub_rule)
     case "CanReachRegion":
       return [[`reach: ${rule.region_name || rule.name}`]]
     case "CanReachLocation":
