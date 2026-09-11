@@ -2335,9 +2335,10 @@
           if (ev.button === 2) {
             panning = true
             els.canvasWrap.classList.add("panning")
-            if (document.pointerLockElement !== els.canvas) {
-              els.canvas.requestPointerLock().catch(() => {})
-            }
+            // TODO find way to warp pointer when exiting the canvas - this doesn't work because pointer is in wrong location when exiting pan and is bad because can't see pointer when panning
+            // if (document.pointerLockElement !== els.canvas) {
+            //   els.canvas.requestPointerLock().catch(() => {})
+            // }
           }
 
           sx = ev.clientX
