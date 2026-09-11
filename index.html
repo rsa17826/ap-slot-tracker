@@ -13,10 +13,10 @@
     <link rel="stylesheet" href="style.css" />
     <link rel="stylesheet" href="./map.css" />
     <!-- NOTE disable on push -->
-    <!-- <meta
+    <meta
       http-equiv="Content-Security-Policy"
       content="connect-src 'self' http://localhost:* https://localhost:* http://*.localhost:* https://*.localhost:* ws://localhost:* wss://localhost:* ws://*.localhost:* wss://*.localhost:*"
-    /> -->
+    />
   </head>
   <body>
     <script>
@@ -2290,6 +2290,7 @@
       }
 
       function setupPanZoom() {
+        let moveRAF = null
         let panning = false,
           dragging = false,
           draggingRegion = null,
@@ -2318,72 +2319,62 @@
           document.body.style.userSelect = ""
         }
 
-        els.canvas.addEventListener("pointerdown", (ev) => {
-          if (ev.target.closest("button")) return
+        els.canvas.addEventListener("mousedown", (ev) => {
           const world = screenToWorld(ev.clientX, ev.clientY)
-          const hit =
-            ev.button !== 2 && !dragging ?
-              findNodeAtWorldPoint(world.x, world.y)
-            : null
-          if (hit) {
-            dragging = true
-            draggingRegion = hit
-            const pos = positions[hit] || { x: 0, y: 0 }
-            grabOffset = { x: pos.x - world.x, y: pos.y - world.y }
-          } else if (!panning) {
+
+          if (ev.button === 0 && !dragging) {
+            const hit = findNodeAtWorldPoint(world.x, world.y)
+            if (hit) {
+              dragging = true
+              draggingRegion = hit
+              const pos = positions[hit] || { x: 0, y: 0 }
+              grabOffset = { x: pos.x - world.x, y: pos.y - world.y }
+            }
+          }
+
+          if (ev.button === 2) {
             panning = true
             els.canvasWrap.classList.add("panning")
-            try {
-              els.canvas.requestPointerLock()
-            } catch (e) {}
+            if (document.pointerLockElement !== els.canvas) {
+              els.canvas.requestPointerLock().catch(() => {})
+            }
           }
-          try {
-            els.canvas.setPointerCapture(ev.pointerId)
-          } catch (e) {}
-          document.body.style.userSelect = "none"
+
           sx = ev.clientX
           sy = ev.clientY
           ev.preventDefault()
         })
+
         els.canvas.addEventListener("contextmenu", (ev) => {
           ev.preventDefault()
         })
 
-        let moveRAF = null
         els.canvas.addEventListener("pointermove", (ev) => {
-          if (!panning && !dragging) {
-            const world = screenToWorld(ev.clientX, ev.clientY)
-            const hit =
-              graph ? findRowAtWorldPoint(world.x, world.y) : null
-            const changed =
-              (hit ? hit.lname : null) !==
-                (hoveredCheck ? hoveredCheck.lname : null) ||
-              (hit ? hit.rname : null) !==
-                (hoveredCheck ? hoveredCheck.rname : null)
-            if (changed) {
-              hoveredCheck = hit
-              if (hit) renderCheckHoverPopup(hit.lname)
-              else hideCheckHoverPopup()
-            }
-            return
+          const isLeftDown = (ev.buttons & 1) !== 0
+          const isRightDown = (ev.buttons & 2) !== 0
+
+          if (!isLeftDown && !isRightDown) return
+
+          const isLocked = document.pointerLockElement === els.canvas
+          const dx = isLocked ? ev.movementX : ev.clientX - sx
+          const dy = isLocked ? ev.movementY : ev.clientY - sy
+
+          if (isRightDown || panning) {
+            view.x += dx
+            view.y += dy
           }
-          if (hoveredCheck) {
-            hoveredCheck = null
-            hideCheckHoverPopup()
-          }
-          if (panning) {
-            view.x += ev.movementX || ev.clientX - sx
-            view.y += ev.movementY || ev.clientY - sy
-          }
-          sx = ev.clientX
-          sy = ev.clientY
-          if (dragging) {
+
+          if (isLeftDown && dragging) {
             const world = screenToWorld(ev.clientX, ev.clientY)
             positions[draggingRegion] = {
               x: world.x + grabOffset.x,
               y: world.y + grabOffset.y,
             }
           }
+
+          sx = ev.clientX
+          sy = ev.clientY
+
           if (moveRAF === null) {
             moveRAF = requestAnimationFrame(() => {
               moveRAF = null
@@ -2391,17 +2382,28 @@
             })
           }
         })
-        els.canvas.addEventListener("pointerup", (ev) => {
-          if (ev.button === 0) stopDragging()
-          if (ev.button === 2) stopPanning()
-          if (ev.buttons === 0) {
-            try {
-              els.canvas.releasePointerCapture(ev.pointerId)
-            } catch (e) {}
-            document.body.style.userSelect = ""
+
+        els.canvas.addEventListener("mouseup", (ev) => {
+          if (ev.button === 0) {
+            dragging = false
+            draggingRegion = null
+          }
+          if (ev.button === 2) {
+            panning = false
+            els.canvasWrap.classList.remove("panning")
+            if (document.pointerLockElement) {
+              document.exitPointerLock()
+            }
           }
         })
-        els.canvas.addEventListener("pointercancel", stopInteraction)
+
+        els.canvas.addEventListener("pointercancel", () => {
+          dragging = false
+          draggingRegion = null
+          panning = false
+          els.canvasWrap.classList.remove("panning")
+          document.body.style.userSelect = ""
+        })
         els.canvas.addEventListener("pointerleave", () => {
           hoveredCheck = null
           hideCheckHoverPopup()
@@ -2410,7 +2412,23 @@
           "lostpointercapture",
           stopInteraction,
         )
-        window.addEventListener("pointerup", (ev) => {
+        window.addEventListener("mouseup", (ev) => {
+          const isLeftDown = (ev.buttons & 1) !== 0
+          const isRightDown = (ev.buttons & 2) !== 0
+
+          if (!isLeftDown) {
+            dragging = false
+            draggingRegion = null
+          }
+
+          if (!isRightDown) {
+            panning = false
+            els.canvasWrap.classList.remove("panning")
+          }
+
+          if (!isLeftDown && !isRightDown) {
+            document.body.style.userSelect = ""
+          }
           if (ev.button === 0) stopDragging()
           if (ev.button === 2) stopPanning()
           if (ev.buttons === 0) document.body.style.userSelect = ""
