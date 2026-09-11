@@ -337,7 +337,9 @@
         checkHoverPopup: document.getElementById("checkHoverPopup"),
         emptyMsg: document.getElementById("emptyMsg"),
         hideEventsChk: document.getElementById("hideEventsChk"),
-        hideEmptyNodesChk: document.getElementById("hideEmptyNodesChk"),
+        hideEmptyNodesChk: document.getElementById(
+          "hideEmptyNodesChk",
+        ),
         hideOOLChk: document.getElementById("hideOOLChk"),
         hideClearedChk: document.getElementById("hideClearedChk"),
         noTransitChk: document.getElementById("noTransitChk"),
@@ -745,7 +747,8 @@
       }
 
       function isRegionVisible(rname) {
-        if (hideEmptyNodes && hideOOL && !reach.regions.has(rname)) return false
+        if (hideEmptyNodes && hideOOL && !reach.regions.has(rname))
+          return false
         if (
           hideEmptyNodes &&
           (hideEvents || hideCleared || hideOOL) &&
@@ -2290,42 +2293,53 @@
         let panning = false,
           dragging = false,
           draggingRegion = null,
+          grabOffset = { x: 0, y: 0 },
           sx = 0,
           sy = 0
 
+        function stopDragging() {
+          if (!dragging) return
+          dragging = false
+          draggingRegion = null
+          saveLayout()
+        }
+        function stopPanning() {
+          if (!panning) return
+          panning = false
+          els.canvasWrap.classList.remove("panning")
+          if (document.pointerLockElement === els.canvas) {
+            document.exitPointerLock()
+          }
+          saveLayout()
+        }
         function stopInteraction() {
-          if (dragging) {
-            dragging = false
-            draggingRegion = null
-            document.body.style.userSelect = ""
-            saveLayout()
-          }
-          if (panning) {
-            panning = false
-            els.canvasWrap.classList.remove("panning")
-            document.body.style.userSelect = ""
-            saveLayout()
-          }
+          stopDragging()
+          stopPanning()
+          document.body.style.userSelect = ""
         }
 
         els.canvas.addEventListener("pointerdown", (ev) => {
           if (ev.target.closest("button")) return
           const world = screenToWorld(ev.clientX, ev.clientY)
           const hit =
-            ev.button !== 2 ?
+            ev.button !== 2 && !dragging ?
               findNodeAtWorldPoint(world.x, world.y)
             : null
           if (hit) {
             dragging = true
             draggingRegion = hit
-          } else {
-            if (ev.button === 2) {
-              // right-click always pans, even over a node
-            }
+            const pos = positions[hit] || { x: 0, y: 0 }
+            grabOffset = { x: pos.x - world.x, y: pos.y - world.y }
+          } else if (!panning) {
             panning = true
             els.canvasWrap.classList.add("panning")
+            try {
+              els.canvas.requestPointerLock()
+            } catch (e) {}
           }
-          els.canvas.setPointerCapture(ev.pointerId)
+          try {
+            els.canvas.setPointerCapture(ev.pointerId)
+          } catch (e) {}
           document.body.style.userSelect = "none"
           sx = ev.clientX
           sy = ev.clientY
@@ -2357,24 +2371,19 @@
             hoveredCheck = null
             hideCheckHoverPopup()
           }
-          if (dragging) {
-            const dx = (ev.clientX - sx) / view.scale
-            const dy = (ev.clientY - sy) / view.scale
-            sx = ev.clientX
-            sy = ev.clientY
-            const pos = positions[draggingRegion] || { x: 0, y: 0 }
-            positions[draggingRegion] = {
-              x: pos.x + dx,
-              y: pos.y + dy,
-            }
-          } else {
-            view.x += ev.clientX - sx
-            view.y += ev.clientY - sy
-            sx = ev.clientX
-            sy = ev.clientY
+          if (panning) {
+            view.x += ev.movementX || ev.clientX - sx
+            view.y += ev.movementY || ev.clientY - sy
           }
-          // Coalesce to one draw per animation frame -- pointer events
-          // can fire faster than the display refreshes.
+          sx = ev.clientX
+          sy = ev.clientY
+          if (dragging) {
+            const world = screenToWorld(ev.clientX, ev.clientY)
+            positions[draggingRegion] = {
+              x: world.x + grabOffset.x,
+              y: world.y + grabOffset.y,
+            }
+          }
           if (moveRAF === null) {
             moveRAF = requestAnimationFrame(() => {
               moveRAF = null
@@ -2383,10 +2392,14 @@
           }
         })
         els.canvas.addEventListener("pointerup", (ev) => {
-          try {
-            els.canvas.releasePointerCapture(ev.pointerId)
-          } catch (e) {}
-          stopInteraction()
+          if (ev.button === 0) stopDragging()
+          if (ev.button === 2) stopPanning()
+          if (ev.buttons === 0) {
+            try {
+              els.canvas.releasePointerCapture(ev.pointerId)
+            } catch (e) {}
+            document.body.style.userSelect = ""
+          }
         })
         els.canvas.addEventListener("pointercancel", stopInteraction)
         els.canvas.addEventListener("pointerleave", () => {
@@ -2397,10 +2410,11 @@
           "lostpointercapture",
           stopInteraction,
         )
-        // Safety net: if the pointer is released anywhere outside the
-        // canvas (or capture is somehow lost), don't leave panning/
-        // dragging stuck.
-        window.addEventListener("pointerup", stopInteraction)
+        window.addEventListener("pointerup", (ev) => {
+          if (ev.button === 0) stopDragging()
+          if (ev.button === 2) stopPanning()
+          if (ev.buttons === 0) document.body.style.userSelect = ""
+        })
         window.addEventListener("blur", stopInteraction)
         els.canvas.addEventListener(
           "wheel",
@@ -2445,7 +2459,6 @@
             saveLayout()
           })
       }
-
       function zoomAt(clientX, clientY, delta) {
         const rect = els.canvasWrap.getBoundingClientRect()
         const localX = clientX - rect.left,
@@ -2718,14 +2731,11 @@
         if (window.db.progFolderHandle) {
           ;(async () => {
             try {
-              const dh = window.db.progFolderHandle
-              let perm = await dh.queryPermission({ mode: "read" })
-              if (perm !== "granted") {
-                perm = await dh.requestPermission({ mode: "read" })
-              }
-              if (perm === "granted") {
-                await scanProgFolder(dh)
-              }
+              a.getfileperms(window.db.progFolderHandle).then(
+                async (e) => {
+                  await scanProgFolder(window.db.progFolderHandle)
+                },
+              )
             } catch (e) {
               console.error("Could not rescan saved rules folder", e)
             }
