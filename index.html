@@ -154,6 +154,10 @@
             Hide event checks
           </label>
           <label class="toggle-row">
+            <input type="checkbox" id="hideEmptyNodesChk" />
+            Hide empty nodes
+          </label>
+          <label class="toggle-row">
             <input type="checkbox" id="hideOOLChk" />
             Hide out-of-logic checks
           </label>
@@ -299,6 +303,7 @@
       let edgeList = [] // [{from,to,traversable}] (rebuilt by renderEdges; drawn fresh onto canvas every frame)
       let view = { x: 0, y: 0, scale: 1 }
       let hideEvents = false
+      let hideEmptyNodes = false
       let hideOOL = false // hide nodes that are out-of-logic or fully collected already
       let hideCleared = false // hide nodes that are out-of-logic or fully collected already
       let noTransit = false
@@ -332,6 +337,7 @@
         checkHoverPopup: document.getElementById("checkHoverPopup"),
         emptyMsg: document.getElementById("emptyMsg"),
         hideEventsChk: document.getElementById("hideEventsChk"),
+        hideEmptyNodesChk: document.getElementById("hideEmptyNodesChk"),
         hideOOLChk: document.getElementById("hideOOLChk"),
         hideClearedChk: document.getElementById("hideClearedChk"),
         noTransitChk: document.getElementById("noTransitChk"),
@@ -652,7 +658,7 @@
           warnOnce,
         }
 
-        for (let iter = 0; iter < 20; iter++) {
+        for (let iter = 0; iter < 20000; iter++) {
           let changed = false
 
           for (const rname of regionNames) {
@@ -739,8 +745,9 @@
       }
 
       function isRegionVisible(rname) {
-        if (hideOOL && !reach.regions.has(rname)) return false
+        if (hideEmptyNodes && hideOOL && !reach.regions.has(rname)) return false
         if (
+          hideEmptyNodes &&
           (hideEvents || hideCleared || hideOOL) &&
           isRegionEmptyAfterFilters(rname)
         )
@@ -2174,7 +2181,9 @@
       // every frame.
       function findNodeAtWorldPoint(wx, wy) {
         let found = null
+        const q = searchQuery
         for (const rname in nodeLayouts) {
+          if (!regionMatchesSearch(rname, q)) continue // draw() skips these too -- keep hit-testing in sync
           const pos = positions[rname]
           const layout = nodeLayouts[rname]
           if (!pos) continue
@@ -2659,6 +2668,13 @@
         els.hideEventsChk.addEventListener("change", () => {
           hideEvents = els.hideEventsChk.checked
           db.hideEvents = hideEvents
+          render()
+        })
+        hideEmptyNodes = db.hideEmptyNodes ?? false
+        els.hideEmptyNodesChk.checked = hideEmptyNodes
+        els.hideEmptyNodesChk.addEventListener("change", () => {
+          hideEmptyNodes = els.hideEmptyNodesChk.checked
+          db.hideEmptyNodes = hideEmptyNodes
           render()
         })
         hideOOL = db.hideOOL ?? false
