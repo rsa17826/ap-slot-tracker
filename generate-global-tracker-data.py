@@ -1,4 +1,4 @@
-import sys, json, os, random
+import sys, json, os, random, shutil, zipfile, subprocess
 from argparse import Namespace
 
 if "AP_SOURCE_DIR" not in os.environ or not os.environ["AP_SOURCE_DIR"]:
@@ -12,6 +12,172 @@ else:
   TRACKER_FILE_OUT_DIR = os.environ["TRACKER_FILE_OUT_DIR"]
 
 sys.path.insert(0, os.environ["AP_SOURCE_DIR"])
+
+
+# --- Multi-world driver --------------------------------------------------
+# This script can be asked to generate more than one world in a single
+# invocation, e.g.:
+#   python generate-global-tracker-data.py Vex2 OtherGame --options foo True,False
+#   python generate-global-tracker-data.py ./my_custom_world --options ...
+#   python generate-global-tracker-data.py /path/to/thing.apworld path/to/other_world_dir
+#
+# World specs (the leading run of non-"--" args) can be:
+#   - a plain registered game name (used as-is, no filesystem changes)
+#   - a path to a .apworld file
+#   - a path to a world's source folder
+#
+# For path specs, the real AP_SOURCE_DIR/worlds folder is moved aside to
+# AP_SOURCE_DIR/_worlds, the single world from the path is extracted/copied
+# into a fresh worlds/ folder, generation runs against just that world, and
+# then worlds/ is torn down and the original restored from _worlds/. This
+# happens once per path spec, sequentially, so specs never interfere with
+# each other.
+#
+# Everything from the first "--" flag onward (e.g. --options/--profiles) is
+# forwarded unchanged to every per-world run.
+#
+# Actual generation for a single resolved game name happens in a subprocess
+# of this same script (with _TRACKER_GEN_INNER=1 set) so that each world
+# gets a clean Python process and a clean AutoWorldRegister - swapping the
+# worlds/ folder on disk has no effect on modules already imported into a
+# running process.
+INNER = os.environ.get("_TRACKER_GEN_INNER") == "1"
+
+
+def _is_path_spec(spec):
+  return os.sep in spec or spec.endswith(".apworld") or os.path.exists(spec)
+
+
+def _restore_worlds(worlds_dir, backup_dir):
+  if os.path.isdir(worlds_dir):
+    shutil.rmtree(worlds_dir)
+
+  os.rename(backup_dir, worlds_dir)
+
+
+def _detect_registered_game(worlds_dir):
+  """Imports just enough of AP, in THIS (driver) process, to register the
+  single world staged into worlds_dir, then returns its registered game
+  name. The actual generation for it still happens in a separate inner
+  subprocess, started after this returns."""
+  g = os.path.join(os.environ["AP_SOURCE_DIR"], "Generate.py")
+  with open(g, "r") as f:
+    text = f.read()
+
+  with open(g, "w") as f:
+    f.write(text.replace("ModuleUpdate.update()", ""))
+
+  try:
+    sys.path.insert(0, os.environ["AP_SOURCE_DIR"])
+    from worlds.AutoWorld import AutoWorldRegister
+
+  finally:
+    with open(g, "w") as f:
+      f.write(text)
+
+
+  names = list(AutoWorldRegister.world_types.keys())
+  if len(names) != 1:
+    print(f"[ERROR] expected exactly 1 registered game after staging '{worlds_dir}', found {len(names)}: {names}")
+    os._exit(1)
+
+  return names[0]
+
+
+def _stage_world_from_path(spec, worlds_dir, backup_dir):
+  """Backs up the real worlds/ dir to _worlds/, then populates worlds/ with
+  just the single world extracted/copied from `spec` (a .apworld file or a
+  world folder). Returns (game_name, cleanup) where cleanup() restores the
+  original worlds/ dir and removes the temporary one."""
+  if not os.path.exists(spec):
+    print(f"[ERROR] world path '{spec}' does not exist")
+    os._exit(1)
+
+  if os.path.exists(backup_dir):
+    print(f"[ERROR] {backup_dir} already exists - a previous run likely crashed before restoring it. Check whether {worlds_dir} or {backup_dir} currently holds your real worlds folder and resolve that by hand before running again.")
+    os._exit(1)
+
+  if not os.path.isdir(worlds_dir):
+    print(f"[ERROR] expected worlds dir at {worlds_dir}, not found")
+    os._exit(1)
+
+  os.rename(worlds_dir, backup_dir)
+  os.makedirs(worlds_dir)
+  shutil.copy(backup_dir + "/AutoWorld.py", worlds_dir + "/AutoWorld.py")
+  shutil.copy(backup_dir + "/Files.py", worlds_dir + "/Files.py")
+  shutil.copy(backup_dir + "/__init__.py", worlds_dir + "/__init__.py")
+  shutil.copy(backup_dir + "/LauncherComponents.py", worlds_dir + "/LauncherComponents.py")
+
+  if spec.endswith(".apworld"):
+    with zipfile.ZipFile(spec) as zf:
+      top_dirs = {n.split("/")[0] for n in zf.namelist() if "/" in n}
+      zf.extractall(worlds_dir)
+
+  else:
+    folder_name = os.path.basename(os.path.normpath(spec))
+    shutil.copytree(spec, os.path.join(worlds_dir, folder_name))
+    top_dirs = {folder_name}
+
+  if len(top_dirs) != 1:
+    _restore_worlds(worlds_dir, backup_dir)
+    print(f"[ERROR] '{spec}' produced {len(top_dirs)} top-level folder(s) ({sorted(top_dirs)}), expected exactly 1 - can't tell which world it is")
+    os._exit(1)
+
+  game_name = _detect_registered_game(worlds_dir)
+
+  def cleanup():
+    _restore_worlds(worlds_dir, backup_dir)
+
+  return game_name, cleanup
+
+
+def driver_main(argv):
+  specs = []
+  i = 0
+  while i < len(argv) and not argv[i].startswith("--"):
+    specs.append(argv[i])
+    i += 1
+
+  flag_args = argv[i:]
+
+  if not specs:
+    specs = ["Vex2"]
+
+  worlds_dir = os.path.join(os.environ["AP_SOURCE_DIR"], "worlds")
+  backup_dir = os.path.join(os.environ["AP_SOURCE_DIR"], "_worlds")
+
+  failures = []
+  for spec in specs:
+    if _is_path_spec(spec):
+      game_name, cleanup = _stage_world_from_path(spec, worlds_dir, backup_dir)
+
+    else:
+      game_name, cleanup = spec, None
+
+    try:
+      cmd = [sys.executable, os.path.abspath(__file__), game_name, *flag_args]
+      env = dict(os.environ)
+      env["_TRACKER_GEN_INNER"] = "1"
+      result = subprocess.run(cmd, env=env)
+      if result.returncode != 0:
+        failures.append(spec)
+
+
+    finally:
+      if cleanup is not None:
+        cleanup()
+
+
+
+  if failures:
+    print(f"\n[FAILED] the following spec(s) did not generate successfully: {', '.join(failures)}")
+    os._exit(1)
+
+  os._exit(0)
+
+
+if not INNER:
+  driver_main(sys.argv[1:])
 
 
 # --- CLI parsing -------------------------------------------------------

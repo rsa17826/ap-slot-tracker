@@ -763,6 +763,43 @@ function renderSlots() {
               return modeSelect
             })(),
             (() => {
+              // Only shown once more than one version of this slot's game
+              // has a rules file loaded -- otherwise there's nothing to
+              // choose between. Lets a slot switch which loaded ruleset
+              // (progKey) it tracks against after creation, e.g. once a
+              // re-rolled version's JSON has been uploaded.
+              const versionKeys = gamesWithProg().filter(
+                (k) => progGameName(k) === conn.game,
+              )
+              if (versionKeys.length <= 1) return null
+
+              const options = {}
+              for (const k of versionKeys)
+                options[`Version: v${progVersion(k) ?? "?"}`] = k
+
+              return newelem("select", {
+                title:
+                  "Which loaded ruleset (version) this slot's logic (map + notifications) should use",
+                options,
+                value: conn.progKey,
+                onchange() {
+                  const cc = window.db.connections[conn.id]
+                  if (!cc) return
+                  cc.progKey = this.value
+                  if (runtime[conn.id]) {
+                    maybeRecomputeProgression(conn, runtime[conn.id])
+                    ctAutoSync(conn)
+                  }
+                  if (db.currentMapConnId === conn.id) {
+                    if (appEl.classList.contains("visible"))
+                      openMapForSlot(cc)
+                    else syncFromSlot(cc)
+                  }
+                  renderSlots()
+                },
+              })
+            })(),
+            (() => {
               // Only shown once a rules file is loaded for this slot's game
               // AND that file actually has more than one settings profile
               // baked in -- otherwise there's nothing to choose between.
