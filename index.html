@@ -755,6 +755,7 @@
           isRegionEmptyAfterFilters(rname)
         )
           return false
+        if (!regionMatchesSearch(rname, searchQuery)) return false
         if (noTransit && isTransitRegion(rname)) return false
         return true
       }
@@ -784,13 +785,11 @@
       // couple of string comparisons per region), so a search keystroke
       // just needs to trigger a redraw.
       function applySearchFilter() {
-        const q = searchQuery
-
         els.itemList.querySelectorAll(".item-row").forEach((row) => {
           const isEvent = eventItemNames.has(row.dataset.name)
           const matchesSearch = row.dataset.name
             .toLowerCase()
-            .includes(q)
+            .includes(searchQuery)
           row.style.display =
             hideEvents && isEvent ? "none"
             : matchesSearch ? ""
@@ -2114,12 +2113,10 @@
         ctx.scale(view.scale, view.scale)
 
         const vp = visibleWorldRect()
-        const q = searchQuery
-
         for (const { from, to, traversable } of edgeList) {
           if (
-            !regionMatchesSearch(from, q) ||
-            !regionMatchesSearch(to, q)
+            !regionMatchesSearch(from, searchQuery) ||
+            !regionMatchesSearch(to, searchQuery)
           )
             continue
           const p1 = centerOf(from),
@@ -2141,7 +2138,7 @@
         }
 
         for (const rname in nodeLayouts) {
-          if (!regionMatchesSearch(rname, q)) continue
+          if (!regionMatchesSearch(rname, searchQuery)) continue
           const pos = positions[rname]
           const layout = nodeLayouts[rname]
           if (!pos) continue
@@ -2184,9 +2181,8 @@
       // every frame.
       function findNodeAtWorldPoint(wx, wy) {
         let found = null
-        const q = searchQuery
         for (const rname in nodeLayouts) {
-          if (!regionMatchesSearch(rname, q)) continue // draw() skips these too -- keep hit-testing in sync
+          if (!regionMatchesSearch(rname, searchQuery)) continue // draw() skips these too -- keep hit-testing in sync
           const pos = positions[rname]
           const layout = nodeLayouts[rname]
           if (!pos) continue
@@ -2354,7 +2350,25 @@
           const isLeftDown = (ev.buttons & 1) !== 0
           const isRightDown = (ev.buttons & 2) !== 0
 
-          if (!isLeftDown && !isRightDown) return
+          if (!isLeftDown && !isRightDown) {
+            if (!panning && !dragging) {
+              const world = screenToWorld(ev.clientX, ev.clientY)
+              const hit =
+                graph ? findRowAtWorldPoint(world.x, world.y) : null
+              const changed =
+                (hit ? hit.lname : null) !==
+                  (hoveredCheck ? hoveredCheck.lname : null) ||
+                (hit ? hit.rname : null) !==
+                  (hoveredCheck ? hoveredCheck.rname : null)
+              log(changed)
+              if (changed) {
+                hoveredCheck = hit
+                if (hit) renderCheckHoverPopup(hit.lname)
+                else hideCheckHoverPopup()
+              }
+            }
+            return
+          }
 
           const isLocked = document.pointerLockElement === els.canvas
           const dx = isLocked ? ev.movementX : ev.clientX - sx
