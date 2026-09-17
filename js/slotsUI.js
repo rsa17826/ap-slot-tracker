@@ -391,13 +391,9 @@ class SlotsUI {
                         status === "error" ||
                         !rt
                       ) {
-                        Connections.startConnection(
-                          conn,
-                        )
+                        Connections.startConnection(conn)
                       } else {
-                        Connections.stopConnection(
-                          conn.id,
-                        )
+                        Connections.stopConnection(conn.id)
                       }
                     },
                   },
@@ -412,9 +408,7 @@ class SlotsUI {
                   {
                     class: "danger",
                     onclick() {
-                      Connections.stopConnection(
-                        conn.id,
-                      )
+                      Connections.stopConnection(conn.id)
                       delete window.db.connections[conn.id]
                       SlotsUI.renderSlots()
                     },
