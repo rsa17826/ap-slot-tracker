@@ -1,5 +1,5 @@
 class SlotsUI {
-  // Renders the slot cards: connection status, obtainable-checks log, per-slot controls (Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.notify mode, ruleset/profile pickers, connect/disconnect), and the custom multi-version game picker widget used by the add-slot form.
+  // Renders the slot cards: connection status, obtainable-checks log, per-slot controls (Connections.notify mode, ruleset/profile pickers, connect/disconnect), and the custom multi-version game picker widget used by the add-slot form.
 
   // ---------------------------------------------------------------------
   // UI: connections panel
@@ -391,11 +391,11 @@ class SlotsUI {
                         status === "error" ||
                         !rt
                       ) {
-                        Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.startConnection(
+                        Connections.startConnection(
                           conn,
                         )
                       } else {
-                        Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.stopConnection(
+                        Connections.stopConnection(
                           conn.id,
                         )
                       }
@@ -412,7 +412,7 @@ class SlotsUI {
                   {
                     class: "danger",
                     onclick() {
-                      Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.stopConnection(
+                      Connections.stopConnection(
                         conn.id,
                       )
                       delete window.db.connections[conn.id]
