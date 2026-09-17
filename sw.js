@@ -1,5 +1,5 @@
 // prettier-ignore
-const ASSETS = ["/","/ctApi.js","/a.js","/apMulti.js","/app.js","/colors.css","/.foldericon.png","/favicon.ico","/indexeddbProxy.js","/manifest.json","/map.css","/newelem.js","/style.css",]
+const ASSETS = ["/","/js/CheeseTrackersClient.js", "/js/cheeseTrackers.js", "/js/connections.js", "/js/customLayout.js", "/js/dataLoading.js", "/js/interaction.js", "/js/launchUrlEditor.js", "/js/layout.js", "/js/main.js", "/js/mapEngine.js", "/js/persistence.js", "/js/progFilesUI.js", "/js/progKeys.js", "/js/reachability.js", "/js/render.js", "/js/requirementGroups.js", "/js/ruleEngine.js", "/js/slotsUI.js", "/js/slotSync.js", "/js/state.js"  ,"/a.js","/apMulti.js","/colors.css","/.foldericon.png","/favicon.ico","/indexeddbProxy.js","/manifest.json","/map.css","/newelem.js","/style.css",]
 // Install Service Worker and cache core assets
 self.addEventListener("install", (event) => {
   self.skipWaiting()
