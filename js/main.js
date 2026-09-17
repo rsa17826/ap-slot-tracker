@@ -177,7 +177,9 @@ State.els.search.addEventListener("keydown", (ev) => {
 document.addEventListener("keydown", (ev) => {
   if (ev.key !== "/") return
   if (ev.ctrlKey || ev.metaKey || ev.altKey) return
-  const active = document.activeElement
+  const active = /** @type {HTMLElement | null} */ (
+    document.activeElement
+  )
   const isEditable =
     active &&
     (active.tagName === "INPUT" ||
@@ -195,7 +197,9 @@ document.addEventListener("keydown", (ev) => {
   window.db.progFiles ??= {}
   window.db.ctApiKey ??= ""
   window.db.launchURLs ??= {}
-  const ctApiKeyInput = document.getElementById("ctApiKeyInput")
+  const ctApiKeyInput = /** @type {HTMLInputElement | null} */ (
+    document.getElementById("ctApiKeyInput")
+  )
   if (ctApiKeyInput) {
     ctApiKeyInput.value = window.db.ctApiKey || ""
     ctApiKeyInput.oninput = () => {
@@ -278,7 +282,7 @@ document.addEventListener("keydown", (ev) => {
   }
 })()
 ;(async () => {
-  await (navigator?.serviceWorker?.ready ?? new Promise())
+  await (navigator?.serviceWorker?.ready ?? new Promise(() => {}))
   // @ts-ignore
   document.querySelector("#swbtn").style.display = "none"
 })()
@@ -288,13 +292,22 @@ document.addEventListener("keydown", (ev) => {
 // ---------------------------------------------------------------------
 // Add-connection form
 // ---------------------------------------------------------------------
-// @ts-ignore
+/**
+ * @typedef {HTMLFormElement & {
+ *   game: HTMLInputElement,
+ *   hostname: HTMLInputElement,
+ *   port: HTMLInputElement,
+ *   playerName: HTMLInputElement,
+ *   password: HTMLInputElement,
+ * }} AddSlotForm
+ */
 document
   .getElementById("addSlotForm")
-  .addEventListener("submit", (e) => {
+  ?.addEventListener("submit", (e) => {
     e.preventDefault()
-    const f = e.target
+    const f = /** @type {AddSlotForm} */ (e.target)
     const progKey = f.game.value.trim()
+    /** @type {SlotConnection} */
     const conn = {
       autoUpdateCTStatus: true,
       id: Math.random().toString(36).slice(2, 10),

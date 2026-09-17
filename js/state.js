@@ -3,23 +3,23 @@
  * @property {HTMLElement} sidebar
  * @property {HTMLElement} itemList
  * @property {HTMLElement} status
- * @property {HTMLElement} search
- * @property {HTMLElement} canvas
+ * @property {HTMLInputElement} search
+ * @property {HTMLCanvasElement} canvas
  * @property {HTMLElement} canvasWrap
  * @property {HTMLElement} checkHoverPopup
  * @property {HTMLElement} emptyMsg
- * @property {HTMLElement} hideEventsChk
- * @property {HTMLElement} hideEmptyNodesChk
- * @property {HTMLElement} hideOOLChk
- * @property {HTMLElement} hideClearedChk
- * @property {HTMLElement} noTransitChk
- * @property {HTMLElement} showScoutsChk
+ * @property {HTMLInputElement} hideEventsChk
+ * @property {HTMLInputElement} hideEmptyNodesChk
+ * @property {HTMLInputElement} hideOOLChk
+ * @property {HTMLInputElement} hideClearedChk
+ * @property {HTMLInputElement} noTransitChk
+ * @property {HTMLInputElement} showScoutsChk
  * @property {HTMLElement} sortFnModal
- * @property {HTMLElement} sortFnEditor
+ * @property {HTMLTextAreaElement} sortFnEditor
  * @property {HTMLElement} sortFnError
  * @property {HTMLElement} sortFnGameLabel
  * @property {HTMLElement} launchURLModal
- * @property {HTMLElement} launchURLEditor
+ * @property {HTMLInputElement} launchURLEditor
  * @property {HTMLElement} launchURLError
  * @property {HTMLElement} launchURLGameLabel
  */
@@ -73,23 +73,43 @@ class State {
     sidebar: document.getElementById("sidebar"),
     itemList: document.getElementById("itemList"),
     status: document.getElementById("status"),
-    search: document.getElementById("search"),
-    canvas: document.getElementById("mapCanvas"),
+    search: /** @type {HTMLInputElement} */ (
+      document.getElementById("search")
+    ),
+    canvas: /** @type {HTMLCanvasElement} */ (
+      document.getElementById("mapCanvas")
+    ),
     canvasWrap: document.getElementById("canvasWrap"),
     checkHoverPopup: document.getElementById("checkHoverPopup"),
     emptyMsg: document.getElementById("emptyMsg"),
-    hideEventsChk: document.getElementById("hideEventsChk"),
-    hideEmptyNodesChk: document.getElementById("hideEmptyNodesChk"),
-    hideOOLChk: document.getElementById("hideOOLChk"),
-    hideClearedChk: document.getElementById("hideClearedChk"),
-    noTransitChk: document.getElementById("noTransitChk"),
-    showScoutsChk: document.getElementById("showScoutsChk"),
+    hideEventsChk: /** @type {HTMLInputElement} */ (
+      document.getElementById("hideEventsChk")
+    ),
+    hideEmptyNodesChk: /** @type {HTMLInputElement} */ (
+      document.getElementById("hideEmptyNodesChk")
+    ),
+    hideOOLChk: /** @type {HTMLInputElement} */ (
+      document.getElementById("hideOOLChk")
+    ),
+    hideClearedChk: /** @type {HTMLInputElement} */ (
+      document.getElementById("hideClearedChk")
+    ),
+    noTransitChk: /** @type {HTMLInputElement} */ (
+      document.getElementById("noTransitChk")
+    ),
+    showScoutsChk: /** @type {HTMLInputElement} */ (
+      document.getElementById("showScoutsChk")
+    ),
     sortFnModal: document.getElementById("sortFnModal"),
-    sortFnEditor: document.getElementById("sortFnEditor"),
+    sortFnEditor: /** @type {HTMLTextAreaElement} */ (
+      document.getElementById("sortFnEditor")
+    ),
     sortFnError: document.getElementById("sortFnError"),
     sortFnGameLabel: document.getElementById("sortFnGameLabel"),
     launchURLModal: document.getElementById("launchURLModal"),
-    launchURLEditor: document.getElementById("launchURLEditor"),
+    launchURLEditor: /** @type {HTMLInputElement} */ (
+      document.getElementById("launchURLEditor")
+    ),
     launchURLError: document.getElementById("launchURLError"),
     launchURLGameLabel: document.getElementById("launchURLGameLabel"),
   }

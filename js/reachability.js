@@ -152,7 +152,8 @@ class Reachability {
   static applySearchFilter() {
     State.els.itemList
       .querySelectorAll(".item-row")
-      .forEach((row) => {
+      .forEach((rowEl) => {
+        const row = /** @type {HTMLElement} */ (rowEl)
         const isEvent = State.eventItemNames.has(row.dataset.name)
         const matchesSearch = row.dataset.name
           .toLowerCase()

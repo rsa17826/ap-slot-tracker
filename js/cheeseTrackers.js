@@ -185,6 +185,7 @@ class CheeseTrackers {
               newelem("label", { class: "h" }, [
                 newelem("input", {
                   type: "checkbox",
+                  /** @this {HTMLInputElement} */
                   onchange() {
                     conn.autoUpdateCTStatus = this.checked
                   },

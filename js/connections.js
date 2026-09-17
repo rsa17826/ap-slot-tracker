@@ -55,7 +55,7 @@ class Connections {
           SlotSync.notifyMapOfSlotUpdate(conn)
         },
         onScoutedItems: () => {
-          syncFromSlot(conn)
+          SlotSync.syncFromSlot(conn)
         },
         onItems: (items) => {
           Connections.handleReceivedItems(conn, rt, items)

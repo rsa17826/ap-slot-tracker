@@ -289,7 +289,9 @@ class SlotsUI {
                 modeSelect.onchange = () => {
                   const cc = window.db.connections[conn.id]
                   if (!cc) return
-                  cc.notifyMode = modeSelect.value
+                  cc.notifyMode = /** @type {NotifyMode} */ (
+                    modeSelect.value
+                  )
                 }
                 return modeSelect
               })(),
@@ -428,6 +430,7 @@ class SlotsUI {
                       flexGrow: 0,
                       padding: 0,
                       margin: 0,
+                      /** @this {HTMLInputElement} */
                       onclick() {
                         conn.locationScoutsEnabled = this.checked
                         const client =
@@ -503,7 +506,7 @@ class SlotsUI {
 document.addEventListener("click", (e) => {
   const root = document.getElementById("gameSelect")
   if (!root || !root.classList.contains("open")) return
-  if (root.contains(e.target)) return
+  if (root.contains(/** @type {Node | null} */ (e.target))) return
   SlotsUI.gameSelectExpanded = null
   root.classList.remove("open")
   root.querySelector(".game-select-menu")?.remove()

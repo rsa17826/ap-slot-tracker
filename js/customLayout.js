@@ -102,7 +102,7 @@ class CustomLayout {
       src ??
       State.customSortFns[CustomLayout.gameKeyOf()] ??
       State.customSortFns[State.graph.game] ??
-      DEFAULT_SORT_FN_SRC
+      CustomLayout.DEFAULT_SORT_FN_SRC
     State.els.sortFnError.textContent = ""
     State.els.sortFnError.style.display = "none"
     State.els.sortFnModal.classList.add("visible")
@@ -126,7 +126,7 @@ class CustomLayout {
     if (!src) {
       // No saved function for this game yet -- open the editor so
       // the user can write one.
-      CustomLayout.openSortEditor(DEFAULT_SORT_FN_SRC)
+      CustomLayout.openSortEditor(CustomLayout.DEFAULT_SORT_FN_SRC)
       return
     }
     try {

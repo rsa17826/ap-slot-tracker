@@ -32,7 +32,8 @@ class Render {
   static syncItemListUI() {
     State.els.itemList
       .querySelectorAll(".item-row")
-      .forEach((row) => {
+      .forEach((rowEl) => {
+        const row = /** @type {HTMLElement} */ (rowEl)
         const name = row.dataset.name
         const isEvent = State.eventItemNames.has(name)
         const v =
@@ -43,7 +44,8 @@ class Render {
             )
           : State.inventory[name] || 0
         const maxCount = State.itemMaxCounts[name] ?? 1
-        row.querySelector(".count").textContent = v
+        const countEl = row.querySelector(".count")
+        if (countEl) countEl.textContent = String(v)
         row.classList.toggle("collected", v > 0)
         row.classList.toggle("maxed", maxCount > 1 && v >= maxCount)
       })
@@ -163,6 +165,13 @@ class Render {
   // Draws text truncated with an ellipsis to fit maxWidth, optionally
   // with a strikethrough (for checked locations) or right-aligned
   // (for the scouted-item label). Returns nothing -- draws directly.
+  /**
+   * @param {string} text
+   * @param {number} x
+   * @param {number} y
+   * @param {number} maxWidth
+   * @param {{ strike?: boolean, align?: CanvasTextAlign }} [opts]
+   */
   static drawFitText(
     text,
     x,
