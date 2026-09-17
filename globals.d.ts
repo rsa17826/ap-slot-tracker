@@ -71,6 +71,7 @@ declare global {
 
   type NotifyMode = "none" | "all" | "progression" | "both"
 
+  // { id: string | number; playerName: any; game: any; ct: { trackerId: any; gameId: any; lastKnownStatus: any; isBk: boolean; }; }
   interface SlotConnection {
     id: string
     hostname: string

@@ -306,6 +306,7 @@ class SlotsUI {
                 )
                 if (versionKeys.length <= 1) return null
 
+                /**@type {Record<string, *>} */
                 const options = {}
                 for (const k of versionKeys)
                   options[
@@ -352,6 +353,7 @@ class SlotsUI {
                   : []
                 if (profileNames.length <= 1) return null
 
+                /**@type {Record<string, *>} */
                 const options = {}
                 for (const n of profileNames)
                   options[`Profile: ${n}`] = n

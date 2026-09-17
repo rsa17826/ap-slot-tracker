@@ -8,6 +8,7 @@
  * etc). Instead we read the real values back from GET /tracker/{id} and let
  * the user pick which one means BK, once, when linking a slot.
  */
+// @ts-ignore
 class CheeseTrackersClient {
   static BASE =
     "https://cheesetrackers.theincrediblewheelofchee.se/api"
@@ -15,7 +16,10 @@ class CheeseTrackersClient {
   static BK_VALUE = "bk"
   static NONBK_VALUE = "unblocked"
 
-  /** Accepts a full tracker URL, "tracker/AAA", or a bare "AAA" id. */
+  /**
+   * Accepts a full tracker URL, "tracker/AAA", or a bare "AAA" id.
+   * @param {any} input
+   */
   static parseTrackerId(input) {
     const raw = (input || "").trim()
     if (!raw) return ""
@@ -29,15 +33,21 @@ class CheeseTrackersClient {
     }
   }
 
-  /** Best-effort auto-match of a tracker's games to an AP slot's player+game. */
+  /**
+   * Best-effort auto-match of a tracker's games to an AP slot's player+game.
+   * @param {any[]} games
+   * @param {string} playerName
+   * @param {string} apGameName
+   */
   static guessGame(games, playerName, apGameName) {
     const target = (playerName || "").trim().toLowerCase()
     if (!target) return null
-    const norm = (s) =>
+    const norm = (/** @type {any} */ s) =>
       (s || "").trim().toLowerCase().replace(/\s+/g, "")
 
     const nameMatches = games.filter(
-      (g) => (g.name || "").trim().toLowerCase() === target,
+      (/** @type {{ name: any; }} */ g) =>
+        (g.name || "").trim().toLowerCase() === target,
     )
     if (nameMatches.length <= 1) return nameMatches[0] || null
 
@@ -45,8 +55,10 @@ class CheeseTrackersClient {
     // different tracked rooms) — narrow down using the AP game name too.
     const gameTarget = norm(apGameName)
     return (
-      nameMatches.find((g) => norm(g.game) === gameTarget) ||
-      nameMatches[0]
+      nameMatches.find(
+        (/** @type {{ game: any; }} */ g) =>
+          norm(g.game) === gameTarget,
+      ) || nameMatches[0]
     )
   }
 
@@ -60,6 +72,8 @@ class CheeseTrackersClient {
    * object on every PUT, and requires the claim fields (claimed_by_ct_user_id
    * / discord_username) to stay untouched unless an x-if-owner-is precondition
    * is sent — so we always echo them back unchanged here.
+   * @param {{ claimed_by_ct_user_id: any; discord_username: any; discord_ping: any; availability_status: any; completion_status: any; notes: any; id: any; tracker_id: any; position: any; name: any; game: any; tracker_status: any; checks_done: any; checks_total: any; last_activity: any; effective_discord_username: any; user_is_away: any; }} game
+   * @param {string} newProgressionStatus
    */
   static buildUpdatePayload(game, newProgressionStatus) {
     return {
@@ -95,6 +109,10 @@ class CheeseTrackersClient {
     this.apiKey = apiKey
   }
 
+  /**
+   * @param {string} path
+   */
+  // @ts-ignore
   async request(path, { method = "GET", body, headers } = {}) {
     // GM_xmlhttpRequest (via the globalrequest wrapper) runs outside the
     // page's fetch/XHR sandbox, so it isn't subject to CORS the way a normal
@@ -102,6 +120,7 @@ class CheeseTrackersClient {
     // CORS headers permitting cross-origin browser requests.
     let res
     try {
+      // @ts-ignore
       res = await globalrequest(
         `${CheeseTrackersClient.BASE}${path}`,
         {
@@ -138,15 +157,25 @@ class CheeseTrackersClient {
     }
   }
 
+  /**
+   * @param {string | number | boolean} trackerId
+   */
   getTracker(trackerId) {
     return this.request(`/tracker/${encodeURIComponent(trackerId)}`)
   }
 
+  /**
+   * @param {string | number | boolean} trackerId
+   * @param {any} gameId
+   * @param {{ claimed_by_ct_user_id: any; discord_username: any; discord_ping: any; availability_status: any; completion_status: any; progression_status: any; last_checked: string; notes: any; id: any; tracker_id: any; position: any; name: any; game: any; tracker_status: any; checks_done: any; checks_total: any; last_activity: any; effective_discord_username: any; user_is_away: any; $newnotes: string; }} gameUpdate
+   * @param {undefined} [ownerCondition]
+   */
   updateGame(trackerId, gameId, gameUpdate, ownerCondition) {
     return this.request(
       `/tracker/${encodeURIComponent(trackerId)}/game/${gameId}`,
       {
         method: "PUT",
+        // @ts-ignore
         body: gameUpdate,
         headers:
           ownerCondition ?
@@ -160,6 +189,8 @@ class CheeseTrackersClient {
    * Sets or clears BK for a linked slot. Refetches the tracker first so we
    * both avoid clobbering a status someone else set in the meantime, and know
    * the exact prior value to restore when clearing BK.
+   * @param {SlotConnection} conn
+   * @param {boolean} toBk
    */
   async setBk(conn, toBk, shouldRefreshBkTimer = false) {
     const ct = conn.ct
@@ -173,7 +204,9 @@ class CheeseTrackersClient {
     }
 
     const tracker = await this.getTracker(ct.trackerId)
-    const game = tracker.games.find((g) => g.id === ct.gameId)
+    const game = tracker.games.find(
+      (/** @type {{ id: any; }} */ g) => g.id === ct.gameId,
+    )
     if (!game)
       throw new Error("That game no longer exists on the tracker")
 

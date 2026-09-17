@@ -15,6 +15,9 @@ class CheeseTrackers {
     return new CheeseTrackersClient(window.db?.ctApiKey)
   }
 
+  /**
+   * @param {string | number} connId
+   */
   static ctUi(connId) {
     return (CheeseTrackers.ctUiState[connId] ??= {
       trackerInput: "",
@@ -23,11 +26,17 @@ class CheeseTrackers {
     })
   }
 
+  /**
+   * @param {{ id: string | number; ct: CTLinkInfo; }} conn
+   */
   static ctSaveConn(conn) {
     const cc = window.db.connections[conn.id]
     if (cc) cc.ct = conn.ct
   }
 
+  /**
+   * @param {SlotConnection} conn
+   */
   static async ctDoLink(conn) {
     const ui = CheeseTrackers.ctUi(conn.id)
     const trackerId = CheeseTrackersClient.parseTrackerId(
@@ -71,6 +80,9 @@ class CheeseTrackers {
     }
   }
 
+  /**
+   * @param {SlotConnection} conn
+   */
   static ctUnlink(conn) {
     conn.ct = null
     CheeseTrackers.ctSaveConn(conn)
@@ -81,6 +93,9 @@ class CheeseTrackers {
   // Whether this slot currently has any obtainable-but-unchecked locations,
   // per its loaded rules graph. null means we can't tell (no graph loaded
   // yet), in which case BK can only be set manually.
+  /**
+   * @param {{ progKey: any; profile: any; id: string | number; }} conn
+   */
   static ctObtainableState(conn) {
     const graph = ProgKeys.progForGame(conn.progKey, conn.profile)
     const rt = Connections.runtime[conn.id]
@@ -89,6 +104,10 @@ class CheeseTrackers {
   }
 
   // Forces the linked slot's tracker status to the given BK state.
+  /**
+   * @param {SlotConnection} conn
+   * @param {boolean} toBk
+   */
   static async ctApplyStatus(
     conn,
     toBk,
@@ -123,6 +142,9 @@ class CheeseTrackers {
   // (items received or locations checked off). Silently re-syncs the
   // tracker's BK status to match the current logic state, if we can tell
   // what it should be and it's not already correct.
+  /**
+   * @param {SlotConnection} conn
+   */
   static ctAutoSync(conn) {
     if (!conn.ct) return
     if (!conn.autoUpdateCTStatus) return
@@ -133,6 +155,9 @@ class CheeseTrackers {
     CheeseTrackers.ctApplyStatus(conn, shouldBeBk, false)
   }
 
+  /**
+   * @param {SlotConnection} conn
+   */
   static ctPanelFor(conn) {
     const ui = CheeseTrackers.ctUi(conn.id)
 

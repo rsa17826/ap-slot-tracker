@@ -6,7 +6,7 @@ class Persistence {
     db.layout ??= {}
     var k = ProgKeys.progKeyFor(State.graph)
     if (!k) {
-      error(name, "not valid")
+      error("not valid", State.graph)
       return
     }
     db.layout[k] = State.positions

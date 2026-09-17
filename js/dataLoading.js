@@ -118,7 +118,11 @@ class DataLoading {
   // valid profile in this file, else the file's own default. Different
   // slots can be pointed at the same rules file (progKey) but ask for
   // different profiles here, independently of each other.
-  static resolvedProfileNameFor(raw, requestedProfile) {
+  /**
+   * @param {RulesGraph} raw
+   * @param {string|undefined} requestedProfile
+   */
+  static resolvedProfileNameFor(raw, requestedProfile = undefined) {
     const names = MapEngine.profileNamesOf(raw)
     if (names.length === 0) return null
     return names.includes(requestedProfile) ? requestedProfile : (
@@ -131,11 +135,15 @@ class DataLoading {
     )) {
       region.isTransit =
         region.locations.filter(
-          (e) => !State.eventItemNames.has(e),
+          (/** @type {any} */ e) => !State.eventItemNames.has(e),
         ) == 0
     }
   }
-  static loadGraph(raw, requestedProfile) {
+  /**
+   * @param {RulesGraph} raw
+   * @param {string?} requestedProfile
+   */
+  static loadGraph(raw, requestedProfile = undefined) {
     State.rawGraph = raw
     const profile = DataLoading.resolvedProfileNameFor(
       raw,
@@ -144,7 +152,7 @@ class DataLoading {
     State.graph = MapEngine.resolveProfile(raw, profile)
     const key = ProgKeys.progKeyFor(raw)
     if (!key) {
-      error(name, "not valid")
+      error(requestedProfile, "not valid")
       return
     }
     State.eventItemNames = DataLoading.collectEventItemNames()

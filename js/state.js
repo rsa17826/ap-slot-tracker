@@ -39,8 +39,12 @@ class State {
   static scoutOwnSlot = null // this slot's own AP slot number, for telling "your item" apart from other players'
   static scoutPlayerNames = {} // slot number -> player name, for labeling scouted items that belong to other players
   static scoutTrackedSlots = new Set() // slot numbers, on the same hostname:port as the synced slot, that also have an open/tracked connection -- used to star scouted items bound for a slot we're already tracking
+  /**@type {Record<string, { x: number; y: number; }>} */
   static positions = {} // regionName -> {x,y}
   static nodeLayouts = {} // regionName -> {w,h,reachable,rows:[...]} (rebuilt by Render.renderNodes; drawn fresh onto canvas every frame, not kept as DOM elements)
+  /**
+   * @type {{ from: string; to: any; traversable: any; }[]}
+   */
   static edgeList = [] // [{from,to,traversable}] (rebuilt by Render.renderEdges; drawn fresh onto canvas every frame)
   static view = { x: 0, y: 0, scale: 1 }
   static hideEvents = false
@@ -49,6 +53,7 @@ class State {
   static hideCleared = false // hide nodes that are out-of-logic or fully collected already
   static noTransit = false
   static searchQuery = "" // lowercase; filters both the inventory list and map nodes
+  /**@type {Record<string,string>} */
   static customSortFns = {} // gameKey -> function source (string)
   static reach = {
     regions: new Set(),
