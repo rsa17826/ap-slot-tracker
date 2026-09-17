@@ -3,3 +3,33 @@
 @replace
 
 @endregex
+
+! @file \,js$
+@regex (class (\w+(?!\w))[\s\S]+)^(async )?function \2\.
+@untilfail
+@replace $1static $3
+@endregex
+@endregex
+@endregex
+
+@regex (?<![\w\.])([A-Z]\w+)\.\1(?!\w)
+@replace $1
+@flags g
+@endregex
+
+@regex (static )(?<![\w\.])([A-Z]\w+)\.
+@replace $1
+@flags g
+@endregex
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,77 @@
+#!/usr/bin/env node
+"use strict"
+
+const fs = require("fs")
+const path = require("path")
+
+const target = process.argv[2]
+if (!target) {
+  throw new Error("usage: ./run <file.js>")
+}
+
+const targetPath = path.resolve(target)
+const content = fs.readFileSync(targetPath, "utf8")
+
+function toPascalCase(str) {
+  return str
+    .split(/[^a-zA-Z0-9]+/)
+    .filter(Boolean)
+    .map((word) => word[0].toUpperCase() + word.slice(1))
+    .join("")
+}
+
+const className = toPascalCase(
+  path.basename(target, path.extname(target)),
+)
+if (!className) {
+  throw new Error(
+    `could not derive a class name from filename: ${target}`,
+  )
+}
+
+// 1. collect top-level function names
+const names = [
+  ...content.matchAll(/^(?:async )?function (\w+)/gm),
+].map((m) => m[1])
+if (names.length === 0) {
+  throw new Error(
+    `no top-level "function name(...)" declarations found in ${target}`,
+  )
+}
+
+// 2. wrap the file in class Thing { ... }
+const wrapped = `class ${className} {\n${content}\n}\n`
+fs.writeFileSync(targetPath, wrapped)
+
+// 3. walk cwd for **/*.js (skip node_modules)
+function walk(dir, out) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === "node_modules" || entry.name === ".git")
+      continue
+    const full = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      walk(full, out)
+    } else if (entry.isFile() && entry.name.endsWith(".js")) {
+      out.push(full)
+    }
+  }
+  return out
+}
+
+const files = walk(process.cwd(), [])
+
+// 4. for each collected function name, replace bare references with Thing.name
+for (const name of names) {
+  const re = new RegExp(`(?<!\\w)${name}(?!\\w)`, "g")
+  for (const file of files) {
+    const src = fs.readFileSync(file, "utf8")
+    const replaced = src.replace(re, `${className}.${name}`)
+    if (replaced !== src) {
+      fs.writeFileSync(file, replaced)
+    }
+  }
+}
+
+console.log(
+  `wrapped ${target} in class ${className} and rewrote ${names.length} function name(s) across ${files.length} file(s): ${names.join(", ")}`,
+)
