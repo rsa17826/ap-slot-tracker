@@ -2,10 +2,10 @@ class Render {
   // Canvas rendering: draws nodes/edges/inventory list for the current graph, reach state, and view transform.
 
   static buildItemList(itemNames) {
-    els.itemList.replaceChildren(
+    State.els.itemList.replaceChildren(
       ...itemNames.map((name) => {
-        const maxCount = itemMaxCounts[name] ?? 1
-        const isEvent = eventItemNames.has(name)
+        const maxCount = State.itemMaxCounts[name] ?? 1
+        const isEvent = State.eventItemNames.has(name)
         return newelem(
           "div",
           {
@@ -30,18 +30,23 @@ class Render {
   }
 
   static syncItemListUI() {
-    els.itemList.querySelectorAll(".item-row").forEach((row) => {
-      const name = row.dataset.name
-      const isEvent = eventItemNames.has(name)
-      const v =
-        isEvent ?
-          Math.max(inventory[name] || 0, eventInventory[name] || 0)
-        : inventory[name] || 0
-      const maxCount = itemMaxCounts[name] ?? 1
-      row.querySelector(".count").textContent = v
-      row.classList.toggle("collected", v > 0)
-      row.classList.toggle("maxed", maxCount > 1 && v >= maxCount)
-    })
+    State.els.itemList
+      .querySelectorAll(".item-row")
+      .forEach((row) => {
+        const name = row.dataset.name
+        const isEvent = State.eventItemNames.has(name)
+        const v =
+          isEvent ?
+            Math.max(
+              State.inventory[name] || 0,
+              State.eventInventory[name] || 0,
+            )
+          : State.inventory[name] || 0
+        const maxCount = State.itemMaxCounts[name] ?? 1
+        row.querySelector(".count").textContent = v
+        row.classList.toggle("collected", v > 0)
+        row.classList.toggle("maxed", maxCount > 1 && v >= maxCount)
+      })
   }
 
   static onInventoryChange() {
@@ -49,7 +54,7 @@ class Render {
   }
 
   static render() {
-    if (!graph) return
+    if (!State.graph) return
     Reachability.computeReachability()
     Render.syncItemListUI()
     Render.renderNodes()
@@ -58,11 +63,11 @@ class Render {
     // Keep the requirements popup's ownership colors in sync when
     // inventory changes without the pointer moving (e.g. clicking an
     // item checkbox while still hovering a check).
-    if (hoveredCheck) {
-      if (graph.locations[hoveredCheck.lname]) {
-        Interaction.renderCheckHoverPopup(hoveredCheck.lname)
+    if (State.hoveredCheck) {
+      if (State.graph.locations[State.hoveredCheck.lname]) {
+        Interaction.renderCheckHoverPopup(State.hoveredCheck.lname)
       } else {
-        hoveredCheck = null
+        State.hoveredCheck = null
         Interaction.hideCheckHoverPopup()
       }
     }
@@ -91,7 +96,7 @@ class Render {
   // (nodeLayouts/edgeList), not DOM. Render.draw() is the only thing that
   // runs every frame, and it's cheap: iterate + cull + drawing calls.
   // ------------------------------------------------------------
-  static ctx = els.canvas.getContext("2d")
+  static ctx = State.els.canvas.getContext("2d")
   static drawScheduled = false
 
   static scheduleDraw() {
@@ -104,16 +109,19 @@ class Render {
   }
 
   static resizeCanvas() {
-    const rect = els.canvasWrap.getBoundingClientRect()
+    const rect = State.els.canvasWrap.getBoundingClientRect()
     const dpr = window.devicePixelRatio || 1
     const w = Math.max(1, Math.round(rect.width * dpr))
     const h = Math.max(1, Math.round(rect.height * dpr))
-    if (els.canvas.width !== w || els.canvas.height !== h) {
-      els.canvas.width = w
-      els.canvas.height = h
+    if (
+      State.els.canvas.width !== w ||
+      State.els.canvas.height !== h
+    ) {
+      State.els.canvas.width = w
+      State.els.canvas.height = h
     }
-    els.canvas.style.width = rect.width + "px"
-    els.canvas.style.height = rect.height + "px"
+    State.els.canvas.style.width = rect.width + "px"
+    State.els.canvas.style.height = rect.height + "px"
     return { rect, dpr }
   }
 
@@ -190,10 +198,10 @@ class Render {
   }
 
   static renderNodes() {
-    nodeLayouts = {}
-    for (const rname of Object.keys(graph.regions)) {
+    State.nodeLayouts = {}
+    for (const rname of Object.keys(State.graph.regions)) {
       if (!Reachability.isRegionVisible(rname)) continue
-      nodeLayouts[rname] = Layout.computeNodeLayout(rname)
+      State.nodeLayouts[rname] = Layout.computeNodeLayout(rname)
     }
     Render.scheduleDraw()
   }
@@ -224,13 +232,16 @@ class Render {
       while (stack.length) {
         const target = stack.pop()
         if (seen.has(target)) continue
-        if (noTransit && Reachability.isTransitRegion(target)) {
+        if (State.noTransit && Reachability.isTransitRegion(target)) {
           seen.add(target)
-          const tregion = graph.regions[target]
+          const tregion = State.graph.regions[target]
           for (const nextExit of tregion.exits || []) {
-            const ninfo = graph.entrances[nextExit]
+            const ninfo = State.graph.entrances[nextExit]
             if (!ninfo || !ninfo.connects_to) continue
-            if (wantTraversable && !reach.entrances.has(nextExit))
+            if (
+              wantTraversable &&
+              !State.reach.entrances.has(nextExit)
+            )
               continue // this branch stays non-traversable; leave it for the second pass
             stack.push(ninfo.connects_to)
           }
@@ -256,21 +267,25 @@ class Render {
   }
 
   static renderEdges() {
-    edgeList = []
-    for (const [rname, region] of Object.entries(graph.regions)) {
-      if (!nodeLayouts[rname]) continue // skip hidden (focus-mode/transit) source nodes
+    State.edgeList = []
+    for (const [rname, region] of Object.entries(
+      State.graph.regions,
+    )) {
+      if (!State.nodeLayouts[rname]) continue // skip hidden (focus-mode/transit) source nodes
       for (const exitName of region.exits || []) {
-        const einfo = graph.entrances[exitName]
+        const einfo = State.graph.entrances[exitName]
         if (!einfo || !einfo.connects_to) continue
         const targets = Render.resolveEdgeTargets(
           einfo.connects_to,
-          reach.entrances.has(exitName),
+          State.reach.entrances.has(exitName),
           new Set([rname]),
         )
         for (const { to, traversable } of targets) {
-          if (!positions[rname] || !positions[to]) continue
-          if (!nodeLayouts[rname] || !nodeLayouts[to]) continue // skip edges touching a hidden (focus-mode) node
-          edgeList.push({ from: rname, to, traversable })
+          if (!State.positions[rname] || !State.positions[to])
+            continue
+          if (!State.nodeLayouts[rname] || !State.nodeLayouts[to])
+            continue // skip edges touching a hidden (focus-mode) node
+          State.edgeList.push({ from: rname, to, traversable })
         }
       }
     }
@@ -278,7 +293,9 @@ class Render {
   }
 
   static findRegionForEntrance(ename) {
-    for (const [rname, region] of Object.entries(graph.regions)) {
+    for (const [rname, region] of Object.entries(
+      State.graph.regions,
+    )) {
       if ((region.exits || []).includes(ename)) return rname
     }
     return null
@@ -289,8 +306,8 @@ class Render {
   // (nodeLayouts), else falls back to the same deterministic formula
   // -- there's no DOM element to measure any more either way.
   static centerOf(rname) {
-    const pos = positions[rname] || { x: 0, y: 0 }
-    const layout = nodeLayouts[rname]
+    const pos = State.positions[rname] || { x: 0, y: 0 }
+    const layout = State.nodeLayouts[rname]
     const size =
       layout ?
         { w: layout.w, h: layout.h }
@@ -323,12 +340,12 @@ class Render {
   // so nodes/edges just outside the edge of the viewport are drawn
   // too (avoids a visible pop-in strip while panning).
   static visibleWorldRect(marginPx = 150) {
-    const rect = els.canvasWrap.getBoundingClientRect()
+    const rect = State.els.canvasWrap.getBoundingClientRect()
     return {
-      x0: (-view.x - marginPx) / view.scale,
-      y0: (-view.y - marginPx) / view.scale,
-      x1: (-view.x + rect.width + marginPx) / view.scale,
-      y1: (-view.y + rect.height + marginPx) / view.scale,
+      x0: (-State.view.x - marginPx) / State.view.scale,
+      y0: (-State.view.y - marginPx) / State.view.scale,
+      x1: (-State.view.x + rect.width + marginPx) / State.view.scale,
+      y1: (-State.view.y + rect.height + marginPx) / State.view.scale,
     }
   }
 
@@ -374,18 +391,18 @@ class Render {
       Render.roundRectPath(x, y, w, h, 10)
       Render.ctx.clip()
       Render.ctx.fillStyle = "rgba(94, 230, 180, 0.10)"
-      Render.ctx.fillRect(x, y, w, NODE_HEADER_H)
+      Render.ctx.fillRect(x, y, w, Layout.NODE_HEADER_H)
       Render.ctx.restore()
     }
 
     Render.ctx.beginPath()
-    Render.ctx.moveTo(x, y + NODE_HEADER_H)
-    Render.ctx.lineTo(x + w, y + NODE_HEADER_H)
+    Render.ctx.moveTo(x, y + Layout.NODE_HEADER_H)
+    Render.ctx.lineTo(x + w, y + Layout.NODE_HEADER_H)
     Render.ctx.strokeStyle = Render.COLORS.panelBorder
     Render.ctx.lineWidth = 1
     Render.ctx.stroke()
 
-    const headMidY = y + NODE_HEADER_H / 2
+    const headMidY = y + Layout.NODE_HEADER_H / 2
     Render.ctx.beginPath()
     Render.ctx.arc(x + 15, headMidY, 3.5, 0, Math.PI * 2)
     Render.ctx.fillStyle =
@@ -397,9 +414,9 @@ class Render {
     Render.ctx.fillStyle = Render.COLORS.text
     Render.drawFitText(rname, x + 27, headMidY, w - 37)
 
-    let rowY = y + NODE_HEADER_H + NODE_BODY_PAD / 2
+    let rowY = y + Layout.NODE_HEADER_H + Layout.NODE_BODY_PAD / 2
     for (const row of layout.rows) {
-      const cy = rowY + NODE_ROW_H / 2
+      const cy = rowY + Layout.NODE_ROW_H / 2
 
       let dotColor = Render.COLORS.textDim
       if (row.isReach) dotColor = Render.COLORS.accent
@@ -428,7 +445,7 @@ class Render {
         Render.ctx.fillStyle =
           row.scoutStar === "yellow" ? "#f5d33c" : "#4ade80"
         Render.ctx.textAlign = "right"
-        Render.ctx.fillText("★", x + w - ROW_RIGHT_PAD, cy)
+        Render.ctx.fillText("★", x + w - Layout.ROW_RIGHT_PAD, cy)
         Render.ctx.textAlign = "left"
       }
 
@@ -440,7 +457,10 @@ class Render {
           : Render.COLORS.textDim
         Render.drawFitText(
           row.scoutText,
-          x + w - ROW_RIGHT_PAD - (row.scoutStar ? ROW_STAR_W : 0),
+          x +
+            w -
+            Layout.ROW_RIGHT_PAD -
+            (row.scoutStar ? Layout.ROW_STAR_W : 0),
           cy,
           row.scoutAlloc,
           {
@@ -450,7 +470,7 @@ class Render {
         )
       }
 
-      rowY += NODE_ROW_H
+      rowY += Layout.NODE_ROW_H
     }
   }
 
@@ -458,17 +478,17 @@ class Render {
     const { rect, dpr } = Render.resizeCanvas()
     Render.ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     Render.ctx.clearRect(0, 0, rect.width, rect.height)
-    if (!graph) return
+    if (!State.graph) return
 
     Render.ctx.save()
-    Render.ctx.translate(view.x, view.y)
-    Render.ctx.scale(view.scale, view.scale)
+    Render.ctx.translate(State.view.x, State.view.y)
+    Render.ctx.scale(State.view.scale, State.view.scale)
 
     const vp = Render.visibleWorldRect()
-    for (const { from, to, traversable } of edgeList) {
+    for (const { from, to, traversable } of State.edgeList) {
       if (
-        !Reachability.regionMatchesSearch(from, searchQuery) ||
-        !Reachability.regionMatchesSearch(to, searchQuery)
+        !Reachability.regionMatchesSearch(from, State.searchQuery) ||
+        !Reachability.regionMatchesSearch(to, State.searchQuery)
       )
         continue
       const p1 = Render.centerOf(from),
@@ -489,11 +509,11 @@ class Render {
       Render.drawEdge(p1, p2, traversable)
     }
 
-    for (const rname in nodeLayouts) {
-      if (!Reachability.regionMatchesSearch(rname, searchQuery))
+    for (const rname in State.nodeLayouts) {
+      if (!Reachability.regionMatchesSearch(rname, State.searchQuery))
         continue
-      const pos = positions[rname]
-      const layout = nodeLayouts[rname]
+      const pos = State.positions[rname]
+      const layout = State.nodeLayouts[rname]
       if (!pos) continue
       if (
         !Render.rectsIntersect(

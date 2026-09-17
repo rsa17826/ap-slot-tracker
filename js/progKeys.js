@@ -46,10 +46,10 @@ class ProgKeys {
       )
 
     const cacheKey = `${progKey}::${profile}`
-    const cached = _resolvedGraphCache[cacheKey]
+    const cached = ProgKeys._resolvedGraphCache[cacheKey]
     if (cached && cached.srcRef === src) return cached.resolved
     const resolved = MapEngine.resolveProfile(raw, profile)
-    _resolvedGraphCache[cacheKey] = { srcRef: src, resolved }
+    ProgKeys._resolvedGraphCache[cacheKey] = { srcRef: src, resolved }
     return resolved
   }
 

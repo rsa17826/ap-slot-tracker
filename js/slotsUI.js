@@ -1,5 +1,5 @@
 class SlotsUI {
-  // Renders the slot cards: connection status, obtainable-checks log, per-slot controls (Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.notify mode, ruleset/profile pickers, connect/disconnect), and the custom multi-version game picker widget used by the add-slot form.
+  // Renders the slot cards: connection status, obtainable-checks log, per-slot controls (Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.notify mode, ruleset/profile pickers, connect/disconnect), and the custom multi-version game picker widget used by the add-slot form.
 
   // ---------------------------------------------------------------------
   // UI: connections panel
@@ -87,7 +87,7 @@ class SlotsUI {
     })()
 
     function closeMenu() {
-      gameSelectExpanded = null
+      SlotsUI.gameSelectExpanded = null
       const menu = root.querySelector(".game-select-menu")
       menu?.remove()
       root.classList.remove("open")
@@ -129,7 +129,7 @@ class SlotsUI {
             )
           }
 
-          const expanded = gameSelectExpanded === name
+          const expanded = SlotsUI.gameSelectExpanded === name
           return newelem("div", { class: "game-select-group" }, [
             newelem(
               "div",
@@ -137,7 +137,7 @@ class SlotsUI {
                 class: `game-select-group-header${expanded ? " expanded" : ""}`,
                 onclick: (e) => {
                   e.stopPropagation()
-                  gameSelectExpanded = expanded ? null : name
+                  SlotsUI.gameSelectExpanded = expanded ? null : name
                   SlotsUI.populateGameSelect()
                 },
               },
@@ -202,16 +202,16 @@ class SlotsUI {
   static renderSlots() {
     const conns = Object.values(window.db.connections)
     if (conns.length === 0) {
-      slotsRoot?.replaceChildren(
+      SlotsUI.slotsRoot?.replaceChildren(
         newelem("div", { class: "empty" }, [
           "No slots yet — add one above.",
         ]),
       )
       return
     }
-    slotsRoot?.replaceChildren(
+    SlotsUI.slotsRoot?.replaceChildren(
       ...conns.map((conn) => {
-        const rt = runtime[conn.id]
+        const rt = Connections.runtime[conn.id]
         const status = rt?.status || "disconnected"
 
         const hasProg = SlotsUI.gamesWithProg().includes(conn.progKey)
@@ -319,15 +319,17 @@ class SlotsUI {
                     const cc = window.db.connections[conn.id]
                     if (!cc) return
                     cc.progKey = this.value
-                    if (runtime[conn.id]) {
+                    if (Connections.runtime[conn.id]) {
                       RequirementGroups.maybeRecomputeProgression(
                         conn,
-                        runtime[conn.id],
+                        Connections.runtime[conn.id],
                       )
                       CheeseTrackers.ctAutoSync(conn)
                     }
                     if (db.currentMapConnId === conn.id) {
-                      if (appEl.classList.contains("visible"))
+                      if (
+                        SlotSync.appEl.classList.contains("visible")
+                      )
                         SlotSync.openMapForSlot(cc)
                       else SlotSync.syncFromSlot(cc)
                     }
@@ -361,15 +363,17 @@ class SlotsUI {
                     const cc = window.db.connections[conn.id]
                     if (!cc) return
                     cc.profile = this.value
-                    if (runtime[conn.id]) {
+                    if (Connections.runtime[conn.id]) {
                       RequirementGroups.maybeRecomputeProgression(
                         conn,
-                        runtime[conn.id],
+                        Connections.runtime[conn.id],
                       )
                       CheeseTrackers.ctAutoSync(conn)
                     }
                     if (db.currentMapConnId === conn.id) {
-                      if (appEl.classList.contains("visible"))
+                      if (
+                        SlotSync.appEl.classList.contains("visible")
+                      )
                         SlotSync.openMapForSlot(cc)
                       else SlotSync.syncFromSlot(cc)
                     }
@@ -387,11 +391,11 @@ class SlotsUI {
                         status === "error" ||
                         !rt
                       ) {
-                        Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.startConnection(
+                        Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.startConnection(
                           conn,
                         )
                       } else {
-                        Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.stopConnection(
+                        Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.stopConnection(
                           conn.id,
                         )
                       }
@@ -408,7 +412,7 @@ class SlotsUI {
                   {
                     class: "danger",
                     onclick() {
-                      Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.stopConnection(
+                      Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.stopConnection(
                         conn.id,
                       )
                       delete window.db.connections[conn.id]
@@ -432,7 +436,8 @@ class SlotsUI {
                       margin: 0,
                       onclick() {
                         conn.locationScoutsEnabled = this.checked
-                        const client = runtime[conn.id].client
+                        const client =
+                          Connections.runtime[conn.id].client
                         if (
                           !conn.scoutedLocations &&
                           conn.locationScoutsEnabled &&
@@ -505,7 +510,7 @@ document.addEventListener("click", (e) => {
   const root = document.getElementById("gameSelect")
   if (!root || !root.classList.contains("open")) return
   if (root.contains(e.target)) return
-  gameSelectExpanded = null
+  SlotsUI.gameSelectExpanded = null
   root.classList.remove("open")
   root.querySelector(".game-select-menu")?.remove()
 })

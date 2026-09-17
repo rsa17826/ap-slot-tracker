@@ -16,7 +16,7 @@ class CheeseTrackers {
   }
 
   static ctUi(connId) {
-    return (ctUiState[connId] ??= {
+    return (CheeseTrackers.ctUiState[connId] ??= {
       trackerInput: "",
       busy: false,
       error: "",
@@ -61,7 +61,7 @@ class CheeseTrackers {
           game.progression_status === CheeseTrackersClient.BK_VALUE,
       }
       CheeseTrackers.ctSaveConn(conn)
-      delete ctUiState[conn.id]
+      delete CheeseTrackers.ctUiState[conn.id]
     } catch (e) {
       console.error(e)
       ui.error = e.message || "Failed to fetch tracker"
@@ -74,7 +74,7 @@ class CheeseTrackers {
   static ctUnlink(conn) {
     conn.ct = null
     CheeseTrackers.ctSaveConn(conn)
-    delete ctUiState[conn.id]
+    delete CheeseTrackers.ctUiState[conn.id]
     SlotsUI.renderSlots()
   }
 
@@ -83,7 +83,7 @@ class CheeseTrackers {
   // yet), in which case BK can only be set manually.
   static ctObtainableState(conn) {
     const graph = ProgKeys.progForGame(conn.progKey, conn.profile)
-    const rt = runtime[conn.id]
+    const rt = Connections.runtime[conn.id]
     if (!graph || !rt?.prevObtainable) return null
     return rt.prevObtainable.size > 0
   }

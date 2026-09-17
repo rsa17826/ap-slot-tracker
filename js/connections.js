@@ -23,7 +23,7 @@ class Connections {
       receivedCounts: {}, // itemName -> count, for Has(count) rules in the map graph
       prevObtainable: new Set(),
     }
-    runtime[conn.id] = rt
+    Connections.runtime[conn.id] = rt
 
     const client = new APSlotClient(
       {
@@ -70,8 +70,8 @@ class Connections {
   }
 
   static stopConnection(connId) {
-    runtime[connId]?.client?.disconnect()
-    delete runtime[connId]
+    Connections.runtime[connId]?.client?.disconnect()
+    delete Connections.runtime[connId]
     SlotsUI.renderSlots()
   }
   static handleReceivedItems(conn, rt, items) {

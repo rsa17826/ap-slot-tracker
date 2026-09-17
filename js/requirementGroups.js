@@ -18,7 +18,7 @@ class RequirementGroups {
   }
 
   static capGroups(groups) {
-    return groups.slice(0, RULE_GROUP_CAP)
+    return groups.slice(0, RequirementGroups.RULE_GROUP_CAP)
   }
 
   static mergeGroups(a, b) {
@@ -27,8 +27,10 @@ class RequirementGroups {
     const out = []
     for (const ga of a) {
       for (const gb of b) {
-        out.push([...ga, ...gb].slice(0, AND_GROUP_CAP))
-        if (out.length >= RULE_GROUP_CAP) return out
+        out.push(
+          [...ga, ...gb].slice(0, RequirementGroups.AND_GROUP_CAP),
+        )
+        if (out.length >= RequirementGroups.RULE_GROUP_CAP) return out
       }
     }
     return out

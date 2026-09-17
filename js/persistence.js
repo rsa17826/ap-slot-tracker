@@ -4,12 +4,12 @@ class Persistence {
   static layoutTimer = null
   static saveLayout() {
     db.layout ??= {}
-    var k = ProgKeys.progKeyFor(graph)
+    var k = ProgKeys.progKeyFor(State.graph)
     if (!k) {
       error(name, "not valid")
       return
     }
-    db.layout[k] = positions
-    db.view = view
+    db.layout[k] = State.positions
+    db.view = State.view
   }
 }

@@ -2,25 +2,25 @@ class LaunchUrlEditor {
   // Per-game Launch Client URL template editor and the placeholder-substitution used to build a launch link from a slots connection info.
 
   static openURLEditor(game) {
-    els.launchURLGameLabel.textContent = `(${game})`
-    els.launchURLEditor.value =
+    State.els.launchURLGameLabel.textContent = `(${game})`
+    State.els.launchURLEditor.value =
       (window.db &&
         window.db.launchURLs &&
         window.db.launchURLs[game]) ||
       ""
-    els.launchURLError.textContent = ""
-    els.launchURLError.style.display = "none"
-    els.launchURLModal.dataset.game = game
-    els.launchURLModal.classList.add("visible")
+    State.els.launchURLError.textContent = ""
+    State.els.launchURLError.style.display = "none"
+    State.els.launchURLModal.dataset.game = game
+    State.els.launchURLModal.classList.add("visible")
   }
   static closeURLEditor() {
-    els.launchURLModal.classList.remove("visible")
+    State.els.launchURLModal.classList.remove("visible")
   }
   static showURLEditorError(err) {
-    els.launchURLError.textContent = String(
+    State.els.launchURLError.textContent = String(
       (err && err.message) || err,
     )
-    els.launchURLError.style.display = "block"
+    State.els.launchURLError.style.display = "block"
   }
   static buildLaunchURL(conn) {
     const tmpl = window.db?.launchURLs?.[conn.game]
@@ -49,8 +49,8 @@ document
 document
   .getElementById("launchURLSaveRun")
   .addEventListener("click", () => {
-    const game = els.launchURLModal.dataset.game
-    const src = els.launchURLEditor.value.trim()
+    const game = State.els.launchURLModal.dataset.game
+    const src = State.els.launchURLEditor.value.trim()
     if (!src) {
       LaunchUrlEditor.showURLEditorError(
         "URL template can't be empty",
@@ -61,7 +61,7 @@ document
     window.db.launchURLs[game] = src
     LaunchUrlEditor.closeURLEditor()
   })
-els.launchURLModal.addEventListener("pointerdown", (ev) => {
-  if (ev.target === els.launchURLModal)
+State.els.launchURLModal.addEventListener("pointerdown", (ev) => {
+  if (ev.target === State.els.launchURLModal)
     LaunchUrlEditor.closeURLEditor()
 })

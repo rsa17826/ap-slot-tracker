@@ -2,8 +2,8 @@ class Layout {
   // Simple automatic layout: BFS layers from the start region to place nodes on the canvas.
 
   static layoutIfNeeded() {
-    const names = Object.keys(graph.regions)
-    const missing = names.some((n) => !positions[n])
+    const names = Object.keys(State.graph.regions)
+    const missing = names.some((n) => !State.positions[n])
     if (missing) Layout.autoLayout()
   }
 
@@ -13,12 +13,16 @@ class Layout {
   // itself, so they never disagree about how tall a node is.
   static computeNodeRows(region) {
     return (region.locations || []).filter((lname) => {
-      const linfo = graph.locations[lname]
+      const linfo = State.graph.locations[lname]
       const isEvent = !!(linfo && linfo.is_event)
-      if (hideEvents && isEvent) return false
-      if (hideOOL && !isEvent && !reach.locations.has(lname))
+      if (State.hideEvents && isEvent) return false
+      if (
+        State.hideOOL &&
+        !isEvent &&
+        !State.reach.locations.has(lname)
+      )
         return false // out of logic
-      if (hideCleared && Reachability.isLocationDone(lname))
+      if (State.hideCleared && Reachability.isLocationDone(lname))
         return false // already cleared / auto-granted
       return true
     })
@@ -35,24 +39,24 @@ class Layout {
   static ROW_STAR_W = 12 // width reserved for the scout star icon + its gap
 
   static buildRowData(lname) {
-    const linfo = graph.locations[lname]
+    const linfo = State.graph.locations[lname]
     const isEvent = !!(linfo && linfo.is_event)
-    const scout = scoutedItems[lname]
+    const scout = State.scoutedItems[lname]
     let scoutText = null,
       scoutClass = null,
       scoutStar = null
-    if (showScouts && scout) {
+    if (State.showScouts && scout) {
       scoutClass =
         scout.flags & 1 ? "progression"
         : scout.flags & 4 ? "trap"
         : null
       scoutText =
-        scout.itemPlayer !== scoutOwnSlot ?
-          `${scout.itemName} (for ${scoutPlayerNames[scout.itemPlayer] ?? `Player ${scout.itemPlayer}`})`
+        scout.itemPlayer !== State.scoutOwnSlot ?
+          `${scout.itemName} (for ${State.scoutPlayerNames[scout.itemPlayer] ?? `Player ${scout.itemPlayer}`})`
         : scout.itemName
       scoutStar =
-        scout.itemPlayer === scoutOwnSlot ? "yellow"
-        : scoutTrackedSlots.has(scout.itemPlayer) ? "green"
+        scout.itemPlayer === State.scoutOwnSlot ? "yellow"
+        : State.scoutTrackedSlots.has(scout.itemPlayer) ? "green"
         : null
     }
     return {
@@ -61,8 +65,8 @@ class Layout {
         lname.includes(" - ") ?
           lname.split(" - ").slice(1).join(" - ")
         : lname,
-      isReach: reach.locations.has(lname),
-      isChecked: !!checkedLocations[lname],
+      isReach: State.reach.locations.has(lname),
+      isChecked: !!State.checkedLocations[lname],
       isEvent,
       scoutText,
       scoutClass,
@@ -95,39 +99,40 @@ class Layout {
   // text and scout label fair-share the remaining space instead of
   // the location text hogging it (see Layout.splitRowBudget).
   static computeNodeLayout(rname) {
-    const region = graph.regions[rname]
+    const region = State.graph.regions[rname]
     if (!region)
       return {
         reachable: false,
-        w: NODE_MIN_WIDTH,
-        h: NODE_HEADER_H,
+        w: Layout.NODE_MIN_WIDTH,
+        h: Layout.NODE_HEADER_H,
         rows: [],
       }
     const rows = Layout.computeNodeRows(region).map(
       Layout.buildRowData,
     )
 
-    ctx.font = `600 12px ${COLORS.mono}, monospace`
+    Render.ctx.font = `600 12px ${Render.COLORS.mono}, monospace`
     let w = Math.max(
-      NODE_MIN_WIDTH,
-      ctx.measureText(rname).width + 27 + 10,
+      Layout.NODE_MIN_WIDTH,
+      Render.ctx.measureText(rname).width + 27 + 10,
     )
     for (const row of rows) {
-      ctx.font =
+      Render.ctx.font =
         (row.isEvent ? "italic " : "") +
-        `11px ${COLORS.mono}, monospace`
-      row.textWidth = ctx.measureText(row.displayText).width
+        `11px ${Render.COLORS.mono}, monospace`
+      row.textWidth = Render.ctx.measureText(row.displayText).width
       row.scoutWidth = 0
       if (row.scoutText) {
-        ctx.font = `10px ${COLORS.mono}, monospace`
-        row.scoutWidth = ctx.measureText(row.scoutText).width
+        Render.ctx.font = `10px ${Render.COLORS.mono}, monospace`
+        row.scoutWidth = Render.ctx.measureText(row.scoutText).width
       }
-      let rowW = ROW_LEFT_PAD + row.textWidth + ROW_RIGHT_PAD
-      if (row.scoutText) rowW += ROW_SCOUT_GAP + row.scoutWidth
-      if (row.scoutStar) rowW += ROW_STAR_W
+      let rowW =
+        Layout.ROW_LEFT_PAD + row.textWidth + Layout.ROW_RIGHT_PAD
+      if (row.scoutText) rowW += Layout.ROW_SCOUT_GAP + row.scoutWidth
+      if (row.scoutStar) rowW += Layout.ROW_STAR_W
       w = Math.max(w, rowW)
     }
-    w = Math.min(w, NODE_MAX_WIDTH)
+    w = Math.min(w, Layout.NODE_MAX_WIDTH)
 
     // Second pass: now that the node's final width is locked in, give
     // each row its real allocation. A row only needs fair-sharing once
@@ -135,10 +140,10 @@ class Layout {
     // exactly what they asked for.
     for (const row of rows) {
       const fixed =
-        ROW_LEFT_PAD +
-        ROW_RIGHT_PAD +
-        (row.scoutStar ? ROW_STAR_W : 0) +
-        (row.scoutText ? ROW_SCOUT_GAP : 0)
+        Layout.ROW_LEFT_PAD +
+        Layout.ROW_RIGHT_PAD +
+        (row.scoutStar ? Layout.ROW_STAR_W : 0) +
+        (row.scoutText ? Layout.ROW_SCOUT_GAP : 0)
       const budget = w - fixed
       if (row.scoutText) {
         const [textAlloc, scoutAlloc] = Layout.splitRowBudget(
@@ -155,9 +160,12 @@ class Layout {
     }
 
     return {
-      reachable: reach.regions.has(rname),
+      reachable: State.reach.regions.has(rname),
       w,
-      h: NODE_HEADER_H + NODE_BODY_PAD + rows.length * NODE_ROW_H,
+      h:
+        Layout.NODE_HEADER_H +
+        Layout.NODE_BODY_PAD +
+        rows.length * Layout.NODE_ROW_H,
       rows,
     }
   }
@@ -181,7 +189,7 @@ class Layout {
   static autoLayout() {
     const names = Reachability.visibleRegionNames()
     const visibleSet = new Set(names)
-    const start = graph.origin_region_name
+    const start = State.graph.origin_region_name
     const layers = {}
     const visited = new Set(visibleSet.has(start) ? [start] : [])
     let frontier = [...visited]
@@ -190,8 +198,9 @@ class Layout {
     while (frontier.length) {
       const next = []
       for (const rname of frontier) {
-        for (const exitName of graph.regions[rname].exits || []) {
-          const e = graph.entrances[exitName]
+        for (const exitName of State.graph.regions[rname].exits ||
+          []) {
+          const e = State.graph.entrances[exitName]
           const target = e && e.connects_to
           if (
             target &&
@@ -257,7 +266,7 @@ class Layout {
 
     for (const n of names) {
       const { x, y } = cellOf[n]
-      positions[n] = { x: columnX[x], y: rowY[y] }
+      State.positions[n] = { x: columnX[x], y: rowY[y] }
     }
     Persistence.saveLayout()
   }

@@ -12,13 +12,13 @@ class SlotSync {
   // currently showing this exact slot.
   static notifyMapOfSlotUpdate(conn) {
     if (!conn || conn.id !== db.currentMapConnId) return
-    if (!appEl.classList.contains("visible")) return
+    if (!SlotSync.appEl.classList.contains("visible")) return
     SlotSync.syncFromSlot(conn)
   }
 
   static appEl = document.getElementById("app")
   static setMapVisible(v) {
-    appEl.classList.toggle("visible", v)
+    SlotSync.appEl.classList.toggle("visible", v)
     if (v) Interaction.applyView()
     // else db.currentMapConnId = null
   }
@@ -31,9 +31,9 @@ class SlotSync {
         DataLoading.resolvedProfileNameFor(raw, conn.profile)
       : null
     if (
-      !graph ||
+      !State.graph ||
       CustomLayout.gameKeyOf() !== conn.progKey ||
-      graph.activeProfile !== wantProfile
+      State.graph.activeProfile !== wantProfile
     ) {
       const ok = await Main.tryLoadFile(conn.progKey, conn.profile)
       if (!ok) {
@@ -45,53 +45,55 @@ class SlotSync {
     }
     // `runtime` is app.js's connId -> {client, receivedCounts, ...} map;
     // shared global scope means it's directly visible here.
-    const rt = runtime[conn.id]
-    if (!rt || !rt.client || !graph) {
-      scoutedItems = {}
-      scoutOwnSlot = null
-      scoutPlayerNames = {}
-      scoutTrackedSlots = new Set()
+    const rt = Connections.runtime[conn.id]
+    if (!rt || !rt.client || !State.graph) {
+      State.scoutedItems = {}
+      State.scoutOwnSlot = null
+      State.scoutPlayerNames = {}
+      State.scoutTrackedSlots = new Set()
       Interaction.applyView()
       return
     }
 
-    for (const n of Object.keys(inventory)) inventory[n] = 0
+    for (const n of Object.keys(State.inventory))
+      State.inventory[n] = 0
     for (const [name, count] of Object.entries(
       rt.receivedCounts || {},
     )) {
-      inventory[name] = count
+      State.inventory[name] = count
     }
 
     const idToName = rt.client.locationIdToName?.[conn.game] || {}
-    checkedLocations = {}
+    State.checkedLocations = {}
     for (const id of rt.client.checkedLocations || []) {
       const lname = idToName[id]
-      if (lname) checkedLocations[lname] = true
+      if (lname) State.checkedLocations[lname] = true
     }
 
-    scoutedItems = {}
+    State.scoutedItems = {}
     for (const entry of Object.values(rt.client.scoutedItems || {})) {
-      scoutedItems[entry.locationName] = entry
+      State.scoutedItems[entry.locationName] = entry
     }
-    scoutOwnSlot = rt.client.slot
-    scoutPlayerNames = {}
+    State.scoutOwnSlot = rt.client.slot
+    State.scoutPlayerNames = {}
     for (const p of rt.client.players || []) {
-      if (p.team === rt.client.team) scoutPlayerNames[p.slot] = p.name
+      if (p.team === rt.client.team)
+        State.scoutPlayerNames[p.slot] = p.name
     }
 
     // Any other connection pointed at the same AP server (same
     // hostname:port) is a slot we're also actively tracking -- used to
     // Render.draw a green star on scouted items instead of a yellow one.
-    scoutTrackedSlots = new Set()
+    State.scoutTrackedSlots = new Set()
     for (const conn2 of Object.values(db.connections)) {
       if (
         conn2.hostname !== conn.hostname ||
         conn2.port !== conn.port
       )
         continue
-      const rt2 = runtime[conn2.id]
+      const rt2 = Connections.runtime[conn2.id]
       if (rt2?.client?.slot != null)
-        scoutTrackedSlots.add(rt2.client.slot)
+        State.scoutTrackedSlots.add(rt2.client.slot)
     }
 
     Render.syncItemListUI()
@@ -112,5 +114,7 @@ document.addEventListener("keydown", (ev) => {
   // )
   //   return
   ev.preventDefault()
-  SlotSync.setMapVisible(!appEl.classList.contains("visible"))
+  SlotSync.setMapVisible(
+    !SlotSync.appEl.classList.contains("visible"),
+  )
 })

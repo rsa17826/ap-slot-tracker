@@ -133,13 +133,15 @@ class MapEngine {
   // unmapped rule type is reported to console once instead of silently.
   static warnedTypes = new Set()
   static warnOnce(t) {
-    if (!warnedTypes.has(t)) {
-      warnedTypes.add(t)
+    if (!MapEngine.warnedTypes.has(t)) {
+      MapEngine.warnedTypes.add(t)
       console.warn("Unhandled rule type:", t)
     }
   }
 
   static countHave(name) {
-    return (inventory[name] || 0) + (eventInventory[name] || 0)
+    return (
+      (State.inventory[name] || 0) + (State.eventInventory[name] || 0)
+    )
   }
 }

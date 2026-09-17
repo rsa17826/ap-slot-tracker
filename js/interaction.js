@@ -2,12 +2,12 @@ class Interaction {
   // Node dragging and canvas pan/zoom input handling.
 
   static screenToWorld(clientX, clientY) {
-    const rect = els.canvasWrap.getBoundingClientRect()
+    const rect = State.els.canvasWrap.getBoundingClientRect()
     const localX = clientX - rect.left,
       localY = clientY - rect.top
     return {
-      x: (localX - view.x) / view.scale,
-      y: (localY - view.y) / view.scale,
+      x: (localX - State.view.x) / State.view.scale,
+      y: (localY - State.view.y) / State.view.scale,
     }
   }
 
@@ -18,11 +18,11 @@ class Interaction {
   // every frame.
   static findNodeAtWorldPoint(wx, wy) {
     let found = null
-    for (const rname in nodeLayouts) {
-      if (!Reachability.regionMatchesSearch(rname, searchQuery))
+    for (const rname in State.nodeLayouts) {
+      if (!Reachability.regionMatchesSearch(rname, State.searchQuery))
         continue // Render.draw() skips these too -- keep hit-testing in sync
-      const pos = positions[rname]
-      const layout = nodeLayouts[rname]
+      const pos = State.positions[rname]
+      const layout = State.nodeLayouts[rname]
       if (!pos) continue
       if (
         wx >= pos.x &&
@@ -41,12 +41,13 @@ class Interaction {
   static findRowAtWorldPoint(wx, wy) {
     const rname = Interaction.findNodeAtWorldPoint(wx, wy)
     if (!rname) return null
-    const pos = positions[rname]
-    const layout = nodeLayouts[rname]
+    const pos = State.positions[rname]
+    const layout = State.nodeLayouts[rname]
     if (!pos || !layout) return null
-    const bodyTop = pos.y + NODE_HEADER_H + NODE_BODY_PAD / 2
+    const bodyTop =
+      pos.y + Layout.NODE_HEADER_H + Layout.NODE_BODY_PAD / 2
     if (wy < bodyTop) return null
-    const idx = Math.floor((wy - bodyTop) / NODE_ROW_H)
+    const idx = Math.floor((wy - bodyTop) / Layout.NODE_ROW_H)
     const row = layout.rows[idx]
     return row ? { rname, lname: row.lname } : null
   }
@@ -57,8 +58,10 @@ class Interaction {
   // runtime, so the hover popup can reuse app.js's RequirementGroups.ruleToGroups/
   // RequirementGroups.tokenOwned/RequirementGroups.tokenVerifiable exactly as they are.
   static mapOwnedCounts() {
-    const out = { ...inventory }
-    for (const [name, count] of Object.entries(eventInventory)) {
+    const out = { ...State.inventory }
+    for (const [name, count] of Object.entries(
+      State.eventInventory,
+    )) {
       out[name] = (out[name] || 0) + count
     }
     return out
@@ -85,7 +88,7 @@ class Interaction {
   }
 
   static renderCheckHoverPopup(lname) {
-    const linfo = graph.locations[lname]
+    const linfo = State.graph.locations[lname]
     if (!linfo) return
     const groups = RequirementGroups.ruleToGroups(linfo.rule)
     const counts = Interaction.mapOwnedCounts()
@@ -121,12 +124,12 @@ class Interaction {
         body.push(groupRow)
       })
     }
-    els.checkHoverPopup.replaceChildren(...body)
-    els.checkHoverPopup.classList.add("visible")
+    State.els.checkHoverPopup.replaceChildren(...body)
+    State.els.checkHoverPopup.classList.add("visible")
   }
 
   static hideCheckHoverPopup() {
-    els.checkHoverPopup.classList.remove("visible")
+    State.els.checkHoverPopup.classList.remove("visible")
   }
 
   static setupPanZoom() {
@@ -147,8 +150,8 @@ class Interaction {
     function stopPanning() {
       if (!panning) return
       panning = false
-      els.canvasWrap.classList.remove("panning")
-      if (document.pointerLockElement === els.canvas) {
+      State.els.canvasWrap.classList.remove("panning")
+      if (document.pointerLockElement === State.els.canvas) {
         document.exitPointerLock()
       }
       Persistence.saveLayout()
@@ -159,7 +162,7 @@ class Interaction {
       document.body.style.userSelect = ""
     }
 
-    els.canvas.addEventListener("mousedown", (ev) => {
+    State.els.canvas.addEventListener("mousedown", (ev) => {
       const world = Interaction.screenToWorld(ev.clientX, ev.clientY)
 
       if (ev.button === 0 && !dragging) {
@@ -167,14 +170,14 @@ class Interaction {
         if (hit) {
           dragging = true
           draggingRegion = hit
-          const pos = positions[hit] || { x: 0, y: 0 }
+          const pos = State.positions[hit] || { x: 0, y: 0 }
           grabOffset = { x: pos.x - world.x, y: pos.y - world.y }
         }
       }
 
       if (ev.button === 2) {
         panning = true
-        els.canvasWrap.classList.add("panning")
+        State.els.canvasWrap.classList.add("panning")
         // TODO find way to warp pointer when exiting the canvas - this doesn't work because pointer is in wrong location when exiting pan and is bad because can't see pointer when panning
         // if (document.pointerLockElement !== els.canvas) {
         //   els.canvas.requestPointerLock().catch(() => {})
@@ -186,11 +189,11 @@ class Interaction {
       ev.preventDefault()
     })
 
-    els.canvas.addEventListener("contextmenu", (ev) => {
+    State.els.canvas.addEventListener("contextmenu", (ev) => {
       ev.preventDefault()
     })
 
-    els.canvas.addEventListener("pointermove", (ev) => {
+    State.els.canvas.addEventListener("pointermove", (ev) => {
       const isLeftDown = (ev.buttons & 1) !== 0
       const isRightDown = (ev.buttons & 2) !== 0
 
@@ -201,16 +204,18 @@ class Interaction {
             ev.clientY,
           )
           const hit =
-            graph ?
+            State.graph ?
               Interaction.findRowAtWorldPoint(world.x, world.y)
             : null
           const changed =
             (hit ? hit.lname : null) !==
-              (hoveredCheck ? hoveredCheck.lname : null) ||
+              (State.hoveredCheck ?
+                State.hoveredCheck.lname
+              : null) ||
             (hit ? hit.rname : null) !==
-              (hoveredCheck ? hoveredCheck.rname : null)
+              (State.hoveredCheck ? State.hoveredCheck.rname : null)
           if (changed) {
-            hoveredCheck = hit
+            State.hoveredCheck = hit
             if (hit) Interaction.renderCheckHoverPopup(hit.lname)
             else Interaction.hideCheckHoverPopup()
           }
@@ -218,13 +223,14 @@ class Interaction {
         return
       }
 
-      const isLocked = document.pointerLockElement === els.canvas
+      const isLocked =
+        document.pointerLockElement === State.els.canvas
       const dx = isLocked ? ev.movementX : ev.clientX - sx
       const dy = isLocked ? ev.movementY : ev.clientY - sy
 
       if (isRightDown || panning) {
-        view.x += dx
-        view.y += dy
+        State.view.x += dx
+        State.view.y += dy
       }
 
       if (isLeftDown && dragging) {
@@ -232,7 +238,7 @@ class Interaction {
           ev.clientX,
           ev.clientY,
         )
-        positions[draggingRegion] = {
+        State.positions[draggingRegion] = {
           x: world.x + grabOffset.x,
           y: world.y + grabOffset.y,
         }
@@ -249,32 +255,35 @@ class Interaction {
       }
     })
 
-    els.canvas.addEventListener("mouseup", (ev) => {
+    State.els.canvas.addEventListener("mouseup", (ev) => {
       if (ev.button === 0) {
         dragging = false
         draggingRegion = null
       }
       if (ev.button === 2) {
         panning = false
-        els.canvasWrap.classList.remove("panning")
+        State.els.canvasWrap.classList.remove("panning")
         if (document.pointerLockElement) {
           document.exitPointerLock()
         }
       }
     })
 
-    els.canvas.addEventListener("pointercancel", () => {
+    State.els.canvas.addEventListener("pointercancel", () => {
       dragging = false
       draggingRegion = null
       panning = false
-      els.canvasWrap.classList.remove("panning")
+      State.els.canvasWrap.classList.remove("panning")
       document.body.style.userSelect = ""
     })
-    els.canvas.addEventListener("pointerleave", () => {
-      hoveredCheck = null
+    State.els.canvas.addEventListener("pointerleave", () => {
+      State.hoveredCheck = null
       Interaction.hideCheckHoverPopup()
     })
-    els.canvas.addEventListener("lostpointercapture", stopInteraction)
+    State.els.canvas.addEventListener(
+      "lostpointercapture",
+      stopInteraction,
+    )
     window.addEventListener("mouseup", (ev) => {
       const isLeftDown = (ev.buttons & 1) !== 0
       const isRightDown = (ev.buttons & 2) !== 0
@@ -286,7 +295,7 @@ class Interaction {
 
       if (!isRightDown) {
         panning = false
-        els.canvasWrap.classList.remove("panning")
+        State.els.canvasWrap.classList.remove("panning")
       }
 
       if (!isLeftDown && !isRightDown) {
@@ -297,7 +306,7 @@ class Interaction {
       if (ev.buttons === 0) document.body.style.userSelect = ""
     })
     window.addEventListener("blur", stopInteraction)
-    els.canvas.addEventListener(
+    State.els.canvas.addEventListener(
       "wheel",
       (ev) => {
         ev.preventDefault()
@@ -335,20 +344,23 @@ class Interaction {
     document
       .getElementById("zoomReset")
       .addEventListener("click", () => {
-        view = { x: 40, y: 40, scale: 1 }
+        State.view = { x: 40, y: 40, scale: 1 }
         Interaction.applyView()
         Persistence.saveLayout()
       })
   }
   static zoomAt(clientX, clientY, delta) {
-    const rect = els.canvasWrap.getBoundingClientRect()
+    const rect = State.els.canvasWrap.getBoundingClientRect()
     const localX = clientX - rect.left,
       localY = clientY - rect.top
-    const worldX = (localX - view.x) / view.scale
-    const worldY = (localY - view.y) / view.scale
-    view.scale = Math.min(2.2, Math.max(0.05, view.scale + delta))
-    view.x = localX - worldX * view.scale
-    view.y = localY - worldY * view.scale
+    const worldX = (localX - State.view.x) / State.view.scale
+    const worldY = (localY - State.view.y) / State.view.scale
+    State.view.scale = Math.min(
+      2.2,
+      Math.max(0.05, State.view.scale + delta),
+    )
+    State.view.x = localX - worldX * State.view.scale
+    State.view.y = localY - worldY * State.view.scale
     Interaction.applyView()
     Persistence.saveLayout()
   }

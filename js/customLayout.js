@@ -15,7 +15,7 @@ class CustomLayout {
 }`
 
   static gameKeyOf() {
-    return ProgKeys.progKeyFor(graph)
+    return ProgKeys.progKeyFor(State.graph)
   }
 
   static compileSortFn(src) {
@@ -82,7 +82,7 @@ class CustomLayout {
 
     for (const n of names) {
       const { x, y } = logical[n]
-      positions[n] = { x: columnX[x], y: rowY[y] }
+      State.positions[n] = { x: columnX[x], y: rowY[y] }
     }
 
     Persistence.saveLayout()
@@ -90,35 +90,39 @@ class CustomLayout {
   }
 
   static loadCustomSortFns() {
-    customSortFns = db.customSortFns ?? {}
+    State.customSortFns = db.customSortFns ?? {}
   }
   static saveCustomSortFns() {
-    db.customSortFns = customSortFns
+    db.customSortFns = State.customSortFns
   }
 
   static openSortEditor(src) {
-    els.sortFnGameLabel.textContent = `(${CustomLayout.gameKeyOf()})`
-    els.sortFnEditor.value =
+    State.els.sortFnGameLabel.textContent = `(${CustomLayout.gameKeyOf()})`
+    State.els.sortFnEditor.value =
       src ??
-      customSortFns[CustomLayout.gameKeyOf()] ??
-      customSortFns[graph.game] ??
+      State.customSortFns[CustomLayout.gameKeyOf()] ??
+      State.customSortFns[State.graph.game] ??
       DEFAULT_SORT_FN_SRC
-    els.sortFnError.textContent = ""
-    els.sortFnError.style.display = "none"
-    els.sortFnModal.classList.add("visible")
+    State.els.sortFnError.textContent = ""
+    State.els.sortFnError.style.display = "none"
+    State.els.sortFnModal.classList.add("visible")
   }
   static closeSortEditor() {
-    els.sortFnModal.classList.remove("visible")
+    State.els.sortFnModal.classList.remove("visible")
   }
   static showSortEditorError(err) {
-    els.sortFnError.textContent = String((err && err.message) || err)
-    els.sortFnError.style.display = "block"
+    State.els.sortFnError.textContent = String(
+      (err && err.message) || err,
+    )
+    State.els.sortFnError.style.display = "block"
   }
 
   static customLayoutClicked() {
-    if (!graph) return
+    if (!State.graph) return
     const gameKey = CustomLayout.gameKeyOf()
-    const src = customSortFns[gameKey] ?? customSortFns[graph.game]
+    const src =
+      State.customSortFns[gameKey] ??
+      State.customSortFns[State.graph.game]
     if (!src) {
       // No saved function for this game yet -- open the editor so
       // the user can write one.
@@ -141,7 +145,7 @@ document
 document
   .getElementById("editSortFnBtn")
   .addEventListener("click", () => {
-    if (!graph) return
+    if (!State.graph) return
     CustomLayout.openSortEditor()
   })
 document
@@ -150,22 +154,25 @@ document
 document
   .getElementById("sortFnReset")
   .addEventListener("click", () => {
-    els.sortFnEditor.value = DEFAULT_SORT_FN_SRC
+    State.els.sortFnEditor.value = CustomLayout.DEFAULT_SORT_FN_SRC
   })
 document
   .getElementById("sortFnSaveRun")
   .addEventListener("click", () => {
     const gameKey = CustomLayout.gameKeyOf()
-    const src = els.sortFnEditor.value
+    const src = State.els.sortFnEditor.value
     try {
       CustomLayout.runCustomLayout(gameKey, src)
-      customSortFns[graph.game] = customSortFns[gameKey] = src
+      State.customSortFns[State.graph.game] = State.customSortFns[
+        gameKey
+      ] = src
       CustomLayout.saveCustomSortFns()
       CustomLayout.closeSortEditor()
     } catch (err) {
       CustomLayout.showSortEditorError(err)
     }
   })
-els.sortFnModal.addEventListener("pointerdown", (ev) => {
-  if (ev.target === els.sortFnModal) CustomLayout.closeSortEditor()
+State.els.sortFnModal.addEventListener("pointerdown", (ev) => {
+  if (ev.target === State.els.sortFnModal)
+    CustomLayout.closeSortEditor()
 })

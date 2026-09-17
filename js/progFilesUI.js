@@ -3,7 +3,7 @@ class ProgFilesUI {
 
   static renderProgFiles() {
     const progKeys = SlotsUI.gamesWithProg()
-    progRoot.replaceChildren(
+    SlotsUI.progRoot.replaceChildren(
       ...(progKeys.length === 0 ?
         [
           newelem("div", { class: "empty" }, [
@@ -50,7 +50,7 @@ class ProgFilesUI {
                         // the file's default.
                         DataLoading.loadGraph(
                           window.db.progFiles[progKey],
-                          graph?.activeProfile,
+                          State.graph?.activeProfile,
                         )
                       } else {
                         ProgFilesUI.renderProgFiles()

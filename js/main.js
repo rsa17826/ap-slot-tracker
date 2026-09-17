@@ -5,11 +5,11 @@ class Main {
   static notifBtn = document.getElementById("notifBtn")
   static refreshNotifBtn() {
     if (Notification.permission === "granted") {
-      notifBtn.textContent = "Notifications on"
-      notifBtn.classList.add("granted")
+      Main.notifBtn.textContent = "Notifications on"
+      Main.notifBtn.classList.add("granted")
     } else {
-      notifBtn.textContent = "Enable notifications"
-      notifBtn.classList.remove("granted")
+      Main.notifBtn.textContent = "Enable notifications"
+      Main.notifBtn.classList.remove("granted")
     }
   }
 
@@ -131,42 +131,44 @@ document
       // contents) so it can be rescanned later, e.g. on next
       // page load, to pick up files added afterwards.
       db.progFolderHandle = dirHandle
-      await Main.scanProgFolder(dirHandle, { loadFirst: !graph })
+      await Main.scanProgFolder(dirHandle, {
+        loadFirst: !State.graph,
+      })
     } catch (e) {
       if (e.name !== "AbortError")
         alert("Could not load folder: " + e.message)
     }
   })
 document.getElementById("resetBtn").addEventListener("click", () => {
-  if (!graph) return
+  if (!State.graph) return
   if (!confirm("Reset inventory and checked locations?")) return
-  for (const k of Object.keys(inventory)) inventory[k] = 0
-  checkedLocations = {}
+  for (const k of Object.keys(State.inventory)) State.inventory[k] = 0
+  State.checkedLocations = {}
   Render.syncItemListUI()
   Render.onInventoryChange()
 })
 document
   .getElementById("autoLayoutBtn")
   .addEventListener("click", () => {
-    if (!graph) return
+    if (!State.graph) return
     Layout.autoLayout()
     Render.render()
   })
-els.search.addEventListener("input", () => {
-  searchQuery = els.search.value.trim().toLowerCase()
+State.els.search.addEventListener("input", () => {
+  State.searchQuery = State.els.search.value.trim().toLowerCase()
   Reachability.applySearchFilter()
 })
-els.search.addEventListener("keydown", (ev) => {
+State.els.search.addEventListener("keydown", (ev) => {
   if (ev.key === "Escape") {
     ev.preventDefault()
     ev.stopPropagation()
-    els.search.value = ""
-    searchQuery = ""
+    State.els.search.value = ""
+    State.searchQuery = ""
     Reachability.applySearchFilter()
-    els.search.blur()
+    State.els.search.blur()
   } else if (ev.key === "Enter") {
     ev.preventDefault()
-    els.search.blur()
+    State.els.search.blur()
   }
 })
 // "/" focuses the search box from anywhere on the page (like a quick
@@ -182,10 +184,10 @@ document.addEventListener("keydown", (ev) => {
       active.tagName === "TEXTAREA" ||
       active.isContentEditable)
   if (isEditable) return
-  if (els.sortFnModal.classList.contains("visible")) return
+  if (State.els.sortFnModal.classList.contains("visible")) return
   ev.preventDefault()
-  els.search.focus()
-  els.search.select()
+  State.els.search.focus()
+  State.els.search.select()
 })
 ;(async () => {
   window.db = await createDB("ap_tracker")
@@ -202,47 +204,47 @@ document.addEventListener("keydown", (ev) => {
   }
   Render.loadColors()
   Interaction.setupPanZoom()
-  view = db.view ?? { x: 40, y: 40, scale: 1 }
-  hideEvents = db.hideEvents ?? false
-  els.hideEventsChk.checked = hideEvents
-  els.hideEventsChk.addEventListener("change", () => {
-    hideEvents = els.hideEventsChk.checked
-    db.hideEvents = hideEvents
+  State.view = db.view ?? { x: 40, y: 40, scale: 1 }
+  State.hideEvents = db.hideEvents ?? false
+  State.els.hideEventsChk.checked = State.hideEvents
+  State.els.hideEventsChk.addEventListener("change", () => {
+    State.hideEvents = State.els.hideEventsChk.checked
+    db.hideEvents = State.hideEvents
     Render.render()
   })
-  hideEmptyNodes = db.hideEmptyNodes ?? false
-  els.hideEmptyNodesChk.checked = hideEmptyNodes
-  els.hideEmptyNodesChk.addEventListener("change", () => {
-    hideEmptyNodes = els.hideEmptyNodesChk.checked
-    db.hideEmptyNodes = hideEmptyNodes
+  State.hideEmptyNodes = db.hideEmptyNodes ?? false
+  State.els.hideEmptyNodesChk.checked = State.hideEmptyNodes
+  State.els.hideEmptyNodesChk.addEventListener("change", () => {
+    State.hideEmptyNodes = State.els.hideEmptyNodesChk.checked
+    db.hideEmptyNodes = State.hideEmptyNodes
     Render.render()
   })
-  hideOOL = db.hideOOL ?? false
-  els.hideOOLChk.checked = hideOOL
-  els.hideOOLChk.addEventListener("change", () => {
-    hideOOL = els.hideOOLChk.checked
-    db.hideOOL = hideOOL
+  State.hideOOL = db.hideOOL ?? false
+  State.els.hideOOLChk.checked = State.hideOOL
+  State.els.hideOOLChk.addEventListener("change", () => {
+    State.hideOOL = State.els.hideOOLChk.checked
+    db.hideOOL = State.hideOOL
     Render.render()
   })
-  hideCleared = db.hideCleared ?? false
-  els.hideClearedChk.checked = hideCleared
-  els.hideClearedChk.addEventListener("change", () => {
-    hideCleared = els.hideClearedChk.checked
-    db.hideCleared = hideCleared
+  State.hideCleared = db.hideCleared ?? false
+  State.els.hideClearedChk.checked = State.hideCleared
+  State.els.hideClearedChk.addEventListener("change", () => {
+    State.hideCleared = State.els.hideClearedChk.checked
+    db.hideCleared = State.hideCleared
     Render.render()
   })
-  noTransit = db.noTransit ?? false
-  els.noTransitChk.checked = noTransit
-  els.noTransitChk.addEventListener("change", () => {
-    noTransit = els.noTransitChk.checked
-    db.noTransit = noTransit
+  State.noTransit = db.noTransit ?? false
+  State.els.noTransitChk.checked = State.noTransit
+  State.els.noTransitChk.addEventListener("change", () => {
+    State.noTransit = State.els.noTransitChk.checked
+    db.noTransit = State.noTransit
     Render.render()
   })
-  showScouts = db.showScouts ?? false
-  els.showScoutsChk.checked = showScouts
-  els.showScoutsChk.addEventListener("change", () => {
-    showScouts = els.showScoutsChk.checked
-    db.showScouts = showScouts
+  State.showScouts = db.showScouts ?? false
+  State.els.showScoutsChk.checked = State.showScouts
+  State.els.showScoutsChk.addEventListener("change", () => {
+    State.showScouts = State.els.showScoutsChk.checked
+    db.showScouts = State.showScouts
     Render.render()
   })
   CustomLayout.loadCustomSortFns()
@@ -268,9 +270,7 @@ document.addEventListener("keydown", (ev) => {
   }
   // Auto-reconnect any saved slots
   Object.values(window.db.connections).forEach((conn) =>
-    Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.startConnection(
-      conn,
-    ),
+    Connections.startConnection(conn),
   )
   if (db.currentMapConnId) {
     var s = db.connections[db.currentMapConnId]
@@ -279,7 +279,8 @@ document.addEventListener("keydown", (ev) => {
 })()
 ;(async () => {
   await (navigator?.serviceWorker?.ready ?? new Promise())
-  swbtn.style.display = "none"
+  // @ts-ignore
+  document.querySelector("#swbtn").style.display = "none"
 })()
 
 // Top-level wiring: the add-slot form submit handler and the notifications-permission button.
@@ -287,6 +288,7 @@ document.addEventListener("keydown", (ev) => {
 // ---------------------------------------------------------------------
 // Add-connection form
 // ---------------------------------------------------------------------
+// @ts-ignore
 document
   .getElementById("addSlotForm")
   .addEventListener("submit", (e) => {
@@ -314,11 +316,9 @@ document
       ?.removeAttribute("data-value")
     SlotsUI.populateGameSelect()
     SlotsUI.renderSlots()
-    Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.Connections.startConnection(
-      conn,
-    )
+    Connections.startConnection(conn)
   })
-notifBtn.addEventListener("click", async () => {
+Main.notifBtn.addEventListener("click", async () => {
   if (Notification.permission !== "granted") {
     await Notification.requestPermission()
   }

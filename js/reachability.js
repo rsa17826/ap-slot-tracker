@@ -2,13 +2,13 @@ class Reachability {
   // Live UI reachability pass: recomputes reach.{regions,locations,entrances} from the current inventory/checked state and refreshes derived UI state.
 
   static computeReachability() {
-    const regionNames = Object.keys(graph.regions)
-    const startRegion = graph.origin_region_name
+    const regionNames = Object.keys(State.graph.regions)
+    const startRegion = State.graph.origin_region_name
 
     const regions = new Set([startRegion])
     const entrances = new Set()
     const locations = new Set()
-    eventInventory = {}
+    State.eventInventory = {}
 
     // Sets are mutated in place below, so one ctx built up front stays
     // valid for the whole fixed-point loop -- no per-iteration reassignment needed.
@@ -23,9 +23,9 @@ class Reachability {
 
       for (const rname of regionNames) {
         if (!regions.has(rname)) continue
-        const region = graph.regions[rname]
+        const region = State.graph.regions[rname]
         for (const exitName of region.exits || []) {
-          const einfo = graph.entrances[exitName]
+          const einfo = State.graph.entrances[exitName]
           if (!einfo) continue
           const ok = RuleEngine.evalRule(einfo.rule, ctx)
           if (ok) {
@@ -47,7 +47,9 @@ class Reachability {
       // Computed inside the fixed-point loop (not after it), because a
       // reachable event location auto-grants its item to inventory,
       // which can unlock further entrances/locations in a later pass.
-      for (const [lname, linfo] of Object.entries(graph.locations)) {
+      for (const [lname, linfo] of Object.entries(
+        State.graph.locations,
+      )) {
         if (locations.has(lname)) continue
         if (
           regions.has(linfo.region) &&
@@ -58,8 +60,8 @@ class Reachability {
           if (linfo.is_event) {
             const itemName = State.eventItemNameFor(lname, linfo)
             if (itemName) {
-              eventInventory[itemName] =
-                (eventInventory[itemName] || 0) + 1
+              State.eventInventory[itemName] =
+                (State.eventInventory[itemName] || 0) + 1
               changed = true
             }
           }
@@ -69,7 +71,7 @@ class Reachability {
       if (!changed) break
     }
 
-    reach = { regions, locations, entrances }
+    State.reach = { regions, locations, entrances }
   }
 
   // A location counts as "done" once nothing further is needed from it:
@@ -77,9 +79,10 @@ class Reachability {
   // auto-grant their item the moment they're reachable rather than via
   // the checkbox) it's currently reachable.
   static isLocationDone(lname) {
-    if (checkedLocations[lname]) return true
-    const linfo = graph.locations[lname]
-    if (linfo && linfo.is_event) return reach.locations.has(lname)
+    if (State.checkedLocations[lname]) return true
+    const linfo = State.graph.locations[lname]
+    if (linfo && linfo.is_event)
+      return State.reach.locations.has(lname)
     return false
   }
 
@@ -88,7 +91,7 @@ class Reachability {
   // hideCleared) -- whatever combination emptied it out. Used so a node
   // doesn't linger on the map showing nothing.
   static isRegionEmptyAfterFilters(rname) {
-    const region = graph.regions[rname]
+    const region = State.graph.regions[rname]
     const locs = (region && region.locations) || []
     if (locs.length === 0) return false
     return Layout.computeNodeRows(region).length === 0
@@ -99,21 +102,26 @@ class Reachability {
   // regions. Used by noTransit mode to hide it and let connections
   // pass through to the next region(s) that actually have checks.
   static isTransitRegion(rname) {
-    return graph.regions[rname]?.isTransit
+    return State.graph.regions[rname]?.isTransit
   }
 
   static isRegionVisible(rname) {
-    if (hideEmptyNodes && hideOOL && !reach.regions.has(rname))
+    if (
+      State.hideEmptyNodes &&
+      State.hideOOL &&
+      !State.reach.regions.has(rname)
+    )
       return false
     if (
-      hideEmptyNodes &&
-      (hideEvents || hideCleared || hideOOL) &&
+      State.hideEmptyNodes &&
+      (State.hideEvents || State.hideCleared || State.hideOOL) &&
       Reachability.isRegionEmptyAfterFilters(rname)
     )
       return false
-    if (!Reachability.regionMatchesSearch(rname, searchQuery))
+    if (!Reachability.regionMatchesSearch(rname, State.searchQuery))
       return false
-    if (noTransit && Reachability.isTransitRegion(rname)) return false
+    if (State.noTransit && Reachability.isTransitRegion(rname))
+      return false
     return true
   }
 
@@ -121,7 +129,7 @@ class Reachability {
   // for rendering and to bias the layout functions so they only
   // position/pack nodes that are actually visible.
   static visibleRegionNames() {
-    const names = Object.keys(graph.regions)
+    const names = Object.keys(State.graph.regions)
     return names.filter(Reachability.isRegionVisible)
   }
 
@@ -131,7 +139,7 @@ class Reachability {
   static regionMatchesSearch(rname, q) {
     if (!q) return true
     if (rname.toLowerCase().includes(q)) return true
-    const region = graph.regions[rname]
+    const region = State.graph.regions[rname]
     const locs = (region && region.locations) || []
     return locs.some((lname) => lname.toLowerCase().includes(q))
   }
@@ -142,16 +150,18 @@ class Reachability {
   // couple of string comparisons per region), so a search keystroke
   // just needs to trigger a redraw.
   static applySearchFilter() {
-    els.itemList.querySelectorAll(".item-row").forEach((row) => {
-      const isEvent = eventItemNames.has(row.dataset.name)
-      const matchesSearch = row.dataset.name
-        .toLowerCase()
-        .includes(searchQuery)
-      row.style.display =
-        hideEvents && isEvent ? "none"
-        : matchesSearch ? ""
-        : "none"
-    })
+    State.els.itemList
+      .querySelectorAll(".item-row")
+      .forEach((row) => {
+        const isEvent = State.eventItemNames.has(row.dataset.name)
+        const matchesSearch = row.dataset.name
+          .toLowerCase()
+          .includes(State.searchQuery)
+        row.style.display =
+          State.hideEvents && isEvent ? "none"
+          : matchesSearch ? ""
+          : "none"
+      })
 
     Render.scheduleDraw()
   }

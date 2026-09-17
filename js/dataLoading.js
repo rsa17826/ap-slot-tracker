@@ -22,8 +22,8 @@ class DataLoading {
       if (rule.sub_rule) walk(rule.sub_rule)
       if (Array.isArray(rule.children)) rule.children.forEach(walk)
     }
-    for (const e of Object.values(graph.entrances)) walk(e.rule)
-    for (const l of Object.values(graph.locations)) walk(l.rule)
+    for (const e of Object.values(State.graph.entrances)) walk(e.rule)
+    for (const l of Object.values(State.graph.locations)) walk(l.rule)
     // Event locations auto-grant an item of the same name once
     // reachable (see State.eventItemNameFor) -- make sure that item shows up
     // in the inventory list even if no rule happens to reference it.
@@ -32,15 +32,17 @@ class DataLoading {
     // includes items that no rule references directly (e.g. purely
     // "useful" items, or progression items that only ever gate via a
     // group/count rule elsewhere) -- make sure those show up too.
-    if (graph.items) {
-      for (const n of Object.keys(graph.items)) names.add(n)
+    if (State.graph.items) {
+      for (const n of Object.keys(State.graph.items)) names.add(n)
     }
     return Array.from(names).sort()
   }
 
   static collectEventItemNames() {
     const set = new Set()
-    for (const [lname, linfo] of Object.entries(graph.locations)) {
+    for (const [lname, linfo] of Object.entries(
+      State.graph.locations,
+    )) {
       if (linfo && linfo.is_event) {
         set.add(State.eventItemNameFor(lname, linfo))
       }
@@ -77,15 +79,17 @@ class DataLoading {
       if (rule.sub_rule) walk(rule.sub_rule)
       if (Array.isArray(rule.children)) rule.children.forEach(walk)
     }
-    for (const e of Object.values(graph.entrances)) walk(e.rule)
-    for (const l of Object.values(graph.locations)) walk(l.rule)
+    for (const e of Object.values(State.graph.entrances)) walk(e.rule)
+    for (const l of Object.values(State.graph.locations)) walk(l.rule)
 
     // For event items, the true max is simply how many distinct event
     // locations grant that item -- more reliable than any single rule's
     // `count` requirement (which may ask for fewer than the total that
     // exist, e.g. needing 13 of 26 "star can be got" flags).
     const eventCounts = {}
-    for (const [lname, linfo] of Object.entries(graph.locations)) {
+    for (const [lname, linfo] of Object.entries(
+      State.graph.locations,
+    )) {
       if (!linfo || !linfo.is_event) continue
       const itemName = State.eventItemNameFor(lname, linfo)
       eventCounts[itemName] = (eventCounts[itemName] || 0) + 1
@@ -98,8 +102,8 @@ class DataLoading {
     // quantity that exists, and take priority over the rule-derived
     // lower bound above -- e.g. 26 "star" items in the pool but a rule
     // only ever asks for 13 of them should still show "x / 26".
-    if (graph.items) {
-      for (const [name, info] of Object.entries(graph.items)) {
+    if (State.graph.items) {
+      for (const [name, info] of Object.entries(State.graph.items)) {
         const c = Number(info && info.count) || 0
         if (c > 0) max[name] = c
       }
@@ -122,27 +126,31 @@ class DataLoading {
       )
   }
   static markTransitLocations() {
-    for (const [lname, region] of Object.entries(graph.regions)) {
+    for (const [lname, region] of Object.entries(
+      State.graph.regions,
+    )) {
       region.isTransit =
-        region.locations.filter((e) => !eventItemNames.has(e)) == 0
+        region.locations.filter(
+          (e) => !State.eventItemNames.has(e),
+        ) == 0
     }
   }
   static loadGraph(raw, requestedProfile) {
-    rawGraph = raw
+    State.rawGraph = raw
     const profile = DataLoading.resolvedProfileNameFor(
       raw,
       requestedProfile,
     )
-    graph = MapEngine.resolveProfile(raw, profile)
+    State.graph = MapEngine.resolveProfile(raw, profile)
     const key = ProgKeys.progKeyFor(raw)
     if (!key) {
       error(name, "not valid")
       return
     }
-    eventItemNames = DataLoading.collectEventItemNames()
+    State.eventItemNames = DataLoading.collectEventItemNames()
     DataLoading.markTransitLocations()
     const itemNames = DataLoading.collectItemNames()
-    itemMaxCounts = DataLoading.collectItemMaxCounts(itemNames)
+    State.itemMaxCounts = DataLoading.collectItemMaxCounts(itemNames)
     // const savedState = db.state ?? null
     // if (savedState && savedState.gameKey === key) {
     //   inventory = savedState.inventory || {}
@@ -152,15 +160,16 @@ class DataLoading {
     //   checkedLocations = {}
     //   for (const n of itemNames) inventory[n] = 0
     // }
-    scoutedItems = {} // scouted data is per-slot/live, not part of saved graph state
-    for (const n of itemNames) if (!(n in inventory)) inventory[n] = 0
+    State.scoutedItems = {} // scouted data is per-slot/live, not part of saved graph state
+    for (const n of itemNames)
+      if (!(n in State.inventory)) State.inventory[n] = 0
     db.layout ??= {}
-    positions = db.layout[key] || {}
+    State.positions = db.layout[key] || {}
 
-    els.status.textContent =
-      `${Object.keys(graph.regions).length} regions · ` +
-      `${Object.keys(graph.locations).length} locations · ${itemNames.length} items`
-    els.emptyMsg.style.display = "none"
+    State.els.status.textContent =
+      `${Object.keys(State.graph.regions).length} regions · ` +
+      `${Object.keys(State.graph.locations).length} locations · ${itemNames.length} items`
+    State.els.emptyMsg.style.display = "none"
 
     Render.buildItemList(itemNames)
     Layout.layoutIfNeeded()
