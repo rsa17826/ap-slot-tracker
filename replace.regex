@@ -4,7 +4,7 @@
 
 @endregex
 
-! @file \,js$
+@file \.js$
 @regex (class (\w+(?!\w))[\s\S]+)^(async )?function \2\.
 @untilfail
 @replace $1static $3
@@ -21,19 +21,4 @@
 @replace $1
 @flags g
 @endregex
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
