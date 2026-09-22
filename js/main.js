@@ -200,6 +200,7 @@ document.addEventListener("keydown", (ev) => {
   window.db.connections ??= {}
   window.db.progFiles ??= {}
   window.db.ctApiKey ??= ""
+  window.db.view ??= {}
   window.db.launchURLs ??= {}
   const ctApiKeyInput = /** @type {HTMLInputElement | null} */ (
     document.getElementById("ctApiKeyInput")
@@ -212,7 +213,6 @@ document.addEventListener("keydown", (ev) => {
   }
   Render.loadColors()
   Interaction.setupPanZoom()
-  State.view = db.view ?? { x: 40, y: 40, scale: 1 }
   State.hideEvents = db.hideEvents ?? false
   State.els.hideEventsChk.checked = State.hideEvents
   State.els.hideEventsChk.addEventListener("change", () => {

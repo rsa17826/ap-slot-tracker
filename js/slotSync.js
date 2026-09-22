@@ -96,6 +96,11 @@ class SlotSync {
         State.scoutTrackedSlots.add(rt2.client.slot)
     }
 
+    State.view = db.view[conn.game] ??= {
+      x: 40,
+      y: 40,
+      scale: 1,
+    }
     Render.syncItemListUI()
     Render.onInventoryChange()
   }

@@ -344,7 +344,7 @@ class Interaction {
     document
       .getElementById("zoomReset")
       .addEventListener("click", () => {
-        State.view = db.view[] = { x: 40, y: 40, scale: 1 }
+        State.view = db.view[State.rawGraph.game] = { x: 40, y: 40, scale: 1 }
         Interaction.applyView()
         Persistence.saveLayout()
       })

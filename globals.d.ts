@@ -202,7 +202,7 @@ declare global {
     progFolderHandle: FileSystemDirectoryHandle
     currentMapConnId: string | null
     layout: Record<string, Record<string, { x: number; y: number }>>
-    view: { x: number; y: number; scale: number }
+    view: Record<string, { x: number; y: number; scale: number }>
     hideEvents: boolean
     hideEmptyNodes: boolean
     hideOOL: boolean

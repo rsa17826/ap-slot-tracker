@@ -10,6 +10,6 @@ class Persistence {
       return
     }
     db.layout[k] = State.positions
-    db.view = State.view
+    db.view[State.rawGraph.game] = State.view
   }
 }
