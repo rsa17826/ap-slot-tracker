@@ -208,6 +208,7 @@ document.addEventListener("keydown", (ev) => {
   db.hideCleared ??= false
   db.noTransit ??= false
   db.showScouts ??= false
+  db.customSortFns ??= {}
   const ctApiKeyInput = /** @type {HTMLInputElement} */ (
     document.getElementById("ctApiKeyInput")
   )
@@ -226,34 +227,28 @@ document.addEventListener("keydown", (ev) => {
   State.els.hideEmptyNodesChk.checked = db.hideEmptyNodes
   State.els.hideEmptyNodesChk.addEventListener("change", () => {
     db.hideEmptyNodes = State.els.hideEmptyNodesChk.checked
-    db.hideEmptyNodes = db.hideEmptyNodes
     Render.render()
   })
   State.els.hideOOLChk.checked = db.hideOOL
   State.els.hideOOLChk.addEventListener("change", () => {
     db.hideOOL = State.els.hideOOLChk.checked
-    db.hideOOL = db.hideOOL
     Render.render()
   })
   State.els.hideClearedChk.checked = db.hideCleared
   State.els.hideClearedChk.addEventListener("change", () => {
     db.hideCleared = State.els.hideClearedChk.checked
-    db.hideCleared = db.hideCleared
     Render.render()
   })
   State.els.noTransitChk.checked = db.noTransit
   State.els.noTransitChk.addEventListener("change", () => {
     db.noTransit = State.els.noTransitChk.checked
-    db.noTransit = db.noTransit
     Render.render()
   })
   State.els.showScoutsChk.checked = db.showScouts
   State.els.showScoutsChk.addEventListener("change", () => {
     db.showScouts = State.els.showScoutsChk.checked
-    db.showScouts = db.showScouts
     Render.render()
   })
-  db.customSortFns ??= {}
   const lastConn = db.connections?.[db.currentMapConnId]
   if (lastConn) SlotSync.syncFromSlot(lastConn)
   Main.refreshNotifBtn()
@@ -275,9 +270,9 @@ document.addEventListener("keydown", (ev) => {
     })()
   }
   // Auto-reconnect any saved slots
-  Object.values(window.db.connections).forEach((conn) =>
-    Connections.startConnection(conn),
-  )
+  Object.values(window.db.connections).forEach((conn) => {
+    if (conn.autoConnect) Connections.startConnection(conn)
+  })
   if (db.currentMapConnId) {
     var s = db.connections[db.currentMapConnId]
     if (s) SlotSync.syncFromSlot(s)
@@ -322,6 +317,7 @@ document
       notifyMode: "all",
       profile: null, // which settings profile this slot uses, if its rules file has more than one; null = file's default
       ct: null, // Cheese Trackers link, set via the slot card once created
+      autoConnect: true,
     }
     if (!conn.hostname || !progKey || !conn.game || !conn.playerName)
       return

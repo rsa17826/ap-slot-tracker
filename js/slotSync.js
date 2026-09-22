@@ -20,7 +20,6 @@ class SlotSync {
   static setMapVisible(v) {
     SlotSync.appEl.classList.toggle("visible", v)
     if (v) Interaction.applyView()
-    // else db.currentMapConnId = null
   }
 
   static async syncFromSlot(conn) {

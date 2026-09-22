@@ -36,26 +36,19 @@ class ProgKeys {
   static progForGame(progKey, requestedProfile) {
     const src = window.db.progFiles[progKey]
     if (!src) return null
-    let raw
-    try {
-      raw = typeof src === "string" ? JSON.parse(src) : src
-    } catch (e) {
-      console.error("Failed to parse map graph for", progKey, e)
-      return null
-    }
 
-    const names = MapEngine.profileNamesOf(raw)
-    if (names.length === 0) return raw // older single-profile file, nothing to resolve
+    const names = MapEngine.profileNamesOf(src)
+    if (names.length === 0) return src // older single-profile file, nothing to resolve
 
     const profile =
       names.includes(requestedProfile) ? requestedProfile : (
-        MapEngine.defaultProfileName(raw)
+        MapEngine.defaultProfileName(src)
       )
 
     const cacheKey = `${progKey}::${profile}`
     const cached = ProgKeys._resolvedGraphCache[cacheKey]
     if (cached && cached.srcRef === src) return cached.resolved
-    const resolved = MapEngine.resolveProfile(raw, profile)
+    const resolved = MapEngine.resolveProfile(src, profile)
     ProgKeys._resolvedGraphCache[cacheKey] = { srcRef: src, resolved }
     return resolved
   }

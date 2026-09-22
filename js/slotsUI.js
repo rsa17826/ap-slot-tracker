@@ -395,8 +395,10 @@ class SlotsUI {
                         status === "error" ||
                         !rt
                       ) {
+                        conn.autoConnect = true
                         Connections.startConnection(conn)
                       } else {
+                        conn.autoConnect = false
                         Connections.stopConnection(conn.id)
                       }
                     },
