@@ -15,14 +15,14 @@ class Layout {
     return (region.locations || []).filter((lname) => {
       const linfo = State.graph.locations[lname]
       const isEvent = !!(linfo && linfo.is_event)
-      if (State.hideEvents && isEvent) return false
+      if (db.hideEvents && isEvent) return false
       if (
-        State.hideOOL &&
+        db.hideOOL &&
         !isEvent &&
         !State.reach.locations.has(lname)
       )
         return false // out of logic
-      if (State.hideCleared && Reachability.isLocationDone(lname))
+      if (db.hideCleared && Reachability.isLocationDone(lname))
         return false // already cleared / auto-granted
       return true
     })
@@ -45,7 +45,7 @@ class Layout {
     let scoutText = null,
       scoutClass = null,
       scoutStar = null
-    if (State.showScouts && scout) {
+    if (db.showScouts && scout) {
       scoutClass =
         scout.flags & 1 ? "progression"
         : scout.flags & 4 ? "trap"

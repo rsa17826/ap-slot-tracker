@@ -241,7 +241,7 @@ class Render {
       while (stack.length) {
         const target = stack.pop()
         if (seen.has(target)) continue
-        if (State.noTransit && Reachability.isTransitRegion(target)) {
+        if (db.noTransit && Reachability.isTransitRegion(target)) {
           seen.add(target)
           const tregion = State.graph.regions[target]
           for (const nextExit of tregion.exits || []) {

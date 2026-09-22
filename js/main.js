@@ -202,57 +202,55 @@ document.addEventListener("keydown", (ev) => {
   window.db.ctApiKey ??= ""
   window.db.view ??= {}
   window.db.launchURLs ??= {}
-  const ctApiKeyInput = /** @type {HTMLInputElement | null} */ (
+  db.hideEvents ??= false
+  db.hideOOL ??= false
+  db.hideEmptyNodes ??= false
+  db.hideCleared ??= false
+  db.noTransit ??= false
+  db.showScouts ??= false
+  const ctApiKeyInput = /** @type {HTMLInputElement} */ (
     document.getElementById("ctApiKeyInput")
   )
-  if (ctApiKeyInput) {
-    ctApiKeyInput.value = window.db.ctApiKey || ""
-    ctApiKeyInput.oninput = () => {
-      window.db.ctApiKey = ctApiKeyInput.value.trim()
-    }
+  ctApiKeyInput.value = window.db.ctApiKey
+  ctApiKeyInput.oninput = () => {
+    window.db.ctApiKey = ctApiKeyInput.value.trim()
   }
   Render.loadColors()
   Interaction.setupPanZoom()
-  State.hideEvents = db.hideEvents ?? false
-  State.els.hideEventsChk.checked = State.hideEvents
+  State.els.hideEventsChk.checked = db.hideEvents
   State.els.hideEventsChk.addEventListener("change", () => {
-    State.hideEvents = State.els.hideEventsChk.checked
-    db.hideEvents = State.hideEvents
+    db.hideEvents = State.els.hideEventsChk.checked
+    db.hideEvents = db.hideEvents
     Render.render()
   })
-  State.hideEmptyNodes = db.hideEmptyNodes ?? false
-  State.els.hideEmptyNodesChk.checked = State.hideEmptyNodes
+  State.els.hideEmptyNodesChk.checked = db.hideEmptyNodes
   State.els.hideEmptyNodesChk.addEventListener("change", () => {
-    State.hideEmptyNodes = State.els.hideEmptyNodesChk.checked
-    db.hideEmptyNodes = State.hideEmptyNodes
+    db.hideEmptyNodes = State.els.hideEmptyNodesChk.checked
+    db.hideEmptyNodes = db.hideEmptyNodes
     Render.render()
   })
-  State.hideOOL = db.hideOOL ?? false
-  State.els.hideOOLChk.checked = State.hideOOL
+  State.els.hideOOLChk.checked = db.hideOOL
   State.els.hideOOLChk.addEventListener("change", () => {
-    State.hideOOL = State.els.hideOOLChk.checked
-    db.hideOOL = State.hideOOL
+    db.hideOOL = State.els.hideOOLChk.checked
+    db.hideOOL = db.hideOOL
     Render.render()
   })
-  State.hideCleared = db.hideCleared ?? false
-  State.els.hideClearedChk.checked = State.hideCleared
+  State.els.hideClearedChk.checked = db.hideCleared
   State.els.hideClearedChk.addEventListener("change", () => {
-    State.hideCleared = State.els.hideClearedChk.checked
-    db.hideCleared = State.hideCleared
+    db.hideCleared = State.els.hideClearedChk.checked
+    db.hideCleared = db.hideCleared
     Render.render()
   })
-  State.noTransit = db.noTransit ?? false
-  State.els.noTransitChk.checked = State.noTransit
+  State.els.noTransitChk.checked = db.noTransit
   State.els.noTransitChk.addEventListener("change", () => {
-    State.noTransit = State.els.noTransitChk.checked
-    db.noTransit = State.noTransit
+    db.noTransit = State.els.noTransitChk.checked
+    db.noTransit = db.noTransit
     Render.render()
   })
-  State.showScouts = db.showScouts ?? false
-  State.els.showScoutsChk.checked = State.showScouts
+  State.els.showScoutsChk.checked = db.showScouts
   State.els.showScoutsChk.addEventListener("change", () => {
-    State.showScouts = State.els.showScoutsChk.checked
-    db.showScouts = State.showScouts
+    db.showScouts = State.els.showScoutsChk.checked
+    db.showScouts = db.showScouts
     Render.render()
   })
   db.customSortFns ??= {}

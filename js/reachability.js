@@ -107,20 +107,20 @@ class Reachability {
 
   static isRegionVisible(rname) {
     if (
-      State.hideEmptyNodes &&
-      State.hideOOL &&
+      db.hideEmptyNodes &&
+      db.hideOOL &&
       !State.reach.regions.has(rname)
     )
       return false
     if (
-      State.hideEmptyNodes &&
-      (State.hideEvents || State.hideCleared || State.hideOOL) &&
+      db.hideEmptyNodes &&
+      (db.hideEvents || db.hideCleared || db.hideOOL) &&
       Reachability.isRegionEmptyAfterFilters(rname)
     )
       return false
     if (!Reachability.regionMatchesSearch(rname, State.searchQuery))
       return false
-    if (State.noTransit && Reachability.isTransitRegion(rname))
+    if (db.noTransit && Reachability.isTransitRegion(rname))
       return false
     return true
   }
@@ -159,7 +159,7 @@ class Reachability {
           .toLowerCase()
           .includes(State.searchQuery)
         row.style.display =
-          State.hideEvents && isEvent ? "none"
+          db.hideEvents && isEvent ? "none"
           : matchesSearch ? ""
           : "none"
       })
