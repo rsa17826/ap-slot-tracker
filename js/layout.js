@@ -187,7 +187,7 @@ class Layout {
   }
 
   static autoLayout() {
-    const names = Reachability.visibleRegionNames()
+    const names = Object.keys(State.graph.regions)
     const visibleSet = new Set(names)
     const start = State.graph.origin_region_name
     const layers = {}
