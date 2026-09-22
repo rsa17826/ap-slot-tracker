@@ -18,9 +18,12 @@ class Main {
   // subfolders. Re-running this (e.g. on startup, or via the
   // "Load rules folder" button again) picks up any files added to
   // the folder since the last scan.
+  /**
+   * @param {FileSystemDirectoryHandle} dirHandle
+   */
   static async scanProgFolder(dirHandle, { loadFirst = false } = {}) {
     db.fileHandles ??= {}
-    window.db.progFiles ??= {}
+    db.progFiles ??= {}
     let firstRaw = null
     for await (const entry of dirHandle.values()) {
       if (
@@ -36,7 +39,7 @@ class Main {
           continue
         }
         db.fileHandles[key] = entry
-        window.db.progFiles[key] = raw
+        db.progFiles[key] = raw
         if (!firstRaw) firstRaw = raw
       } catch (e) {
         console.error("Could not parse", entry.name, e)
@@ -47,6 +50,10 @@ class Main {
     if (loadFirst && firstRaw) DataLoading.loadGraph(firstRaw)
   }
 
+  /**
+   * @param {string} name
+   * @param {string} profile
+   */
   static async tryLoadFile(name, profile) {
     if (name && db.progFiles[name]) {
       DataLoading.loadGraph(db.progFiles[name], profile)
@@ -57,19 +64,16 @@ class Main {
     return true
   }
 
+  /**
+   * @param {string} name
+   */
   static async updateSavedText(name) {
     if (name && db.fileHandles[name]) {
-      try {
+      a.getfileperms(db.fileHandles[name]).then(async (e) => {
         db.progFiles[name] = JSON.parse(
           await (await db.fileHandles[name].getFile()).text(),
         )
-      } catch (e) {
-        a.getfileperms(db.fileHandles[name]).then(async (e) => {
-          db.progFiles[name] = JSON.parse(
-            await (await db.fileHandles[name].getFile()).text(),
-          )
-        })
-      }
+      })
     }
   }
 }
@@ -112,7 +116,7 @@ document
       const raw = JSON.parse(text)
       const key = ProgKeys.progKeyFor(raw)
       if (!key) {
-        error(name, "not valid")
+        error(file, "not valid")
         return
       }
       db.fileHandles[key] = fh
@@ -251,7 +255,7 @@ document.addEventListener("keydown", (ev) => {
     db.showScouts = State.showScouts
     Render.render()
   })
-  CustomLayout.loadCustomSortFns()
+  db.customSortFns ??= {}
   const lastConn = db.connections?.[db.currentMapConnId]
   if (lastConn) SlotSync.syncFromSlot(lastConn)
   Main.refreshNotifBtn()

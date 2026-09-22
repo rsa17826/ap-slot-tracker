@@ -10,6 +10,9 @@ class ProgKeys {
   // `.version` differs (e.g. re-rolling a game's logic between releases),
   // so progFiles/fileHandles/layout are all keyed by a composite
   // "game@vVERSION" key rather than by game name alone.
+  /**
+   * @param {RulesGraph} raw
+   */
   static progKeyFor(raw) {
     const game = raw?.game
     const version = raw?.version
@@ -26,6 +29,10 @@ class ProgKeys {
   // same rules file (progKey) but each ask for a different profile, so the
   // resolved-graph cache is keyed by progKey+profile, not just progKey.
   static _resolvedGraphCache = {} // "progKey::profile" -> { srcRef, resolved }
+  /**
+   * @param {string} progKey
+   * @param {string} requestedProfile
+   */
   static progForGame(progKey, requestedProfile) {
     const src = window.db.progFiles[progKey]
     if (!src) return null
@@ -55,6 +62,9 @@ class ProgKeys {
 
   // Names of the settings profiles available for a slot's currently-selected
   // rules file, [] if that file doesn't exist or is a single-profile file.
+  /**
+   * @param {string} progKey
+   */
   static profileNamesFor(progKey) {
     const raw = window.db.progFiles?.[progKey]
     return MapEngine.profileNamesOf(raw)
@@ -63,6 +73,9 @@ class ProgKeys {
   // Which profile name a slot is actually using right now: its own explicit
   // choice if still valid for the currently-loaded file, else that file's
   // default profile.
+  /**
+   * @param {SlotConnection} conn
+   */
   static activeProfileFor(conn) {
     const names = ProgKeys.profileNamesFor(conn.progKey)
     if (names.length === 0) return null

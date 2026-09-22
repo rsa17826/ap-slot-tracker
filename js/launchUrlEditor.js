@@ -4,10 +4,7 @@ class LaunchUrlEditor {
   static openURLEditor(game) {
     State.els.launchURLGameLabel.textContent = `(${game})`
     State.els.launchURLEditor.value =
-      (window.db &&
-        window.db.launchURLs &&
-        window.db.launchURLs[game]) ||
-      ""
+      window.db.launchURLs?.[game] || ""
     State.els.launchURLError.textContent = ""
     State.els.launchURLError.style.display = "none"
     State.els.launchURLModal.dataset.game = game
@@ -57,7 +54,6 @@ document
       )
       return
     }
-    window.db.launchURLs ??= {}
     window.db.launchURLs[game] = src
     LaunchUrlEditor.closeURLEditor()
   })

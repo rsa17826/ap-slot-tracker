@@ -27,7 +27,7 @@ class CheeseTrackers {
   }
 
   /**
-   * @param {{ id: string | number; ct: CTLinkInfo; }} conn
+   * @param {SlotConnection} conn
    */
   static ctSaveConn(conn) {
     const cc = window.db.connections[conn.id]

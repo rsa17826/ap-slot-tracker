@@ -188,10 +188,8 @@ class DataLoading {
     // single source of truth for "prog" data, replacing prog.js.
     // Keyed by game+version so multiple rules revisions of the same
     // game can be stored side by side.
-    if (window.db) {
-      window.db.progFiles[key] = raw
-      ProgFilesUI.renderProgFiles()
-      SlotsUI.renderSlots()
-    }
+    window.db.progFiles[key] = raw
+    ProgFilesUI.renderProgFiles()
+    SlotsUI.renderSlots()
   }
 }

@@ -89,19 +89,12 @@ class CustomLayout {
     Render.render()
   }
 
-  static loadCustomSortFns() {
-    State.customSortFns = db.customSortFns ?? {}
-  }
-  static saveCustomSortFns() {
-    db.customSortFns = State.customSortFns
-  }
-
   static openSortEditor(src) {
     State.els.sortFnGameLabel.textContent = `(${CustomLayout.gameKeyOf()})`
     State.els.sortFnEditor.value =
       src ??
-      State.customSortFns[CustomLayout.gameKeyOf()] ??
-      State.customSortFns[State.graph.game] ??
+      db.customSortFns[CustomLayout.gameKeyOf()] ??
+      db.customSortFns[State.graph.game] ??
       CustomLayout.DEFAULT_SORT_FN_SRC
     State.els.sortFnError.textContent = ""
     State.els.sortFnError.style.display = "none"
@@ -121,8 +114,7 @@ class CustomLayout {
     if (!State.graph) return
     const gameKey = CustomLayout.gameKeyOf()
     const src =
-      State.customSortFns[gameKey] ??
-      State.customSortFns[State.graph.game]
+      db.customSortFns[gameKey] ?? db.customSortFns[State.graph.game]
     if (!src) {
       // No saved function for this game yet -- open the editor so
       // the user can write one.
@@ -163,10 +155,8 @@ document
     const src = State.els.sortFnEditor.value
     try {
       CustomLayout.runCustomLayout(gameKey, src)
-      State.customSortFns[State.graph.game] = State.customSortFns[
-        gameKey
-      ] = src
-      CustomLayout.saveCustomSortFns()
+      db.customSortFns[State.graph.game] = db.customSortFns[gameKey] =
+        src
       CustomLayout.closeSortEditor()
     } catch (err) {
       CustomLayout.showSortEditorError(err)
