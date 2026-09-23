@@ -83,27 +83,39 @@ class Layout {
         : null
     }
 
-    const hints = State.hints || []
-    const isLocationHinted = hints.some(
+    const hints = State.hints
+    const locHints = hints.filter(
       (h) =>
-        h.locationName === lname ||
-        String(h.location) === String(lname),
+        h &&
+        (h.locationName === lname ||
+          String(h.location) === String(lname)),
     )
-    const isItemHinted =
-      scout ?
-        hints.some(
-          (h) =>
-            h.itemName === scout.itemName ||
-            String(h.item) === String(scout.itemName),
-        )
-      : false
+    const isLocationHinted = locHints.length > 0
+    const isLocationHintFound =
+      isLocationHinted && locHints.every((h) => h.found)
 
+    // Check item hints (if scouted)
+    let isItemHinted = false
+    let isItemHintFound = false
+    if (scout) {
+      const itemHints = hints.filter(
+        (h) =>
+          h &&
+          (h.itemName === scout.itemName ||
+            String(h.item) === String(scout.itemName)),
+      )
+      isItemHinted = itemHints.length > 0
+      isItemHintFound =
+        isItemHinted && itemHints.every((h) => h.found)
+    }
+
+    const isHintFound =
+      (isLocationHinted && isLocationHintFound) ||
+      (isItemHinted && isItemHintFound)
     const isReach = State.reach.locations.has(lname)
 
     let isChecked =
       !!State.checkedLocations[lname] || (isEvent && isReach)
-
-    /** @type {Row} */
     return {
       lname,
       displayText:
@@ -115,6 +127,7 @@ class Layout {
       isEvent,
       isLocationHinted,
       isItemHinted,
+      isHintFound, // Pass found state to layout
       scoutText,
       scoutClass,
       scoutStar,

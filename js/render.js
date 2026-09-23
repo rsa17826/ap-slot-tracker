@@ -103,10 +103,17 @@ class Render {
         row.classList.toggle("collected", v > 0)
         row.classList.toggle("maxed", maxCount > 1 && v >= maxCount)
 
-        const isHinted = State.hints.some(
-          (h) => h.itemName === name,
+        // Find all hints for this item
+        const itemHints = State.hints.filter(
+          (h) => h && h.itemName === name,
         )
-        row.classList.toggle("hinted", Boolean(isHinted))
+        const isHinted = itemHints.length > 0
+        const isHintFound =
+          isHinted && itemHints.every((h) => h.found)
+
+        row.classList.toggle("hinted", isHinted)
+        row.classList.toggle("hint-found", isHintFound)
+
         let hintSymbolEl = row.querySelector(".hint-symbol")
         if (!hintSymbolEl) {
           hintSymbolEl = newelem("span", { class: "hint-symbol" })
@@ -117,7 +124,11 @@ class Render {
             row.appendChild(hintSymbolEl)
           }
         }
+
         hintSymbolEl.textContent = isHinted ? " 💡" : ""
+        // Apply grayscale and opacity for found hints in DOM
+        hintSymbolEl.style.filter =
+          isHintFound ? "grayscale(100%) opacity(0.4)" : "none"
       })
   }
 
@@ -522,7 +533,7 @@ class Render {
       let rightPadOffset = Layout.ROW_RIGHT_PAD
 
       if (row.scoutStar) {
-        Render.ctx.font = "11px sans-serif"
+        Render.ctx.font = `10px ${Render.COLORS.mono}, monospace`
         Render.ctx.fillStyle =
           row.scoutStar === "yellow" ? "#f5d33c" : "#4ade80"
         Render.ctx.textAlign = "right"
@@ -530,13 +541,18 @@ class Render {
         Render.ctx.textAlign = "left"
         rightPadOffset += Layout.ROW_STAR_W
       }
-
       if (row.isLocationHinted || row.isItemHinted) {
-        Render.ctx.font = "11px sans-serif"
-        Render.ctx.fillStyle = "#f59e0b"
+        Render.ctx.save()
+        Render.ctx.font = `10px ${Render.COLORS.mono}, monospace`
+
+        if (row.isHintFound) {
+          Render.ctx.filter = "grayscale(100%) opacity(0.4)"
+        }
+
         Render.ctx.textAlign = "right"
         Render.ctx.fillText("💡", x + w - rightPadOffset, cy)
-        Render.ctx.textAlign = "left"
+        Render.ctx.restore()
+
         rightPadOffset += 14
       }
 
