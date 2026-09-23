@@ -344,8 +344,12 @@ class Interaction {
     document
       .getElementById("zoomReset")
       .addEventListener("click", () => {
-        State.view = db.view[State.rawGraph.game] = { x: 40, y: 40, scale: 1 }
-        Interaction.applyView()
+        State.view = db.view[State.rawGraph.game] = {
+          x: 40,
+          y: 40,
+          scale: 1,
+        }
+        Render.scheduleDraw()
         Persistence.saveLayout()
       })
   }
@@ -361,11 +365,7 @@ class Interaction {
     )
     State.view.x = localX - worldX * State.view.scale
     State.view.y = localY - worldY * State.view.scale
-    Interaction.applyView()
-    Persistence.saveLayout()
-  }
-
-  static applyView() {
     Render.scheduleDraw()
+    Persistence.saveLayout()
   }
 }

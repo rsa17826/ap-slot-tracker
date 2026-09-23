@@ -19,7 +19,7 @@ class SlotSync {
   static appEl = document.getElementById("app")
   static setMapVisible(v) {
     SlotSync.appEl.classList.toggle("visible", v)
-    if (v) Interaction.applyView()
+    if (v) Render.scheduleDraw()
   }
 
   static async syncFromSlot(conn) {
@@ -50,7 +50,7 @@ class SlotSync {
       State.scoutOwnSlot = null
       State.scoutPlayerNames = {}
       State.scoutTrackedSlots = new Set()
-      Interaction.applyView()
+      Render.scheduleDraw()
       return
     }
 

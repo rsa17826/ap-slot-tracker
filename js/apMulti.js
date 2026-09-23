@@ -31,9 +31,9 @@ class APSlotClient {
     this.itemIdToName = {}
     /**@type {Record<string, Record<string | number, string>>} */
     this.locationIdToName = {}
-    /**@type {(string | number)[]} */
+    /**@type {(number)[]} */
     this.checkedLocations = []
-    /**@type {(string | number)[]} */
+    /**@type {(number)[]} */
     this.missingLocations = []
     this.slotData = {}
     this.slotInfo = {}
@@ -181,7 +181,11 @@ class APSlotClient {
         this.cb.onStatus?.("connected")
         this.cb.onConnected?.()
         this.cb.onCheckedLocations?.()
-        this.requestHints()
+        const key = `_read_hints_${this.team}_${this.slot}`
+        this.sendPackets([
+          { cmd: "Get", keys: [key] },
+          { cmd: "SetNotify", keys: [key] },
+        ])
         break
       case "ConnectionRefused":
         this.cb.onStatus?.(
@@ -236,29 +240,22 @@ class APSlotClient {
           this.cb.onCheckedLocations?.()
         }
         break
+      case "SetReply": {
+        const key = `_read_hints_${this.team}_${this.slot}`
+        if (packet.key === key) {
+          this.hints = packet.value || []
+        }
+        break
+      }
+      case "Retrieved": {
+        const key = `_read_hints_${this.team}_${this.slot}`
+        if (packet.keys?.[key] !== undefined) {
+          this.hints = packet.keys[key] || []
+        }
+        break
+      }
       default:
         break
-    }
-  }
-  requestHints() {
-    const key = `_read_hints_${this.team}_${this.slot}`
-    this.sendPackets([
-      { cmd: "Get", keys: [key] },
-      { cmd: "SetNotify", keys: [key] },
-    ])
-  }
-  // Server replies to Get with "Retrieved"; live changes come as "SetReply".
-  onRetrieved(packet) {
-    const key = `_read_hints_${this.team}_${this.slot}`
-    if (packet.keys?.[key] !== undefined) {
-      this.hints = packet.keys[key] || []
-    }
-  }
-
-  onSetReply(packet) {
-    const key = `_read_hints_${this.team}_${this.slot}`
-    if (packet.key === key) {
-      this.hints = packet.value || []
     }
   }
 }

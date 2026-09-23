@@ -60,7 +60,7 @@ class Main {
     } else {
       return false
     }
-    Interaction.applyView()
+    Render.scheduleDraw()
     return true
   }
 
