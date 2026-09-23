@@ -104,6 +104,7 @@ declare global {
 
   interface APSlotClientOptions {
     hostname: string
+    connId: string
     port: string
     game: string
     playerName: string

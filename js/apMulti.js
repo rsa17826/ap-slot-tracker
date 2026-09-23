@@ -30,6 +30,7 @@ class APSlotClient {
   constructor(opts, callbacks = {}) {
     this.opts = opts
     this.cb = callbacks
+    this.connId = opts.connId
     this.itemIdToName = {}
     /**@type {Record<string, Record<string | number, string>>} */
     this.locationIdToName = {}
@@ -245,8 +246,8 @@ class APSlotClient {
         break
       case "SetReply": {
         const key = `_read_hints_${this.team}_${this.slot}`
-        if (packet.key === key) {
-          this.hints = (packet.value || []).map((h) => {
+        if (packet.key === key && Array.isArray(packet.value)) {
+          this.hints = packet.value.map((h) => {
             const finderGame = this.slotInfo?.[h.finding_player]?.game
             const receiverGame =
               this.slotInfo?.[h.receiving_player]?.game
@@ -262,8 +263,9 @@ class APSlotClient {
                 : null,
             }
           })
-          State.hints = this.hints
-          if (typeof Render !== "undefined" && Render.render) {
+
+          if (this.connId === db.currentMapConnId) {
+            State.hints = this.hints
             Render.render()
           }
         }
@@ -288,8 +290,9 @@ class APSlotClient {
                 : null,
             }
           })
-          State.hints = this.hints
-          if (typeof Render !== "undefined" && Render.render) {
+
+          if (this.connId === db.currentMapConnId) {
+            State.hints = this.hints
             Render.render()
           }
         }

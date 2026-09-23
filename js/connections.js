@@ -51,6 +51,7 @@ class Connections {
         game: conn.game,
         playerName: conn.playerName,
         password: conn.password,
+        connId: conn.id,
       },
       {
         onStatus: (status, detail) => {

@@ -1,8 +1,13 @@
 class SlotSync {
   // Bridges a live AP slot connection (from app.js) into the map view: opening the map for a slot and keeping it synced as items/checks come in.
 
+  /**
+   * @param {SlotConnection} conn
+   */
   static openMapForSlot(conn) {
     db.currentMapConnId = conn.id
+    const activeClient = Connections.runtime[conn.id].client
+    State.hints = activeClient?.hints || []
     SlotSync.setMapVisible(true)
     SlotSync.syncFromSlot(conn)
   }
@@ -10,6 +15,9 @@ class SlotSync {
   // Called by app.js whenever a slot gets new items/checks, regardless
   // of whether the map is even open. Only re-syncs the map if it's
   // currently showing this exact slot.
+  /**
+   * @param {SlotConnection} conn
+   */
   static notifyMapOfSlotUpdate(conn) {
     if (!conn || conn.id !== db.currentMapConnId) return
     if (!SlotSync.appEl.classList.contains("visible")) return
@@ -17,11 +25,17 @@ class SlotSync {
   }
 
   static appEl = document.getElementById("app")
+  /**
+   * @param {boolean} v
+   */
   static setMapVisible(v) {
     SlotSync.appEl.classList.toggle("visible", v)
     if (v) Render.scheduleDraw()
   }
 
+  /**
+   * @param {SlotConnection} conn
+   */
   static async syncFromSlot(conn) {
     if (!conn || conn.id !== db.currentMapConnId) return
     const raw = db.progFiles[conn.progKey]

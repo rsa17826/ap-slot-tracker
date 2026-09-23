@@ -56,7 +56,9 @@ class Render {
 
     btn.addEventListener("click", () => {
       debugger
-      Connections.runtime[db.currentMapConnId].client.requestItemHint(name)
+      Connections.runtime[db.currentMapConnId].client.requestItemHint(
+        name,
+      )
       Render.hideItemContextMenu()
     })
 
@@ -101,8 +103,9 @@ class Render {
         row.classList.toggle("collected", v > 0)
         row.classList.toggle("maxed", maxCount > 1 && v >= maxCount)
 
-        const isHinted = row.dataset.hinted === "true"
-
+        const isHinted = State.hints.some(
+          (h) => h.itemName === name,
+        )
         row.classList.toggle("hinted", Boolean(isHinted))
         let hintSymbolEl = row.querySelector(".hint-symbol")
         if (!hintSymbolEl) {
