@@ -30,7 +30,7 @@ class Layout {
   // (layout algorithms + canvas Render.draw sizing) and by the canvas Render.draw
   // itself, so they never disagree about how tall a node is.
   static computeNodeRows(region) {
-    return (region.locations || []).filter((lname) => {
+    return (region.locations || []).filter((/** @type {string | number} */ lname) => {
       const linfo = State.graph.locations[lname]
       const isEvent = !!(linfo && linfo.is_event)
       if (db.hideEvents && isEvent) return false
@@ -52,6 +52,9 @@ class Layout {
   static ROW_SCOUT_GAP = 14 // gap between location text and scout label
   static ROW_STAR_W = 12 // width reserved for the scout star icon + its gap
 
+  /**
+   * @param {string} lname
+   */
   static buildRowData(lname) {
     const linfo = State.graph.locations[lname]
     const isEvent = !!(linfo && linfo.is_event)
@@ -76,16 +79,27 @@ class Layout {
 
     const hints = State.hints || []
     const isLocationHinted = hints.some(
-      (h) => h.location === lname || h.locationName === lname,
+      (h) =>
+        h.locationName === lname ||
+        String(h.location) === String(lname),
     )
     const isItemHinted =
-      scoutText ?
+      scout ?
         hints.some(
           (h) =>
-            h.item === scout.itemName ||
-            h.itemName === scout.itemName,
+            h.itemName === scout.itemName ||
+            String(h.item) === String(scout.itemName),
         )
       : false
+
+    // Determine if checked: normal check OR event item auto-collected in eventInventory
+    let isChecked = !!State.checkedLocations[lname]
+    if (isEvent) {
+      const eventItemName = State.eventItemNameFor(lname, linfo)
+      if (State.eventInventory[eventItemName]) {
+        isChecked = true
+      }
+    }
 
     /** @type {Row} */
     return {
@@ -95,7 +109,7 @@ class Layout {
           lname.split(" - ").slice(1).join(" - ")
         : lname,
       isReach: State.reach.locations.has(lname),
-      isChecked: !!State.checkedLocations[lname],
+      isChecked,
       isEvent,
       isLocationHinted,
       isItemHinted,
@@ -113,6 +127,11 @@ class Layout {
   // what it actually needs). Only once BOTH sides still want more than
   // their half does the split become a flat 50/50, and only then does
   // either side actually get trimmed.
+  /**
+   * @param {number} budget
+   * @param {number} need1
+   * @param {number} need2
+   */
   static splitRowBudget(budget, need1, need2) {
     const half = budget / 2
     if (need1 <= half) return [need1, Math.min(need2, budget - need1)]
@@ -129,6 +148,10 @@ class Layout {
   // NODE_MAX_WIDTH). Once a node hits that cap, each row's location
   // text and scout label fair-share the remaining space instead of
   // the location text hogging it (see Layout.splitRowBudget).
+  /**
+   * @param {string} rname
+   * @returns {NodeLayout}
+   */
   static computeNodeLayout(rname) {
     const region = State.graph.regions[rname]
     if (!region)
@@ -162,20 +185,36 @@ class Layout {
       if (row.scoutText) rowW += Layout.ROW_SCOUT_GAP + row.scoutWidth
       if (row.scoutStar) rowW += Layout.ROW_STAR_W
       if (row.isLocationHinted) rowW += 14
+      if (row.isItemHinted) rowW += 14
       w = Math.max(w, rowW)
     }
     w = Math.min(w, Layout.NODE_MAX_WIDTH)
 
-    // Second pass: now that the node's final width is locked in, give
-    // each row its real allocation. A row only needs fair-sharing once
-    // its ideal width doesn't fit -- otherwise both sides just get
-    // exactly what they asked for.
+    for (const row of rows) {
+      Render.ctx.font =
+        (row.isEvent ? "italic " : "") +
+        `11px ${Render.COLORS.mono}, monospace`
+      row.textWidth = Render.ctx.measureText(row.displayText).width
+      row.scoutWidth = 0
+      if (row.scoutText) {
+        Render.ctx.font = `10px ${Render.COLORS.mono}, monospace`
+        row.scoutWidth = Render.ctx.measureText(row.scoutText).width
+      }
+      let rowW =
+        Layout.ROW_LEFT_PAD + row.textWidth + Layout.ROW_RIGHT_PAD
+      if (row.scoutText) rowW += Layout.ROW_SCOUT_GAP + row.scoutWidth
+      if (row.scoutStar) rowW += Layout.ROW_STAR_W
+      if (row.isLocationHinted || row.isItemHinted) rowW += 14
+      w = Math.max(w, rowW)
+    }
+    w = Math.min(w, Layout.NODE_MAX_WIDTH)
+
     for (const row of rows) {
       const fixed =
         Layout.ROW_LEFT_PAD +
         Layout.ROW_RIGHT_PAD +
         (row.scoutStar ? Layout.ROW_STAR_W : 0) +
-        (row.isLocationHinted ? 14 : 0) +
+        (row.isLocationHinted || row.isItemHinted ? 14 : 0) +
         (row.scoutText ? Layout.ROW_SCOUT_GAP : 0)
       const budget = w - fixed
       if (row.scoutText) {
@@ -205,11 +244,17 @@ class Layout {
 
   // Deterministic size for a region's node, used by layout algorithms
   // (Layout.autoLayout/customLayout) before any canvas Render.draw has happened.
+  /**
+   * @param {string} rname
+   */
   static computeNodeSize(rname) {
     const layout = Layout.computeNodeLayout(rname)
     return { w: layout.w, h: layout.h }
   }
 
+  /**
+   * @param {string[]} names
+   */
   static measureNodeSizes(names) {
     const sizes = {}
     for (const n of names) {
@@ -264,7 +309,7 @@ class Layout {
     // however long their name or however many locations they list.
     const cellOf = {}
     for (const list of Object.values(byLayer)) {
-      list.forEach((n, i) => {
+      list.forEach((/** @type {string | number} */ n, /** @type {any} */ i) => {
         cellOf[n] = { x: layers[n], y: i }
       })
     }

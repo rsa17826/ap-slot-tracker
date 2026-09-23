@@ -3,7 +3,9 @@
  * @property {number} receiving_player
  * @property {number} finding_player
  * @property {number} location
+ * @property {string} [locationName]
  * @property {number} item
+ * @property {string} [itemName]
  * @property {boolean} found
  * @property {string} entrance
  * @property {number} item_flags
@@ -244,18 +246,52 @@ class APSlotClient {
       case "SetReply": {
         const key = `_read_hints_${this.team}_${this.slot}`
         if (packet.key === key) {
-          this.hints = packet.value || []
+          this.hints = (packet.value || []).map((h) => {
+            const finderGame = this.slotInfo?.[h.finding_player]?.game
+            const receiverGame =
+              this.slotInfo?.[h.receiving_player]?.game
+            return {
+              ...h,
+              locationName:
+                finderGame ?
+                  this.locationIdToName?.[finderGame]?.[h.location]
+                : null,
+              itemName:
+                receiverGame ?
+                  this.itemIdToName?.[receiverGame]?.[h.item]
+                : null,
+            }
+          })
           State.hints = this.hints
-          Render.render()
+          if (typeof Render !== "undefined" && Render.render) {
+            Render.render()
+          }
         }
         break
       }
       case "Retrieved": {
         const key = `_read_hints_${this.team}_${this.slot}`
         if (packet.keys?.[key] !== undefined) {
-          this.hints = packet.keys[key] || []
+          this.hints = (packet.keys[key] || []).map((h) => {
+            const finderGame = this.slotInfo?.[h.finding_player]?.game
+            const receiverGame =
+              this.slotInfo?.[h.receiving_player]?.game
+            return {
+              ...h,
+              locationName:
+                finderGame ?
+                  this.locationIdToName?.[finderGame]?.[h.location]
+                : null,
+              itemName:
+                receiverGame ?
+                  this.itemIdToName?.[receiverGame]?.[h.item]
+                : null,
+            }
+          })
           State.hints = this.hints
-          Render.render()
+          if (typeof Render !== "undefined" && Render.render) {
+            Render.render()
+          }
         }
         break
       }

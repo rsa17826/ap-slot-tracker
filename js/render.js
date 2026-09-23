@@ -541,7 +541,7 @@ class Render {
         rightPadOffset += Layout.ROW_STAR_W
       }
 
-      if (row.isLocationHinted) {
+      if (row.isLocationHinted || row.isItemHinted) {
         Render.ctx.font = "11px sans-serif"
         Render.ctx.fillStyle = "#f59e0b"
         Render.ctx.textAlign = "right"
@@ -557,11 +557,8 @@ class Render {
           : row.scoutClass === "trap" ? Render.COLORS.danger
           : Render.COLORS.textDim
 
-        const scoutDisplayText =
-          row.isItemHinted ? `${row.scoutText} 💡` : row.scoutText
-
         Render.drawFitText(
-          scoutDisplayText,
+          row.scoutText,
           x + w - rightPadOffset,
           cy,
           row.scoutAlloc,
