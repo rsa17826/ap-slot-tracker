@@ -299,4 +299,16 @@ class APSlotClient {
         break
     }
   }
+  /**
+   * Requests a hint from the server using the in-game text command system.
+   * @param {string} searchString - The name of the item or location you want a hint for.
+   */
+  requestItemHint(searchString) {
+    this.sendPackets([
+      {
+        cmd: "Say",
+        text: `!hint ${searchString}`,
+      },
+    ])
+  }
 }

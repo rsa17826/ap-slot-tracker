@@ -55,7 +55,8 @@ class Render {
     )
 
     btn.addEventListener("click", () => {
-      Render.requestHint(name)
+      debugger
+      Connections.runtime[db.currentMapConnId].client.requestItemHint(name)
       Render.hideItemContextMenu()
     })
 
@@ -80,13 +81,6 @@ class Render {
     }
   }
 
-  static requestHint(name) {
-    const client = State.apClient || State.apSlotClient || State.ap
-    if (client && typeof client.sendPackets === "function") {
-      client.sendPackets([{ cmd: "Say", text: `!hint ${name}` }])
-    }
-  }
-
   static syncItemListUI() {
     State.els.itemList
       .querySelectorAll(".item-row")
@@ -107,14 +101,7 @@ class Render {
         row.classList.toggle("collected", v > 0)
         row.classList.toggle("maxed", maxCount > 1 && v >= maxCount)
 
-        const isHinted =
-          State.hintedItems?.has?.(name) ||
-          State.outgoingHints?.has?.(name) ||
-          (Array.isArray(State.hints) &&
-            State.hints.some(
-              (h) => h.item === name || h.itemName === name,
-            )) ||
-          row.dataset.hinted === "true"
+        const isHinted = row.dataset.hinted === "true"
 
         row.classList.toggle("hinted", Boolean(isHinted))
         let hintSymbolEl = row.querySelector(".hint-symbol")
