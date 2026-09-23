@@ -1,13 +1,17 @@
 /**
  * @typedef {Object} Row
- * @property {*} lname
- * @property {*} displayText
- * @property {*} isReach
- * @property {*} isChecked
- * @property {*} isEvent
- * @property {*} scoutText
- * @property {*} scoutClass
- * @property {*} scoutStar
+ * @property {string} lname
+ * @property {string} displayText
+ * @property {boolean} isReach
+ * @property {boolean} isChecked
+ * @property {boolean} isEvent
+ * @property {null} scoutText
+ * @property {null} scoutClass
+ * @property {null} scoutStar
+ * @property {number} textWidth
+ * @property {number} scoutWidth
+ * @property {number} textAlloc
+ * @property {number} scoutAlloc
  */
 
 class Layout {
