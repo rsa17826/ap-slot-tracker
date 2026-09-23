@@ -544,17 +544,8 @@ class Render {
       const isLocationHinted =
         row.isHinted ||
         row.hinted ||
-        State.hintedLocations?.has?.(row.lname || row.displayText) ||
-        State.incomingHints?.has?.(row.lname || row.displayText) ||
-        (Array.isArray(State.hints) &&
-          State.hints.some(
-            (h) =>
-              h.location === row.lname ||
-              h.locationName === row.lname ||
-              h.location === row.displayText ||
-              h.locationName === row.displayText,
-          ))
-
+        State.hints.some((h) => h.location === row.lname)
+      debugger
       if (isLocationHinted) {
         Render.ctx.font = "11px sans-serif"
         Render.ctx.fillStyle = "#f59e0b"

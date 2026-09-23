@@ -73,6 +73,7 @@ class SlotSync {
     for (const entry of Object.values(rt.client.scoutedItems || {})) {
       State.scoutedItems[entry.locationName] = entry
     }
+    State.hints = rt.client.hints
     State.scoutOwnSlot = rt.client.slot
     State.scoutPlayerNames = {}
     for (const p of rt.client.players || []) {

@@ -1,4 +1,11 @@
 /**
+ * @typedef {Object} NodeLayout
+ * @property {boolean} reachable
+ * @property {number} w
+ * @property {number} h
+ * @property {Array<Row>} rows
+ */
+/**
  * @typedef {Object} Els
  * @property {HTMLElement} sidebar
  * @property {HTMLElement} itemList
@@ -29,8 +36,8 @@ class State {
 
   static graph = null // rules JSON, resolved to the currently active settings profile
   static rawGraph = null // last-loaded rules JSON as-is (still has any _by_profile markers), kept so switching profiles can re-resolve without reloading the file
-  /**@type {Record<string,any[]>} */
-  static hints = {}
+  /**@type {Hint[]} */
+  static hints = []
   static inventory = {} // itemName -> count (int)
   static eventInventory = {} // itemName -> count auto-granted by reachable event locations
   static eventItemNames = new Set() // item names that come from is_event locations (colored + read-only)
@@ -43,6 +50,7 @@ class State {
   static scoutTrackedSlots = new Set() // slot numbers, on the same hostname:port as the synced slot, that also have an open/tracked connection -- used to star scouted items bound for a slot we're already tracking
   /**@type {Record<string, { x: number; y: number; }>} */
   static positions = {} // regionName -> {x,y}
+  /** @type {Record<string,NodeLayout>} */
   static nodeLayouts = {} // regionName -> {w,h,reachable,rows:[...]} (rebuilt by Render.renderNodes; drawn fresh onto canvas every frame, not kept as DOM elements)
   /**
    * @type {{ from: string; to: any; traversable: any; }[]}

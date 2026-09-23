@@ -1,10 +1,25 @@
+/**
+ * @typedef {Object} Runtime
+ * @property {APSlotClient} client
+ * @property {string} status
+ * @property {string} statusDetail
+ * @property {Set} receivedNames
+ * @property {Object} receivedCounts
+ * @property {Set} prevObtainable
+ */
+
 class Connections {
   // Live AP slot connection lifecycle: opening/closing connections and handling incoming items, wired into progression tracking, the map, notifications, and Cheese Trackers.
 
   // ---------------------------------------------------------------------
   // Runtime state (not persisted): live clients + derived tracking info
   // ---------------------------------------------------------------------
+  /** @type {Record<string,Runtime>} */
   static runtime = {} // connId -> { client, status, statusDetail, receivedNames:Set, prevObtainable:Set }
+  /**
+   * @param {string} title
+   * @param {string} body
+   */
   static notify(title, body) {
     if (Notification.permission !== "granted") return
     try {
@@ -14,7 +29,11 @@ class Connections {
     }
   }
 
+  /**
+   * @param {SlotConnection} conn
+   */
   static startConnection(conn) {
+    /** @type {Runtime} */
     const rt = {
       client: null,
       status: "connecting",
@@ -69,19 +88,29 @@ class Connections {
     client.connect()
   }
 
+  /**
+   * @param {string} connId
+   */
   static stopConnection(connId) {
     Connections.runtime[connId]?.client?.disconnect()
     delete Connections.runtime[connId]
     SlotsUI.renderSlots()
   }
+  /**
+   * @param {SlotConnection} conn
+   * @param {Runtime} rt
+   * @param {any[]} items
+   */
   static handleReceivedItems(conn, rt, items) {
     const graph = ProgKeys.progForGame(conn.progKey, conn.profile)
 
-    items.forEach((item) => {
-      rt.receivedNames.add(item.name)
-      rt.receivedCounts[item.name] =
-        (rt.receivedCounts[item.name] || 0) + 1
-    })
+    items.forEach(
+      (/** @type {{ name: string | number; }} */ item) => {
+        rt.receivedNames.add(item.name)
+        rt.receivedCounts[item.name] =
+          (rt.receivedCounts[item.name] || 0) + 1
+      },
+    )
 
     // Figure out, per item, whether it opened up anything new — only
     // meaningful if a map graph has been loaded for this game.
@@ -112,7 +141,9 @@ class Connections {
     SlotsUI.renderSlots()
 
     const mode = conn.notifyMode || "all"
-    const itemNames = items.map((i) => i.name).join(", ")
+    const itemNames = items
+      .map((/** @type {{ name: any; }} */ i) => i.name)
+      .join(", ")
 
     if (mode === "none") {
       // Notifications disabled for this slot -- log entries above still

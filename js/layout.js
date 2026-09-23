@@ -1,3 +1,15 @@
+/**
+ * @typedef {Object} Row
+ * @property {*} lname
+ * @property {*} displayText
+ * @property {*} isReach
+ * @property {*} isChecked
+ * @property {*} isEvent
+ * @property {*} scoutText
+ * @property {*} scoutClass
+ * @property {*} scoutStar
+ */
+
 class Layout {
   // Simple automatic layout: BFS layers from the start region to place nodes on the canvas.
 
@@ -59,6 +71,7 @@ class Layout {
         : State.scoutTrackedSlots.has(scout.itemPlayer) ? "green"
         : null
     }
+    /** @type {Row} */
     return {
       lname,
       displayText:

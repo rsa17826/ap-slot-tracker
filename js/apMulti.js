@@ -31,9 +31,9 @@ class APSlotClient {
     this.itemIdToName = {}
     /**@type {Record<string, Record<string | number, string>>} */
     this.locationIdToName = {}
-    /**@type {(number)[]} */
+    /**@type {number[]} */
     this.checkedLocations = []
-    /**@type {(number)[]} */
+    /**@type {number[]} */
     this.missingLocations = []
     this.slotData = {}
     this.slotInfo = {}
