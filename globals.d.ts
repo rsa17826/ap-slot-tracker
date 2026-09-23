@@ -118,28 +118,6 @@ declare global {
     onItems: (items: { name: string }[]) => void
   }
 
-  /** Live Archipelago slot client, provided by apMulti.js (not part of this checkout). */
-  class APSlotClient {
-    constructor(
-      options: APSlotClientOptions,
-      callbacks: APSlotClientCallbacks,
-    )
-    checkedLocations: (string | number)[]
-    missingLocations: (string | number)[]
-    locationIdToName: Record<string, Record<string | number, string>>
-    scoutedItems: Record<string, ScoutedItemEntry>
-    slot: number | null
-    team: number
-    players: APPlayer[]
-    isAuthenticated: boolean
-    connect(): void
-    disconnect(): void
-    sendLocationScouts(
-      locations: (string | number)[],
-      createAsHint: number,
-    ): void
-  }
-
   interface CTGame {
     id: number | string
     progression_status: string

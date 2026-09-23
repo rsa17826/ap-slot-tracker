@@ -3,28 +3,52 @@
  * connections side-by-side in a tracker UI. Unlike a full game client this
  * never sends LocationChecks — it only listens.
  */
+
 class APSlotClient {
   /**
-   * @param {{hostname:string, port:string|number, game:string, playerName:string, password?:string}} opts
-   * @param {{
-   *   onStatus?: (status:string, detail?:string)=>void,
-   *   onConnected?: (info:object)=>void,
-   *   onItems?: (items:{name:string, id:number, index:number}[])=>void,
-   *   onCheckedLocations?: (ids:number[])=>void,
-   *   onScoutedItems?: ()=>void,
-   * }} callbacks
+   * @param {APSlotClientOptions} opts
+   * @param {APSlotClientCallbacks} callbacks
    */
-  constructor(opts, callbacks = {}) {
+  constructor(
+    opts,
+    callbacks = {
+      onStatus: function (status, detail) {
+        throw new Error("Function not implemented.")
+      },
+      onConnected: function () {
+        throw new Error("Function not implemented.")
+      },
+      onCheckedLocations: function () {
+        throw new Error("Function not implemented.")
+      },
+      onScoutedItems: function () {
+        throw new Error("Function not implemented.")
+      },
+      onItems: function (items) {
+        throw new Error("Function not implemented.")
+      },
+    },
+  ) {
     this.opts = opts
     this.cb = callbacks
     this.itemIdToName = {}
+    /**@type {Record<string, Record<string | number, string>>} */
     this.locationIdToName = {}
+    /**@type {(string | number)[]} */
     this.checkedLocations = []
+    /**@type {(string | number)[]} */
     this.missingLocations = []
     this.slotData = {}
     this.slotInfo = {}
+    /**@type {Record<string, ScoutedItemEntry>} */
     this.scoutedItems = {}
+    /**@type {number | null} */
+    this.slot = null
+    /**@type {number} */
+    this.team = -1
+    /**@type {APPlayer[]} */
     this.players = []
+    /**@type {boolean} */
     this.isAuthenticated = false
     this.itemCount = 0
     this._closedByUser = false
