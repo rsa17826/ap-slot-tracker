@@ -136,7 +136,7 @@ class DataLoading {
       region.isTransit =
         region.locations.filter(
           (/** @type {any} */ e) => !State.eventItemNames.has(e),
-        ) == 0
+        ).length == 0
     }
   }
   /**
