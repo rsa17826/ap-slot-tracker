@@ -1,4 +1,19 @@
 /**
+ * @typedef {Object} Hint
+ * @property {number} receiving_player
+ * @property {number} finding_player
+ * @property {number} location
+ * @property {number} item
+ * @property {boolean} found
+ * @property {string} entrance
+ * @property {number} item_flags
+ * @property {number} status
+ * @property {boolean} hidden
+ * @property {boolean} item_hidden
+ * @property {string} class
+ */
+
+/**
  * Minimal, generic Archipelago protocol client meant for running many
  * connections side-by-side in a tracker UI. Unlike a full game client this
  * never sends LocationChecks — it only listens.
@@ -9,26 +24,8 @@ class APSlotClient {
    * @param {APSlotClientOptions} opts
    * @param {APSlotClientCallbacks} callbacks
    */
-  constructor(
-    opts,
-    callbacks = {
-      onStatus: function (status, detail) {
-        throw new Error("Function not implemented.")
-      },
-      onConnected: function () {
-        throw new Error("Function not implemented.")
-      },
-      onCheckedLocations: function () {
-        throw new Error("Function not implemented.")
-      },
-      onScoutedItems: function () {
-        throw new Error("Function not implemented.")
-      },
-      onItems: function (items) {
-        throw new Error("Function not implemented.")
-      },
-    },
-  ) {
+  // @ts-ignore
+  constructor(opts, callbacks = {}) {
     this.opts = opts
     this.cb = callbacks
     this.itemIdToName = {}
@@ -52,6 +49,8 @@ class APSlotClient {
     this.isAuthenticated = false
     this.itemCount = 0
     this._closedByUser = false
+    /** @type {Hint[]} */
+    this.hints = []
   }
 
   get url() {
@@ -180,12 +179,9 @@ class APSlotClient {
         this.players = packet.players
         this.slotData = packet.slot_data ?? {}
         this.cb.onStatus?.("connected")
-        this.cb.onConnected?.({
-          team: this.team,
-          slot: this.slot,
-          game: this.opts.game,
-        })
-        this.cb.onCheckedLocations?.(this.checkedLocations)
+        this.cb.onConnected?.()
+        this.cb.onCheckedLocations?.()
+        this.requestHints()
         break
       case "ConnectionRefused":
         this.cb.onStatus?.(
@@ -237,11 +233,32 @@ class APSlotClient {
               ...packet.checked_locations,
             ]),
           ]
-          this.cb.onCheckedLocations?.(this.checkedLocations)
+          this.cb.onCheckedLocations?.()
         }
         break
       default:
         break
+    }
+  }
+  requestHints() {
+    const key = `_read_hints_${this.team}_${this.slot}`
+    this.sendPackets([
+      { cmd: "Get", keys: [key] },
+      { cmd: "SetNotify", keys: [key] },
+    ])
+  }
+  // Server replies to Get with "Retrieved"; live changes come as "SetReply".
+  onRetrieved(packet) {
+    const key = `_read_hints_${this.team}_${this.slot}`
+    if (packet.keys?.[key] !== undefined) {
+      this.hints = packet.keys[key] || []
+    }
+  }
+
+  onSetReply(packet) {
+    const key = `_read_hints_${this.team}_${this.slot}`
+    if (packet.key === key) {
+      this.hints = packet.value || []
     }
   }
 }

@@ -6,7 +6,7 @@ class Render {
       ...itemNames.map((name) => {
         const maxCount = State.itemMaxCounts[name] ?? 1
         const isEvent = State.eventItemNames.has(name)
-        return newelem(
+        const row = newelem(
           "div",
           {
             class: "item-row" + (isEvent ? " event-item" : ""),
@@ -18,15 +18,73 @@ class Render {
           },
           [
             newelem("span", { class: "name" }, [name]),
+            newelem("span", { class: "hint-symbol" }, [""]),
             newelem("span", { class: "count" }, [0]),
             newelem("span", { class: "sep" }, ["/"]),
             newelem("span", { class: "count-max" }, [maxCount]),
           ],
         )
+
+        row.addEventListener("contextmenu", (e) => {
+          e.preventDefault()
+          Render.showItemContextMenu(e, name)
+        })
+
+        return row
       }),
     )
     Render.syncItemListUI()
     Reachability.applySearchFilter()
+  }
+
+  static showItemContextMenu(e, name) {
+    Render.hideItemContextMenu()
+
+    const menu = newelem("div", {
+      id: "item-context-menu",
+      class: "item-context-menu",
+      style: `position: fixed; left: ${e.clientX}px; top: ${e.clientY}px; z-index: 1000;`,
+    })
+
+    const btn = newelem(
+      "button",
+      {
+        class: "hint-btn",
+      },
+      [`Request hint for ${name}`],
+    )
+
+    btn.addEventListener("click", () => {
+      Render.requestHint(name)
+      Render.hideItemContextMenu()
+    })
+
+    menu.appendChild(btn)
+    document.body.appendChild(menu)
+
+    const closeHandler = (evt) => {
+      if (!menu.contains(evt.target)) {
+        Render.hideItemContextMenu()
+        document.removeEventListener("pointerdown", closeHandler)
+      }
+    }
+    setTimeout(() => {
+      document.addEventListener("pointerdown", closeHandler)
+    }, 0)
+  }
+
+  static hideItemContextMenu() {
+    const existing = document.getElementById("item-context-menu")
+    if (existing) {
+      existing.remove()
+    }
+  }
+
+  static requestHint(name) {
+    const client = State.apClient || State.apSlotClient || State.ap
+    if (client && typeof client.sendPackets === "function") {
+      client.sendPackets([{ cmd: "Say", text: `!hint ${name}` }])
+    }
   }
 
   static syncItemListUI() {
@@ -48,6 +106,28 @@ class Render {
         if (countEl) countEl.textContent = String(v)
         row.classList.toggle("collected", v > 0)
         row.classList.toggle("maxed", maxCount > 1 && v >= maxCount)
+
+        const isHinted =
+          State.hintedItems?.has?.(name) ||
+          State.outgoingHints?.has?.(name) ||
+          (Array.isArray(State.hints) &&
+            State.hints.some(
+              (h) => h.item === name || h.itemName === name,
+            )) ||
+          row.dataset.hinted === "true"
+
+        row.classList.toggle("hinted", Boolean(isHinted))
+        let hintSymbolEl = row.querySelector(".hint-symbol")
+        if (!hintSymbolEl) {
+          hintSymbolEl = newelem("span", { class: "hint-symbol" })
+          const nameEl = row.querySelector(".name")
+          if (nameEl && nameEl.nextSibling) {
+            row.insertBefore(hintSymbolEl, nameEl.nextSibling)
+          } else {
+            row.appendChild(hintSymbolEl)
+          }
+        }
+        hintSymbolEl.textContent = isHinted ? " 💡" : ""
       })
   }
 
@@ -449,13 +529,39 @@ class Render {
       })
       Render.ctx.globalAlpha = 1
 
+      let rightPadOffset = Layout.ROW_RIGHT_PAD
+
       if (row.scoutStar) {
         Render.ctx.font = "11px sans-serif"
         Render.ctx.fillStyle =
           row.scoutStar === "yellow" ? "#f5d33c" : "#4ade80"
         Render.ctx.textAlign = "right"
-        Render.ctx.fillText("★", x + w - Layout.ROW_RIGHT_PAD, cy)
+        Render.ctx.fillText("★", x + w - rightPadOffset, cy)
         Render.ctx.textAlign = "left"
+        rightPadOffset += Layout.ROW_STAR_W
+      }
+
+      const isLocationHinted =
+        row.isHinted ||
+        row.hinted ||
+        State.hintedLocations?.has?.(row.lname || row.displayText) ||
+        State.incomingHints?.has?.(row.lname || row.displayText) ||
+        (Array.isArray(State.hints) &&
+          State.hints.some(
+            (h) =>
+              h.location === row.lname ||
+              h.locationName === row.lname ||
+              h.location === row.displayText ||
+              h.locationName === row.displayText,
+          ))
+
+      if (isLocationHinted) {
+        Render.ctx.font = "11px sans-serif"
+        Render.ctx.fillStyle = "#f59e0b"
+        Render.ctx.textAlign = "right"
+        Render.ctx.fillText("💡", x + w - rightPadOffset, cy)
+        Render.ctx.textAlign = "left"
+        rightPadOffset += 14
       }
 
       if (row.scoutText) {
@@ -464,12 +570,24 @@ class Render {
           row.scoutClass === "progression" ? Render.COLORS.accent
           : row.scoutClass === "trap" ? Render.COLORS.danger
           : Render.COLORS.textDim
+
+        const isItemHinted =
+          row.isItemHinted ||
+          State.hintedItems?.has?.(row.scoutText) ||
+          State.outgoingHints?.has?.(row.scoutText) ||
+          (Array.isArray(State.hints) &&
+            State.hints.some(
+              (h) =>
+                h.item === row.scoutText ||
+                h.itemName === row.scoutText,
+            ))
+
+        const scoutDisplayText =
+          isItemHinted ? `${row.scoutText} 💡` : row.scoutText
+
         Render.drawFitText(
-          row.scoutText,
-          x +
-            w -
-            Layout.ROW_RIGHT_PAD -
-            (row.scoutStar ? Layout.ROW_STAR_W : 0),
+          scoutDisplayText,
+          x + w - rightPadOffset,
           cy,
           row.scoutAlloc,
           {

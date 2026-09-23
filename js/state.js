@@ -29,6 +29,8 @@ class State {
 
   static graph = null // rules JSON, resolved to the currently active settings profile
   static rawGraph = null // last-loaded rules JSON as-is (still has any _by_profile markers), kept so switching profiles can re-resolve without reloading the file
+  /**@type {Record<string,any[]>} */
+  static hints = {}
   static inventory = {} // itemName -> count (int)
   static eventInventory = {} // itemName -> count auto-granted by reachable event locations
   static eventItemNames = new Set() // item names that come from is_event locations (colored + read-only)
