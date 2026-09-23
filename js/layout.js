@@ -30,16 +30,22 @@ class Layout {
   // (layout algorithms + canvas Render.draw sizing) and by the canvas Render.draw
   // itself, so they never disagree about how tall a node is.
   static computeNodeRows(region) {
-    return (region.locations || []).filter((/** @type {string | number} */ lname) => {
-      const linfo = State.graph.locations[lname]
-      const isEvent = !!(linfo && linfo.is_event)
-      if (db.hideEvents && isEvent) return false
-      if (db.hideOOL && !isEvent && !State.reach.locations.has(lname))
-        return false // out of logic
-      if (db.hideCleared && Reachability.isLocationDone(lname))
-        return false
-      return true
-    })
+    return (region.locations || []).filter(
+      (/** @type {string | number} */ lname) => {
+        const linfo = State.graph.locations[lname]
+        const isEvent = !!(linfo && linfo.is_event)
+        if (db.hideEvents && isEvent) return false
+        if (
+          db.hideOOL &&
+          !isEvent &&
+          !State.reach.locations.has(lname)
+        )
+          return false // out of logic
+        if (db.hideCleared && Reachability.isLocationDone(lname))
+          return false
+        return true
+      },
+    )
   }
 
   static NODE_MIN_WIDTH = 190
@@ -92,14 +98,10 @@ class Layout {
         )
       : false
 
-    // Determine if checked: normal check OR event item auto-collected in eventInventory
-    let isChecked = !!State.checkedLocations[lname]
-    if (isEvent) {
-      const eventItemName = State.eventItemNameFor(lname, linfo)
-      if (State.eventInventory[eventItemName]) {
-        isChecked = true
-      }
-    }
+    const isReach = State.reach.locations.has(lname)
+
+    let isChecked =
+      !!State.checkedLocations[lname] || (isEvent && isReach)
 
     /** @type {Row} */
     return {
@@ -108,7 +110,7 @@ class Layout {
         lname.includes(" - ") ?
           lname.split(" - ").slice(1).join(" - ")
         : lname,
-      isReach: State.reach.locations.has(lname),
+      isReach,
       isChecked,
       isEvent,
       isLocationHinted,
@@ -309,9 +311,11 @@ class Layout {
     // however long their name or however many locations they list.
     const cellOf = {}
     for (const list of Object.values(byLayer)) {
-      list.forEach((/** @type {string | number} */ n, /** @type {any} */ i) => {
-        cellOf[n] = { x: layers[n], y: i }
-      })
+      list.forEach(
+        (/** @type {string | number} */ n, /** @type {any} */ i) => {
+          cellOf[n] = { x: layers[n], y: i }
+        },
+      )
     }
 
     const sizes = Layout.measureNodeSizes(names)
