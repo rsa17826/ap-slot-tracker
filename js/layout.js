@@ -5,9 +5,11 @@
  * @property {boolean} isReach
  * @property {boolean} isChecked
  * @property {boolean} isEvent
+ * @property {boolean} isLocationHinted
+ * @property {boolean} isItemHinted
  * @property {null|string} scoutText
  * @property {null|string} scoutClass
- * @property {null} scoutStar
+ * @property {null|string} scoutStar
  * @property {number} textWidth
  * @property {number} scoutWidth
  * @property {number} textAlloc
@@ -35,7 +37,7 @@ class Layout {
       if (db.hideOOL && !isEvent && !State.reach.locations.has(lname))
         return false // out of logic
       if (db.hideCleared && Reachability.isLocationDone(lname))
-        return false // already cleared / auto-granted
+        return false
       return true
     })
   }
@@ -71,6 +73,20 @@ class Layout {
         : State.scoutTrackedSlots.has(scout.itemPlayer) ? "green"
         : null
     }
+
+    const hints = State.hints || []
+    const isLocationHinted = hints.some(
+      (h) => h.location === lname || h.locationName === lname,
+    )
+    const isItemHinted =
+      scoutText ?
+        hints.some(
+          (h) =>
+            h.item === scout.itemName ||
+            h.itemName === scout.itemName,
+        )
+      : false
+
     /** @type {Row} */
     return {
       lname,
@@ -81,6 +97,8 @@ class Layout {
       isReach: State.reach.locations.has(lname),
       isChecked: !!State.checkedLocations[lname],
       isEvent,
+      isLocationHinted,
+      isItemHinted,
       scoutText,
       scoutClass,
       scoutStar,
@@ -143,6 +161,7 @@ class Layout {
         Layout.ROW_LEFT_PAD + row.textWidth + Layout.ROW_RIGHT_PAD
       if (row.scoutText) rowW += Layout.ROW_SCOUT_GAP + row.scoutWidth
       if (row.scoutStar) rowW += Layout.ROW_STAR_W
+      if (row.isLocationHinted) rowW += 14
       w = Math.max(w, rowW)
     }
     w = Math.min(w, Layout.NODE_MAX_WIDTH)
@@ -156,6 +175,7 @@ class Layout {
         Layout.ROW_LEFT_PAD +
         Layout.ROW_RIGHT_PAD +
         (row.scoutStar ? Layout.ROW_STAR_W : 0) +
+        (row.isLocationHinted ? 14 : 0) +
         (row.scoutText ? Layout.ROW_SCOUT_GAP : 0)
       const budget = w - fixed
       if (row.scoutText) {

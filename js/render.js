@@ -541,12 +541,7 @@ class Render {
         rightPadOffset += Layout.ROW_STAR_W
       }
 
-      const isLocationHinted =
-        row.isHinted ||
-        row.hinted ||
-        State.hints.some((h) => h.location === row.lname)
-      debugger
-      if (isLocationHinted) {
+      if (row.isLocationHinted) {
         Render.ctx.font = "11px sans-serif"
         Render.ctx.fillStyle = "#f59e0b"
         Render.ctx.textAlign = "right"
@@ -562,19 +557,8 @@ class Render {
           : row.scoutClass === "trap" ? Render.COLORS.danger
           : Render.COLORS.textDim
 
-        const isItemHinted =
-          row.isItemHinted ||
-          State.hintedItems?.has?.(row.scoutText) ||
-          State.outgoingHints?.has?.(row.scoutText) ||
-          (Array.isArray(State.hints) &&
-            State.hints.some(
-              (h) =>
-                h.item === row.scoutText ||
-                h.itemName === row.scoutText,
-            ))
-
         const scoutDisplayText =
-          isItemHinted ? `${row.scoutText} 💡` : row.scoutText
+          row.isItemHinted ? `${row.scoutText} 💡` : row.scoutText
 
         Render.drawFitText(
           scoutDisplayText,
