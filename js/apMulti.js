@@ -128,6 +128,7 @@ class APSlotClient {
       },
     ])
   }
+
   handlePacket(packet) {
     switch (packet.cmd) {
       case "RoomInfo":
@@ -244,6 +245,8 @@ class APSlotClient {
         const key = `_read_hints_${this.team}_${this.slot}`
         if (packet.key === key) {
           this.hints = packet.value || []
+          State.hints = this.hints
+          Render.render()
         }
         break
       }
@@ -251,6 +254,8 @@ class APSlotClient {
         const key = `_read_hints_${this.team}_${this.slot}`
         if (packet.keys?.[key] !== undefined) {
           this.hints = packet.keys[key] || []
+          State.hints = this.hints
+          Render.render()
         }
         break
       }

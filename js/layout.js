@@ -5,8 +5,8 @@
  * @property {boolean} isReach
  * @property {boolean} isChecked
  * @property {boolean} isEvent
- * @property {null} scoutText
- * @property {null} scoutClass
+ * @property {null|string} scoutText
+ * @property {null|string} scoutClass
  * @property {null} scoutStar
  * @property {number} textWidth
  * @property {number} scoutWidth
@@ -32,11 +32,7 @@ class Layout {
       const linfo = State.graph.locations[lname]
       const isEvent = !!(linfo && linfo.is_event)
       if (db.hideEvents && isEvent) return false
-      if (
-        db.hideOOL &&
-        !isEvent &&
-        !State.reach.locations.has(lname)
-      )
+      if (db.hideOOL && !isEvent && !State.reach.locations.has(lname))
         return false // out of logic
       if (db.hideCleared && Reachability.isLocationDone(lname))
         return false // already cleared / auto-granted
