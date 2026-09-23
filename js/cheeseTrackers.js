@@ -182,19 +182,18 @@ class CheeseTrackers {
                 "button",
                 {
                   disabled: ui.busy,
-                  onclick: () =>
-                    CheeseTrackers.ctApplyStatus(
-                      conn,
-                      targetIsBk,
-                      true,
-                    ),
+                  onclick: () => {
+                    if (state !== null)
+                      CheeseTrackers.ctApplyStatus(
+                        conn,
+                        targetIsBk,
+                        true,
+                      )
+                  },
                 },
                 [
                   ui.busy ? "…"
-                  : state === null ?
-                    conn.ct.isBk ?
-                      "Marked BK'd (tap to clear)"
-                    : "Mark BK'd"
+                  : state === null ? "not connected"
                   : targetIsBk ? "Mark BK'd"
                   : "Mark Unblocked",
                 ],
