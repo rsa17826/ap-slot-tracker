@@ -260,11 +260,11 @@ class APSlotClient {
         const key = `_read_hints_${this.team}_${this.slot}`
         if (packet.key === key && Array.isArray(packet.value)) {
           this.hints = packet.value.map((/** @type {Hint} */ h) => {
-            const { name: ownerName, game: finderGame } =
+            const { name: finderName, game: finderGame } =
               this.slotInfo?.[h.finding_player]
-            const { game: receiverGame, name: finderName } =
+            const { game: receiverGame, name: ownerName } =
               this.slotInfo?.[h.receiving_player]
-
+            debugger
             return {
               ...h,
               finderName,
@@ -292,9 +292,9 @@ class APSlotClient {
         if (packet.keys?.[key]) {
           this.hints = packet.keys[key].map(
             (/** @type {Hint} */ h) => {
-              const { name: ownerName, game: finderGame } =
+              const { name: finderName, game: finderGame } =
                 this.slotInfo?.[h.finding_player]
-              const { game: receiverGame, name: finderName } =
+              const { game: receiverGame, name: ownerName } =
                 this.slotInfo?.[h.receiving_player]
               return {
                 ...h,
