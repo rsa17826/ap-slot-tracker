@@ -209,6 +209,7 @@ document.addEventListener("keydown", (ev) => {
   db.noTransit ??= false
   db.showScouts ??= false
   db.customSortFns ??= {}
+  db.groupCollapsed ??= {}
   const ctApiKeyInput = /** @type {HTMLInputElement} */ (
     document.getElementById("ctApiKeyInput")
   )

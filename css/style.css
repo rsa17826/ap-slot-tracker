@@ -101,6 +101,41 @@ button {
     filter: brightness(1.15);
   }
 }
+.slot-group {
+  margin-bottom: 6px;
+}
+.slot-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  background: var(--panel);
+  &:hover {
+    border-color: var(--accent);
+  }
+  .caret {
+    font-size: 11px;
+    color: var(--text-dim);
+    width: 10px;
+    flex-shrink: 0;
+  }
+}
+.slot-group-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+.slot-group-count {
+  color: var(--text-dim);
+  font-size: 11px;
+  margin-left: auto;
+}
+.slot-group-body {
+  padding-top: 6px;
+}
 .slot-card {
   border: 1px solid var(--panel-border);
   border-radius: 8px;

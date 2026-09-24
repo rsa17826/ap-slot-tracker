@@ -199,18 +199,14 @@ class SlotsUI {
     }
   }
 
-  static renderSlots() {
-    const conns = Object.values(window.db.connections)
-    if (conns.length === 0) {
-      SlotsUI.slotsRoot?.replaceChildren(
-        newelem("div", { class: "empty" }, [
-          "No slots yet — add one above.",
-        ]),
-      )
-      return
-    }
-    SlotsUI.slotsRoot?.replaceChildren(
-      ...conns.map((conn) => {
+  // Group key for a slot connection: all slots on the same AP server
+  // (hostname+port) are grouped together, collapsible as a unit.
+  static groupKeyFor(conn) {
+    return `${conn.hostname}:${conn.port}`
+  }
+
+  static renderSlotCard(conn) {
+    {
         const rt = Connections.runtime[conn.id]
         const status = rt?.status || "disconnected"
 
@@ -501,6 +497,64 @@ class SlotsUI {
               ]),
             ]),
           ]),
+        ])
+    }
+  }
+
+  static renderSlots() {
+    const conns = Object.values(window.db.connections)
+    if (conns.length === 0) {
+      SlotsUI.slotsRoot?.replaceChildren(
+        newelem("div", { class: "empty" }, [
+          "No slots yet — add one above.",
+        ]),
+      )
+      return
+    }
+
+    // Group slots by hostname+port, preserving first-seen order both
+    // of groups and of slots within a group.
+    const groups = new Map() // groupKey -> conn[]
+    for (const conn of conns) {
+      const key = SlotsUI.groupKeyFor(conn)
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key).push(conn)
+    }
+
+    SlotsUI.slotsRoot?.replaceChildren(
+      ...[...groups.entries()].map(([groupKey, groupConns]) => {
+        const collapsed = !!db.groupCollapsed[groupKey]
+        return newelem("div", { class: "slot-group" }, [
+          newelem(
+            "div",
+            {
+              class: "slot-group-header",
+              onclick: () => {
+                db.groupCollapsed[groupKey] = !db.groupCollapsed[
+                  groupKey
+                ]
+                SlotsUI.renderSlots()
+              },
+            },
+            [
+              newelem("span", { class: "caret" }, [
+                collapsed ? "▸" : "▾",
+              ]),
+              newelem("span", { class: "slot-group-title" }, [
+                groupKey,
+              ]),
+              newelem("span", { class: "slot-group-count" }, [
+                `${groupConns.length} slot${groupConns.length === 1 ? "" : "s"}`,
+              ]),
+            ],
+          ),
+          collapsed ? null : (
+            newelem(
+              "div",
+              { class: "slot-group-body" },
+              groupConns.map((conn) => SlotsUI.renderSlotCard(conn)),
+            )
+          ),
         ])
       }),
     )
