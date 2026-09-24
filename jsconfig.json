@@ -4,5 +4,6 @@
     "target": "esnext",
     "checkJs": true
   },
+  "include": ["**/*.js", "globals.d.ts"],
   "exclude": ["node_modules", "**/node_modules/*"]
 }

@@ -5,6 +5,19 @@
 export {}
 
 declare global {
+  interface FileSystemHandle {
+    queryPermission(descriptor?: {
+      mode?: "read" | "readwrite"
+    }): Promise<PermissionState>
+    requestPermission(descriptor?: {
+      mode?: "read" | "readwrite"
+    }): Promise<PermissionState>
+  }
+
+  interface FileSystemFileHandle extends FileSystemHandle {
+    remove(options?: { recursive?: boolean }): Promise<void>
+  }
+
   /** Rule tree node shape used throughout ruleEngine/requirementGroups/dataLoading. Loosely typed since the rules JSON is externally generated and highly polymorphic per rule "type". */
   interface RuleNode {
     type?: string
