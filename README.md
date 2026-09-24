@@ -37,6 +37,11 @@ The main goal of this project is to make tracking logic work for every game with
 - Hovering a location shows a popup with its requirement groups, color-coded by what you currently own.
 - Search box (`/` to focus) filters both the inventory list and the map to matching items/regions/locations.
 - Right-click an inventory item to request an in-game hint for it.
+- Item Indicators - need better name i think
+  - a 💡 is shown on inventory items that the slot has hinted
+  - a 💡 is shown on the map on locations that have a hinted item located there
+  - a green ★ is shown on local items
+  - a yellow ★ is shown on nonlocal items that are for another tracked slot
 
 ![Logic map canvas with region nodes, colored reachability, and the sidebar inventory list](./.images/logic-map.webp)
 
