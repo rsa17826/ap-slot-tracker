@@ -2,3 +2,4 @@ when items checked update the is bkd or not status
 condence the filelist into groups by game - working but doesn't look as i want it to but don't know how would be better - have to do something about it later
 notify on all items shouldn't notify on page load as it doesn't make sense to do so
 make the inventory title use renderCheckHoverPopup instead?
+also something looks wrong about the renderCheckHoverPopup;s hint text - don't know what though, could add border?
