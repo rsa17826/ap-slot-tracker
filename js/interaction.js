@@ -87,6 +87,33 @@ class Interaction {
     ])
   }
 
+  static hintTextFor(lname) {
+    const scout = State.scoutedItems[lname]
+    const locHints = State.hints.filter(
+      (h) =>
+        h &&
+        (h.locationName === lname ||
+          String(h.location) === String(lname)),
+    )
+    const itemHints =
+      scout ?
+        State.hints.filter(
+          (h) =>
+            h &&
+            (h.itemName === scout.itemName ||
+              String(h.item) === String(scout.itemName)),
+        )
+      : []
+    const hints = [...new Set([...locHints, ...itemHints])]
+    if (hints.length === 0) return null
+    return hints
+      .map(
+        (e) =>
+          `${e.ownerName}'s ${e.itemName} - found at ${e.finderName}'s ${e.locationName}`,
+      )
+      .join("\n")
+  }
+
   static renderCheckHoverPopup(lname) {
     const linfo = State.graph.locations[lname]
     if (!linfo) return
@@ -123,6 +150,19 @@ class Interaction {
         }
         body.push(groupRow)
       })
+    }
+    const hintText = Interaction.hintTextFor(lname)
+    if (hintText) {
+      body.push(
+        newelem(
+          "div",
+          {
+            class: "check-hover-hint",
+            style: "white-space: pre-wrap",
+          },
+          [hintText],
+        ),
+      )
     }
     State.els.checkHoverPopup.replaceChildren(...body)
     State.els.checkHoverPopup.classList.add("visible")

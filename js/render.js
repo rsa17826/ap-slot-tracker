@@ -559,12 +559,6 @@ class Render {
         }
 
         Render.ctx.textAlign = "right"
-        // TODO add title for itemHints
-        // .map(
-        //   (e) =>
-        //     `${e.ownerName}'s ${e.itemName} - found at ${e.finderName}'s ${e.locationName}`,
-        // )
-        // .join("\n")
         Render.ctx.fillText("💡", x + w - rightPadOffset, cy)
         Render.ctx.restore()
 
