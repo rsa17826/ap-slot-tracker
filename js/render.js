@@ -126,6 +126,15 @@ class Render {
         }
 
         hintSymbolEl.textContent = isHinted ? " 💡" : ""
+        hintSymbolEl.title =
+          isHinted ?
+            itemHints
+              .map(
+                (e) =>
+                  `your ${e.itemName} - found at ${e.finderName}'s ${e.locationName}`,
+              )
+              .join("\n")
+          : ""
         // Apply grayscale and opacity for found hints in DOM
         hintSymbolEl.style.filter =
           isHintFound ? "grayscale(100%) opacity(0.4)" : "none"
@@ -550,6 +559,12 @@ class Render {
         }
 
         Render.ctx.textAlign = "right"
+        // TODO add title for itemHints
+        // .map(
+        //   (e) =>
+        //     `${e.ownerName}'s ${e.itemName} - found at ${e.finderName}'s ${e.locationName}`,
+        // )
+        // .join("\n")
         Render.ctx.fillText("💡", x + w - rightPadOffset, cy)
         Render.ctx.restore()
 

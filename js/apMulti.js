@@ -12,6 +12,8 @@
  * @property {number} status
  * @property {boolean} hidden
  * @property {boolean} item_hidden
+ * @property {string} [ownerName]
+ * @property {string} [finderName]
  * @property {string} class
  */
 
@@ -66,7 +68,7 @@ class APSlotClient {
     this.cb.onStatus?.("connecting")
     let url = this.url
     let triedInsecure = false
-    const tryOpen = (u) => {
+    const tryOpen = (/** @type {string | URL} */ u) => {
       this.socket = new WebSocket(u)
       this.socket.onopen = () => this.cb.onStatus?.("socket-open")
       this.socket.onmessage = (event) => {
@@ -105,6 +107,10 @@ class APSlotClient {
     } catch (e) {}
   }
 
+  /**
+   * @param {string | number} itemId
+   * @param {string | number} sendingSlot
+   */
   getItemName(itemId, sendingSlot) {
     // log(itemId, this.slotInfo?.[sendingSlot]?.game, format, "itemId, sendingSlot, format")
     const game = this.slotInfo?.[sendingSlot]?.game
@@ -112,6 +118,9 @@ class APSlotClient {
     return name ?? `Unknown Item ${game} - (${itemId})`
   }
 
+  /**
+   * @param {{ cmd: string; locations: number[]; create_as_hint: number; }[] | ({ cmd: string; games: any; password?: undefined; game?: undefined; name?: undefined; uuid?: undefined; version?: undefined; items_handling?: undefined; tags?: undefined; slot_data?: undefined; } | { cmd: string; password: string; game: string; name: string; uuid: string; version: { major: number; minor: number; build: number; class: string; }; items_handling: number; tags: string[]; slot_data: boolean; games?: undefined; })[] | { cmd: string; keys: string[]; }[] | { cmd: string; text: string; }[]} arr
+   */
   sendPackets(arr) {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify(arr))
@@ -132,6 +141,9 @@ class APSlotClient {
     ])
   }
 
+  /**
+   * @param {{ cmd: any; games: any; data: { games: { [s: string]: any; } | ArrayLike<any>; }; team: number; slot: number; missing_locations: number[]; checked_locations: number[]; slot_info: {}; players: APPlayer[]; slot_data: {}; errors: any; locations: any; items: any[]; index: any; key: string; value: any[]; keys: { [x: string]: any; }; }} packet
+   */
   handlePacket(packet) {
     switch (packet.cmd) {
       case "RoomInfo":
@@ -247,12 +259,16 @@ class APSlotClient {
       case "SetReply": {
         const key = `_read_hints_${this.team}_${this.slot}`
         if (packet.key === key && Array.isArray(packet.value)) {
-          this.hints = packet.value.map((h) => {
-            const finderGame = this.slotInfo?.[h.finding_player]?.game
-            const receiverGame =
-              this.slotInfo?.[h.receiving_player]?.game
+          this.hints = packet.value.map((/** @type {Hint} */ h) => {
+            const { name: ownerName, game: finderGame } =
+              this.slotInfo?.[h.finding_player]
+            const { game: receiverGame, name: finderName } =
+              this.slotInfo?.[h.receiving_player]
+
             return {
               ...h,
+              finderName,
+              ownerName,
               locationName:
                 finderGame ?
                   this.locationIdToName?.[finderGame]?.[h.location]
@@ -273,23 +289,28 @@ class APSlotClient {
       }
       case "Retrieved": {
         const key = `_read_hints_${this.team}_${this.slot}`
-        if (packet.keys?.[key] !== undefined) {
-          this.hints = (packet.keys[key] || []).map((h) => {
-            const finderGame = this.slotInfo?.[h.finding_player]?.game
-            const receiverGame =
-              this.slotInfo?.[h.receiving_player]?.game
-            return {
-              ...h,
-              locationName:
-                finderGame ?
-                  this.locationIdToName?.[finderGame]?.[h.location]
-                : null,
-              itemName:
-                receiverGame ?
-                  this.itemIdToName?.[receiverGame]?.[h.item]
-                : null,
-            }
-          })
+        if (packet.keys?.[key]) {
+          this.hints = packet.keys[key].map(
+            (/** @type {Hint} */ h) => {
+              const { name: ownerName, game: finderGame } =
+                this.slotInfo?.[h.finding_player]
+              const { game: receiverGame, name: finderName } =
+                this.slotInfo?.[h.receiving_player]
+              return {
+                ...h,
+                finderName,
+                ownerName,
+                locationName:
+                  finderGame ?
+                    this.locationIdToName?.[finderGame]?.[h.location]
+                  : null,
+                itemName:
+                  receiverGame ?
+                    this.itemIdToName?.[receiverGame]?.[h.item]
+                  : null,
+              }
+            },
+          )
 
           if (this.connId === db.currentMapConnId) {
             State.hints = this.hints
