@@ -48,15 +48,15 @@ class Layout {
     )
   }
 
-  static NODE_MIN_WIDTH = 190
-  static NODE_MAX_WIDTH = 520
-  static NODE_HEADER_H = 33
-  static NODE_BODY_PAD = 12
-  static NODE_ROW_H = 20
-  static ROW_LEFT_PAD = 21 // dot + gap before the location text
-  static ROW_RIGHT_PAD = 8
-  static ROW_SCOUT_GAP = 14 // gap between location text and scout label
-  static ROW_STAR_W = 12 // width reserved for the scout star icon + its gap
+  static NODE_MIN_WIDTH = 150
+  static NODE_MAX_WIDTH = 460
+  static NODE_HEADER_H = 24
+  static NODE_BODY_PAD = 6
+  static NODE_ROW_H = 15
+  static ROW_LEFT_PAD = 16 // dot + gap before the location text
+  static ROW_RIGHT_PAD = 5
+  static ROW_SCOUT_GAP = 9 // gap between location text and scout label
+  static ROW_STAR_W = 9 // width reserved for the scout star icon + its gap
 
   /**
    * @param {string} lname
@@ -183,7 +183,7 @@ class Layout {
     Render.ctx.font = `600 12px ${Render.COLORS.mono}, monospace`
     let w = Math.max(
       Layout.NODE_MIN_WIDTH,
-      Render.ctx.measureText(rname).width + 27 + 10,
+      Render.ctx.measureText(rname).width + 19 + 6,
     )
     for (const row of rows) {
       Render.ctx.font =
@@ -340,8 +340,8 @@ class Layout {
       rowHeights[y] = Math.max(rowHeights[y] ?? 0, sizes[n].height)
     }
 
-    const COLUMN_GAP = 90,
-      ROW_GAP = 40
+    const COLUMN_GAP = 54,
+      ROW_GAP = 24
     const columnX = {}
     let cx = 40
     for (const key of Object.keys(columnWidths)

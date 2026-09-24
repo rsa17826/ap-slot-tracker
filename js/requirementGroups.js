@@ -184,11 +184,11 @@ class RequirementGroups {
       "span",
       {
         display: "inline-block",
-        padding: "2px 8px",
+        padding: "1px 5px",
         borderRadius: "999px",
         fontSize: "12px",
         fontWeight: "500",
-        margin: "2px 4px 2px 0",
+        margin: "1px 2px 1px 0",
         background: "#3b82f61a",
         color: "#3b82f6",
         border: "1px solid #3b82f640",
@@ -203,8 +203,8 @@ class RequirementGroups {
       class: "row",
       display: "flex",
       flexDirection: "column",
-      gap: "4px",
-      padding: "4px 0",
+      gap: "2px",
+      padding: "2px 0",
     })
     row.appendChild(
       newelem("div", { fontSize: "13px" }, [locationName]),
@@ -213,14 +213,14 @@ class RequirementGroups {
       const viaWrap = newelem("div", {
         display: "flex",
         flexDirection: "column",
-        gap: "2px",
+        gap: "1px",
       })
       groups.forEach((group, idx) => {
         const groupRow = newelem("div", {
           display: "flex",
           alignItems: "center",
           flexWrap: "wrap",
-          gap: "2px",
+          gap: "1px",
         })
         groupRow.appendChild(
           newelem(
@@ -228,7 +228,7 @@ class RequirementGroups {
             {
               fontSize: "10px",
               color: "#6b7280",
-              marginRight: "4px",
+              marginRight: "2px",
             },
             [idx === 0 ? "via:" : "or:"],
           ),

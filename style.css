@@ -9,13 +9,13 @@ body {
   color: var(--color-givd);
 }
 header {
-  padding: 18px 24px;
-  border-bottom: 1px solid var(--color-rusx);
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--panel-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
   .sub {
-    color: var(--color-lxez);
+    color: var(--text-dim);
     font-size: 12px;
     margin-top: 2px;
   }
@@ -25,11 +25,11 @@ header {
   }
 }
 #notifBtn {
-  background: var(--color-rusx);
+  background: var(--panel-border);
   color: var(--color-givd);
   border: 1px solid var(--color-scpx);
   border-radius: 6px;
-  padding: 8px 12px;
+  padding: 5px 7px;
   font-size: 12px;
   cursor: pointer;
   &.granted {
@@ -40,25 +40,25 @@ header {
 main {
   /* max-width: 1100px; */
   margin: 0 auto;
-  padding: 20px 24px 60px;
+  padding: 12px 14px 36px;
   display: grid;
-  gap: 20px;
+  gap: 12px;
 }
 .panel {
-  background: var(--color-ckyr);
-  border: 1px solid var(--color-rusx);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
   border-radius: 10px;
-  padding: 16px;
+  padding: 10px;
   h2 {
     font-size: 14px;
-    margin: 0 0 12px;
+    margin: 0 0 7px;
     color: var(--color-esou);
     display: flex;
     align-items: center;
     justify-content: space-between;
     .hint {
       font-weight: 400;
-      color: var(--color-lxez);
+      color: var(--text-dim);
       font-size: 11px;
     }
   }
@@ -66,7 +66,7 @@ main {
 .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 8px;
+  gap: 5px;
 }
 input,
 select {
@@ -74,7 +74,7 @@ select {
   border: 1px solid var(--color-scpx);
   color: var(--color-givd);
   border-radius: 6px;
-  padding: 8px 10px;
+  padding: 5px 6px;
   font-size: 13px;
   width: 100%;
 }
@@ -85,13 +85,13 @@ button {
   cursor: pointer;
   border-radius: 6px;
   border: 1px solid var(--color-scpx);
-  background: var(--color-rusx);
+  background: var(--panel-border);
   color: var(--color-givd);
-  padding: 8px 12px;
+  padding: 5px 7px;
   font-size: 13px;
   &.primary {
-    background: var(--color-cblc);
-    border-color: var(--color-cblc);
+    background: var(--accent);
+    border-color: var(--accent);
   }
   &.danger {
     background: var(--color-ztnp);
@@ -102,17 +102,17 @@ button {
   }
 }
 .slot-card {
-  border: 1px solid var(--color-rusx);
+  border: 1px solid var(--panel-border);
   border-radius: 8px;
-  padding: 12px 14px;
-  margin-bottom: 10px;
+  padding: 0 8px 8px 8px;
+  margin-bottom: 6px;
   background: var(--color-cxed);
 }
 .slot-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 .slot-title {
@@ -120,7 +120,7 @@ button {
   font-size: 14px;
 }
 .slot-sub {
-  color: var(--color-lxez);
+  color: var(--text-dim);
   font-size: 12px;
 }
 .status-dot {
@@ -128,8 +128,8 @@ button {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  margin-right: 6px;
-  background: var(--color-lxez);
+  margin-right: 4px;
+  background: var(--text-dim);
   &.connecting {
     background: var(--color-hmty);
   }
@@ -137,38 +137,40 @@ button {
     background: var(--color-fpzi);
   }
   &.error {
-    background: var(--color-nmkp);
+    background: var(--danger);
   }
 }
 .slot-controls {
   display: flex;
   align-items: stretch;
-  gap: 8px;
+  gap: 5px;
   flex-wrap: wrap;
   flex-direction: column;
 }
 .slot-log {
-  margin-top: 10px;
+  margin-top: 6px;
   /* max-height: 140px; */
   overflow-y: auto;
   font-size: 12px;
   color: var(--color-yzbo);
-  border-top: 1px solid var(--color-rusx);
-  padding-top: 8px;
+  border-bottom: 1px solid var(--panel-border);
+  padding-top: 0px;
+  padding-bottom: 8px;
+  margin-bottom: 4px;
   display: flex;
   flex-direction: column-reverse;
-  gap: 4px;
+  gap: 2px;
   .badge {
     font-size: 10px;
     background: var(--color-efma);
     color: var(--color-fpzi);
     border: 1px solid var(--color-idka);
     border-radius: 4px;
-    padding: 0 5px;
+    padding: 0 3px;
   }
   .row {
     display: flex;
-    gap: 6px;
+    gap: 4px;
     &.new-prog {
       color: var(--color-fpzi);
     }
@@ -178,26 +180,26 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 4px 0;
-  border-bottom: 1px solid var(--color-rusx);
+  gap: 6px;
+  padding: 2px 0;
+  border-bottom: 1px solid var(--panel-border);
   font-size: 13px;
   &:last-child {
     border-bottom: none;
   }
   .file-name {
-    color: var(--color-lxez);
+    color: var(--text-dim);
     font-size: 11px;
   }
 }
 .small {
   font-size: 11px;
-  color: var(--color-lxez);
+  color: var(--text-dim);
 }
 .empty {
   color: var(--color-byuj);
   font-size: 13px;
-  padding: 4px 0;
+  padding: 2px 0;
 }
 .game-select {
   position: relative;
@@ -210,7 +212,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 5px;
   cursor: pointer;
   background-color: var(--color-zgom);
   &[disabled] {
@@ -224,24 +226,24 @@ button {
   left: 0;
   z-index: 20;
   min-width: 100%;
-  background: var(--color-ckyr);
-  border: 1px solid var(--color-rusx);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
   border-radius: 6px;
-  padding: 4px;
+  padding: 2px;
   max-height: 320px;
   overflow-y: auto;
   background-color: var(--color-zgom);
 }
 .game-select-item,
 .game-select-group-header {
-  padding: 6px 10px;
+  padding: 4px 6px;
   border-radius: 4px;
   cursor: pointer;
   white-space: nowrap;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 5px;
   background-color: var(--color-zgom);
   &:hover {
     filter: brightness(1.15);
@@ -267,7 +269,7 @@ button {
   background-color: var(--color-zgom);
 }
 .game-select-empty {
-  padding: 6px 10px;
+  padding: 4px 6px;
   opacity: 0.7;
   font-style: italic;
   background-color: var(--color-zgom);
@@ -290,8 +292,8 @@ input[type="checkbox"] {
   justify-content: center;
   flex-shrink: 0;
   position: relative;
-  padding: 4px;
-  margin: 4px;
+  padding: 2px;
+  margin: 2px;
   &:checked {
     background-color: var(--accent);
     border-color: var(--accent);
@@ -308,7 +310,7 @@ input[type="checkbox"] {
     }
   }
   &:checked {
-    background-color: var(--accent, var(--color-cblc, #8b7bf7));
-    border-color: var(--accent, var(--color-cblc, #8b7bf7));
+    background-color: var(--accent, var(--accent, #8b7bf7));
+    border-color: var(--accent, var(--accent, #8b7bf7));
   }
 }

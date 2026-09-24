@@ -494,7 +494,7 @@ class Render {
 
     const headMidY = y + Layout.NODE_HEADER_H / 2
     Render.ctx.beginPath()
-    Render.ctx.arc(x + 15, headMidY, 3.5, 0, Math.PI * 2)
+    Render.ctx.arc(x + 10, headMidY, 3, 0, Math.PI * 2)
     Render.ctx.fillStyle =
       layout.reachable ? Render.COLORS.accent : Render.COLORS.danger
     Render.ctx.fill()
@@ -502,7 +502,7 @@ class Render {
     Render.ctx.textBaseline = "middle"
     Render.ctx.font = `600 12px ${Render.COLORS.mono}, monospace`
     Render.ctx.fillStyle = Render.COLORS.text
-    Render.drawFitText(rname, x + 27, headMidY, w - 37)
+    Render.drawFitText(rname, x + 19, headMidY, w - 27)
 
     let rowY = y + Layout.NODE_HEADER_H + Layout.NODE_BODY_PAD / 2
     for (const row of layout.rows) {
@@ -513,7 +513,7 @@ class Render {
       else dotColor = Render.COLORS.danger
       if (row.isEvent) dotColor = Render.COLORS.event
       Render.ctx.beginPath()
-      Render.ctx.arc(x + 13, cy, 2.5, 0, Math.PI * 2)
+      Render.ctx.arc(x + 9, cy, 2, 0, Math.PI * 2)
       Render.ctx.fillStyle = dotColor
       Render.ctx.fill()
 
@@ -525,7 +525,7 @@ class Render {
         `11px ${Render.COLORS.mono}, monospace`
       Render.ctx.fillStyle = textColor
       Render.ctx.globalAlpha = row.isChecked ? 0.4 : 1
-      Render.drawFitText(row.displayText, x + 21, cy, row.textAlloc, {
+      Render.drawFitText(row.displayText, x + 16, cy, row.textAlloc, {
         strike: row.isChecked,
       })
       Render.ctx.globalAlpha = 1
