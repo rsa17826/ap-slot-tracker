@@ -11,7 +11,7 @@ The main goal of this project is to make tracking logic work for every game with
 
 - Connect to as many Archipelago slots (rooms/players) simultaneously as you want, each tracked independently.
 - Per-slot connection status (connecting / connected / error / disconnected) with automatic `wss://` → `ws://` fallback.
-- Auto-reconnect on page load for any slot marked to auto-connect.
+- Previously connected slots auto-reconnect on page load.
 - Per-slot notification modes: **none**, **all items**, **progression-unlocking only**, or **all (with progression highlighted)**.
 - Desktop notifications via the Notifications API when items come in, optionally only when they actually unlock something new.
 
@@ -20,23 +20,25 @@ The main goal of this project is to make tracking logic work for every game with
 ### Logic-aware progression tracking
 
 - Loads externally generated **rules JSON** files (region/entrance/location logic graphs — see [Generating rules files](#generating-rules-files) below) and evaluates them live against each slot's received items and checked locations.
-- Per-slot log of currently **obtainable-but-unchecked** locations, each annotated with the exact item requirements (as OR-of-AND requirement chips) still needed or already satisfied.
-- Supports multiple loaded versions of the same game's rules (e.g. after a re-roll) — pick which version a slot tracks from a dropdown.
-- Supports rules files with **multiple bundled settings profiles** (e.g. a sweep over `walls_are_checks=True/False`) — each slot independently picks which profile it evaluates against.
+- Per-slot log of currently **obtainable-but-unchecked** locations, each annotated with the exact item requirements (as OR-of-AND requirement chips) that make the check reachable in logic.
+- Supports multiple versions of the same world to be switched separately per slot
+- Supports rules files with **multiple bundled settings profiles** for worlds where some options can change the rules generated
 
 ![Slot card expanded showing the obtainable checks log with requirement chips](./.images/obtainable-checks-log.webp)
 
 ### Interactive logic map
 
-- A full pan/zoom canvas map of the loaded game's regions, entrances, and locations, opened per-slot with **Show Map** (or the `Tab` key).
+- A full pan/zoom canvas map of the loaded game's regions, entrances, and locations, opened per-slot with **Show Map** (or the `Tab` key to toggle last opened slots map).
 - Nodes are colored by reachability; locations show checked/unchecked, event, hinted, and scouted-item state.
 - Drag nodes to reposition them (saved per game), or use:
   - **Auto layout** — automatic BFS-layer based layout.
   - **Custom layout** — write your own `sort(name) -> {x, y}` grid-placement function per game, saved and editable in-app.
-- View filters: hide event checks, hide empty nodes, hide out-of-logic checks, hide cleared checks, skip transit (check-less) nodes, show scouted items.
-- Hovering a location shows a popup with its requirement groups, color-coded by what you currently own.
+- View filters: hide event checks, hide empty nodes, hide out-of-logic checks, hide cleared checks, skip transit (check-less) nodes, show scouted items (only shows if items for the active slot have also got location scouts enabled).
+- Hovering a location shows a popup with its requirement groups, color-coded by what you currently own and what is currently missing for each unique method of obtaining the check.
 - Search box (`/` to focus) filters both the inventory list and the map to matching items/regions/locations.
-- Right-click an inventory item to request an in-game hint for it.
+  - `esc` to clear active search `enter` to defocus without clearing search text
+- Right-click menu for invenory items
+  - button to request an in-game hint for the item - can press multiple times to rehint if more than one of the item exist.
 - Item Indicators - need better name i think
   - a 💡 is shown on inventory items that the slot has hinted
   - a 💡 is shown on the map on locations that have a hinted item located there
@@ -49,7 +51,7 @@ The main goal of this project is to make tracking logic work for every game with
 
 ### Cheese Trackers integration
 
-- Link any slot to a game on a [Cheese Trackers](https://cheesetrackers.theincrediblewheelofchee.se/) tracker (auto-matched by slot name).
+- Link any slot to a game on a [Cheese Trackers](https://cheesetrackers.theincrediblewheelofchee.se/) tracker by just entering the tracker id/url.
 - Manually toggle or **auto-sync** a slot's BK (blocked) status to match whether it currently has any obtainable checks.
 
 ![Cheese Trackers panel showing link/unlink and Mark BK'd controls](./.images/cheese-trackers-panel.webp)
@@ -74,7 +76,7 @@ The map and progression-tracking features need a **rules JSON** file describing 
 ```bash
 AP_SOURCE_DIR="/path/to/Archipelago" \
 TRACKER_FILE_OUT_DIR="/path/to/trackerFiles" \
-python generate-global-tracker-data.py Vex2
+python generate-global-tracker-data.py <GAME_NAME/APWORLD_FILE_pATH>
 ```
 
 - The first arguments (before any `--` flag) are one or more **world specs**: a registered game name, a path to a `.apworld` file, or a path to a world's source folder. Multiple specs generate multiple games in one invocation.
@@ -86,7 +88,7 @@ python generate-global-tracker-data.py Vex2
 
 In the **Progression files** panel:
 
-- **Load rules file** — pick one or more rules JSON files directly.
+- **Load rules file** — pick one or more rules JSON files directly. - not recommended, folder is better but it's still here and does work
 - **Load rules folder** — pick a folder; every `.json` file directly inside it is loaded and re-scanned automatically on future page loads.
 
 ![Progression files panel listing loaded rules files with region/location counts](./.images/progression-files-panel.webp)
