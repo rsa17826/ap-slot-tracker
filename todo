@@ -4,3 +4,4 @@ notify on all items shouldn't notify on page load as it doesn't make sense to do
 make the inventory title use renderCheckHoverPopup instead?
 also something looks wrong about the renderCheckHoverPopup;s hint text - don't know what though, could add border?
 make so it can use alternate cheesetracker urls if pasting the entire link instead of just the id
+add button to remove entire group of slots
