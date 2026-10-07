@@ -63,6 +63,18 @@ The main goal of this project is to make tracking logic work for every game with
 
 ![Launch URL template editor modal](./.images/launch-url-editor.webp)
 
+### Import / export
+
+Buttons next to **Load rules folder** let you back up and restore the tracker's state. Each one opens a directory picker.
+
+- **Export (partial)** — writes just `./db.json` (slots, settings, layouts, views, etc.; file system handles can't be serialized so they are left out).
+- **Export (full)** — writes `./db.json` plus:
+  - `./trackedFolder/*.json` — the contents of the loaded rules folder
+  - `./trackedFiles/*.json` — individually loaded rules files (files already in the rules folder aren't duplicated)
+- **Import (partial)** — reads `./db.json` only and ignores everything else.
+- **Import (full)** — reads `./db.json`, then loads `trackedFiles` and `trackedFolder` exactly as if they were loaded via **Load rules file** / **Load rules folder** (the imported folder becomes the tracked rules folder).
+- **Auto-export on load** checkbox — when enabled, every page load re-saves to the same folder, using the same mode (full/partial), as the most recent export. Do one manual export first to choose the folder; the browser may ask you to re-grant write access.
+
 ### Offline-friendly
 
 - Installable as a PWA with a service worker that caches the app shell and serves cached responses when the network is unavailable.
@@ -110,10 +122,11 @@ Fill in the **Add a slot** form: server hostname, port, the game (selected from 
 - The map is rendered on a single `<canvas>` rather than per-node DOM elements, so it stays fast even with very large logic graphs — only on-screen nodes/edges are drawn each frame.
 - `RuleEngine.evalRule` (the logic-tree evaluator) and `MapEngine`'s reachability pass are shared between the live map UI and the headless progression tracking used for notifications/Cheese Trackers sync, so both always agree on what's currently reachable.
 - Rules JSON files can bundle multiple settings profiles; any field that differs between profiles is stored as `{ "_by_profile": { profileName: value } }` and resolved down to a flat graph per slot/map view via `MapEngine.resolveProfile`.
+- Import/export lives in `importExport.js`.
 
 ## Requirements
 
-- A modern browser with File System Access API support (for loading rules files/folders) and WebSocket support.
+- A modern browser with File System Access API support (for loading rules files/folders and import/export) and WebSocket support.
 - An Archipelago server to connect to.
 - Python 3.14 an Archipelago source checkout, only if generating your own rules JSON files.
 

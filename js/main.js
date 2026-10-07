@@ -278,6 +278,7 @@ document.addEventListener("keydown", (ev) => {
     var s = db.connections[db.currentMapConnId]
     if (s) SlotSync.syncFromSlot(s)
   }
+  ImportExport.init()
 })()
 ;(async () => {
   await (navigator?.serviceWorker?.ready ?? new Promise(() => {}))

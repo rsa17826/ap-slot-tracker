@@ -202,6 +202,8 @@ declare global {
     hideCleared: boolean
     noTransit: boolean
     showScouts: boolean
+    lastExport: LastExportMode
+    autoExport: boolean
   }
 
   function createDB(name: string): Promise<Db>
@@ -229,5 +231,20 @@ declare global {
     multiple?: boolean
   }): Promise<FileSystemFileHandle[]>
 
-  function showDirectoryPicker(): Promise<FileSystemDirectoryHandle>
+  interface DirectoryPickerOptions {
+    id?: string
+    mode?: "read" | "readwrite"
+    startIn?:
+      | "desktop"
+      | "documents"
+      | "downloads"
+      | "music"
+      | "pictures"
+      | "videos"
+      | FileSystemHandle
+  }
+
+  function showDirectoryPicker(
+    options?: DirectoryPickerOptions,
+  ): Promise<FileSystemDirectoryHandle>
 }

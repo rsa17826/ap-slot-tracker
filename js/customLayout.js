@@ -18,6 +18,9 @@ class CustomLayout {
     return ProgKeys.progKeyFor(State.graph)
   }
 
+  /**
+   * @param {any} src
+   */
   static compileSortFn(src) {
     // eslint-disable-next-line no-new-func
     const fn = new Function(
@@ -26,6 +29,10 @@ class CustomLayout {
     return fn()
   }
 
+  /**
+   * @param {string} gameKey
+   * @param {string} src
+   */
   static runCustomLayout(gameKey, src) {
     const sortFn = CustomLayout.compileSortFn(src) // throws on bad code
 
@@ -39,7 +46,12 @@ class CustomLayout {
 
     const logical = {}
     for (const n of names) {
-      const cell = sortFn(n)
+      try {
+        var cell = sortFn(n)
+      } catch (error) {
+        error.message += ' when sorting "' + n + '"'
+        throw error
+      }
       if (
         !cell ||
         typeof cell.x !== "number" ||
@@ -89,6 +101,9 @@ class CustomLayout {
     Render.render()
   }
 
+  /**
+   * @param {string} [src]
+   */
   static openSortEditor(src) {
     State.els.sortFnGameLabel.textContent = `(${CustomLayout.gameKeyOf()})`
     State.els.sortFnEditor.value =
@@ -103,10 +118,11 @@ class CustomLayout {
   static closeSortEditor() {
     State.els.sortFnModal.classList.remove("visible")
   }
+  /**
+   * @param {{ message: string; }} [err]
+   */
   static showSortEditorError(err) {
-    State.els.sortFnError.textContent = String(
-      (err && err.message) || err,
-    )
+    State.els.sortFnError.textContent = String(err?.message || err)
     State.els.sortFnError.style.display = "block"
   }
 

@@ -1,0 +1,28 @@
+function sort(name) {
+  if (!window.i) {
+    window.i = 1
+    queueMicrotask(() => {
+      delete window.i
+    })
+  }
+  return getSpiralCoordinates(Number(name.match(/\d+/)))
+}
+function getSpiralCoordinates(n) {
+  if (n === 0) return { x: 0, y: 0 };
+
+  // Calculate the current ring layer k
+  const k = Math.ceil((Math.sqrt(n + 1) - 1) / 2);
+  const maxInPrevRing = (2 * k - 1) ** 2 - 1;
+  const legLength = 2 * k;
+  const offset = n - maxInPrevRing - 1;
+  const side = Math.floor(offset / legLength);
+  const step = offset % legLength;
+
+  // Determine x, y based on which side of the ring the point lands
+  switch (side) {
+    case 0: return { x: k, y: -k + 1 + step };     // Right side
+    case 1: return { x: k - 1 - step, y: k };      // Top side
+    case 2: return { x: -k, y: k - 1 - step };     // Left side
+    case 3: return { x: -k + 1 + step, y: -k };    // Bottom side
+  }
+}
