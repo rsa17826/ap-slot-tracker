@@ -139,8 +139,10 @@ document
         loadFirst: !State.graph,
       })
     } catch (e) {
-      if (e.name !== "AbortError")
+      if (e.name !== "AbortError") {
         alert("Could not load folder: " + e.message)
+        error(e)
+      }
     }
   })
 document.getElementById("resetBtn").addEventListener("click", () => {
