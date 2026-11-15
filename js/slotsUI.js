@@ -205,6 +205,18 @@ class SlotsUI {
     return `${conn.hostname}:${conn.port}`
   }
 
+  // Parses a profile name of the form "a=1,b=true,c=x" into a Map of
+  // key -> value strings. Returns null if the name isn't in that format.
+  static parseProfileSettings(name) {
+    const settings = new Map()
+    for (const part of name.split(",")) {
+      const m = /^([^=,]+)=([^,]*)$/.exec(part)
+      if (!m) return null
+      settings.set(m[1], m[2])
+    }
+    return settings
+  }
+
   static renderSlotCard(conn) {
     {
         const rt = Connections.runtime[conn.id]
@@ -349,37 +361,98 @@ class SlotsUI {
                   : []
                 if (profileNames.length <= 1) return null
 
-                /**@type {Record<string, *>} */
-                const options = {}
-                for (const n of profileNames)
-                  options[`Profile: ${n}`] = n
+                const applyProfile = (profile) => {
+                  const cc = window.db.connections[conn.id]
+                  if (!cc) return
+                  cc.profile = profile
+                  if (Connections.runtime[conn.id]) {
+                    RequirementGroups.maybeRecomputeProgression(
+                      conn,
+                      Connections.runtime[conn.id],
+                    )
+                    CheeseTrackers.ctAutoSync(conn)
+                  }
+                  if (db.currentMapConnId === conn.id) {
+                    if (SlotSync.appEl.classList.contains("visible"))
+                      SlotSync.openMapForSlot(cc)
+                    else SlotSync.syncFromSlot(cc)
+                  }
+                  SlotsUI.renderSlots()
+                }
 
-                return newelem("select", {
-                  title:
-                    "Which settings profile this slot's logic (map + notifications) should use",
-                  options,
-                  value: ProgKeys.activeProfileFor(conn),
-                  onchange() {
-                    const cc = window.db.connections[conn.id]
-                    if (!cc) return
-                    cc.profile = this.value
-                    if (Connections.runtime[conn.id]) {
-                      RequirementGroups.maybeRecomputeProgression(
-                        conn,
-                        Connections.runtime[conn.id],
-                      )
-                      CheeseTrackers.ctAutoSync(conn)
-                    }
-                    if (db.currentMapConnId === conn.id) {
-                      if (
-                        SlotSync.appEl.classList.contains("visible")
-                      )
-                        SlotSync.openMapForSlot(cc)
-                      else SlotSync.syncFromSlot(cc)
-                    }
-                    SlotsUI.renderSlots()
-                  },
-                })
+                const activeProfile = ProgKeys.activeProfileFor(conn)
+
+                // If every profile name looks like "a=1,b=true,c=2" and they
+                // all list the same keys, show one dropdown per key instead
+                // of one long dropdown of full combinations.
+                const parsed = profileNames.map((n) =>
+                  SlotsUI.parseProfileSettings(n),
+                )
+                const keySig = (m) => [...m.keys()].sort().join(",")
+                const splittable =
+                  parsed.every((p) => p !== null) &&
+                  parsed.every((p) => keySig(p) === keySig(parsed[0]))
+
+                if (!splittable) {
+                  /**@type {Record<string, *>} */
+                  const options = {}
+                  for (const n of profileNames)
+                    options[`Profile: ${n}`] = n
+
+                  return newelem("select", {
+                    title:
+                      "Which settings profile this slot's logic (map + notifications) should use",
+                    options,
+                    value: activeProfile,
+                    onchange() {
+                      applyProfile(this.value)
+                    },
+                  })
+                }
+
+                const activeSettings =
+                  SlotsUI.parseProfileSettings(activeProfile)
+                const profileBySettings = new Map(
+                  profileNames.map((n, i) => [n, parsed[i]]),
+                )
+
+                return newelem(
+                  "div",
+                  { class: "h" },
+                  [...parsed[0].keys()].map((key) => {
+                    const values = [
+                      ...new Set(parsed.map((p) => p.get(key))),
+                    ]
+                    /**@type {Record<string, *>} */
+                    const options = {}
+                    for (const v of values) options[`${key}: ${v}`] = v
+
+                    return newelem("select", {
+                      title: `Setting "${key}" for this slot's logic (map + notifications)`,
+                      options,
+                      value: activeSettings.get(key),
+                      onchange() {
+                        // Not every combination necessarily exists as a
+                        // baked-in profile, so among the profiles with the
+                        // newly chosen value, take the one that keeps the
+                        // most of the other current settings.
+                        let best = null
+                        let bestScore = -1
+                        for (const [name, settings] of profileBySettings) {
+                          if (settings.get(key) !== this.value) continue
+                          let score = 0
+                          for (const [k, v] of activeSettings)
+                            if (k !== key && settings.get(k) === v) score++
+                          if (score > bestScore) {
+                            best = name
+                            bestScore = score
+                          }
+                        }
+                        applyProfile(best)
+                      },
+                    })
+                  }),
+                )
               })(),
               newelem("div", { class: "h" }, [
                 newelem(
