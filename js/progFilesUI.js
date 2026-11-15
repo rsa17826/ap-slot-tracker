@@ -12,9 +12,11 @@ class ProgFilesUI {
   static async removeProgFile(progKey) {
     const handle = window.db.fileHandles[progKey]
     if (!handle) {
-      alert(
-        `No file handle for "${progKey}" -- can't delete it from disk. Not removing it from the list either.`,
-      )
+      error("file not on disk")
+      delete window.db.fileHandles[progKey]
+      delete window.db.progFiles[progKey]
+      ProgFilesUI.renderProgFiles()
+      SlotsUI.renderSlots()
       return
     }
     const perm = await handle.requestPermission({ mode: "readwrite" })
