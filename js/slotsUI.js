@@ -219,152 +219,108 @@ class SlotsUI {
 
   static renderSlotCard(conn) {
     {
-        const rt = Connections.runtime[conn.id]
-        const status = rt?.status || "disconnected"
+      const rt = Connections.runtime[conn.id]
+      const status = rt?.status || "disconnected"
 
-        const hasProg = SlotsUI.gamesWithProg().includes(conn.progKey)
-        const graph =
-          hasProg ?
-            ProgKeys.progForGame(conn.progKey, conn.profile)
-          : null
-        const obtainable =
-          graph ?
-            [...(rt?.prevObtainable || [])].sort((a, b) =>
-              a.localeCompare(b),
-            )
-          : []
-        return newelem("div", { class: "slot-card" }, [
-          newelem(
-            "div",
-            { class: "slot-log" },
-            !graph ?
-              [
-                newelem(
-                  "div",
-                  { fontSize: "13px", color: "#6b7280" },
-                  ["No map data loaded for this slot's game."],
-                ),
-              ]
-            : obtainable.length === 0 ?
-              [
-                newelem(
-                  "div",
-                  { fontSize: "13px", color: "#6b7280" },
-                  ["No obtainable checks right now."],
-                ),
-              ]
-            : obtainable.map((locationName) =>
-                RequirementGroups.checkRow(
+      const hasProg = SlotsUI.gamesWithProg().includes(conn.progKey)
+      const graph =
+        hasProg ?
+          ProgKeys.progForGame(conn.progKey, conn.profile)
+        : null
+      const obtainable =
+        graph ?
+          [...(rt?.prevObtainable || [])].sort((a, b) =>
+            a.localeCompare(b),
+          )
+        : []
+      return newelem("div", { class: "slot-card" }, [
+        newelem(
+          "div",
+          { class: "slot-log" },
+          !graph ?
+            [
+              newelem("div", { fontSize: "13px", color: "#6b7280" }, [
+                "No map data loaded for this slot's game.",
+              ]),
+            ]
+          : obtainable.length === 0 ?
+            [
+              newelem("div", { fontSize: "13px", color: "#6b7280" }, [
+                "No obtainable checks right now.",
+              ]),
+            ]
+          : obtainable.map((locationName) =>
+              RequirementGroups.checkRow(
+                locationName,
+                RequirementGroups.requirementGroupsFor(
+                  graph,
                   locationName,
-                  RequirementGroups.requirementGroupsFor(
-                    graph,
-                    locationName,
-                    RequirementGroups.ownedCounts(rt),
-                  ),
+                  RequirementGroups.ownedCounts(rt),
                 ),
               ),
-          ),
-          newelem("div", { class: "slot-top" }, [
-            newelem("div", {}, [
-              newelem("div", { class: "slot-title" }, [
-                newelem(
-                  "span",
-                  { class: `status-dot ${status}` },
-                  [],
-                ),
-                `${conn.playerName} @ ${conn.hostname}${conn.port ? ":" + conn.port : ""}`,
-              ]),
-              newelem("div", { class: "slot-sub" }, [
-                `${conn.game}${conn.progKey && hasProg ? " — v" + (SlotsUI.progVersion(conn.progKey) ?? "?") : ""}${rt?.statusDetail ? " — " + rt.statusDetail : ""}`,
-              ]),
+            ),
+        ),
+        newelem("div", { class: "slot-top" }, [
+          newelem("div", {}, [
+            newelem("div", { class: "slot-title" }, [
+              newelem("span", { class: `status-dot ${status}` }, []),
+              `${conn.playerName} @ ${conn.hostname}${conn.port ? ":" + conn.port : ""}`,
             ]),
-            newelem("div", { class: "slot-controls" }, [
-              (() => {
-                const modeSelect = newelem("select", {
-                  title:
-                    hasProg ? "" : (
-                      `Upload/load a rules JSON for "${conn.game}" to unlock progression-aware alerts`
-                    ),
-                  options: {
-                    "Notify: none": "none",
-                    "Notify: progression-unlocking only":
-                      "progression",
-                    "Notify: all (highlight progression)": "both",
-                    "Notify: all items": "all",
-                  },
-                  value: conn.notifyMode || "all",
-                })
-                modeSelect.onchange = () => {
-                  const cc = window.db.connections[conn.id]
-                  if (!cc) return
-                  cc.notifyMode = /** @type {NotifyMode} */ (
-                    modeSelect.value
-                  )
-                }
-                return modeSelect
-              })(),
-              (() => {
-                // Only shown once more than one version of this slot's game
-                // has a rules file loaded -- otherwise there's nothing to
-                // choose between. Lets a slot switch which loaded ruleset
-                // (progKey) it tracks against after creation, e.g. once a
-                // re-rolled version's JSON has been uploaded.
-                const versionKeys = SlotsUI.gamesWithProg().filter(
-                  (k) => SlotsUI.progGameName(k) === conn.game,
+            newelem("div", { class: "slot-sub" }, [
+              `${conn.game}${conn.progKey && hasProg ? " — v" + (SlotsUI.progVersion(conn.progKey) ?? "?") : ""}${rt?.statusDetail ? " — " + rt.statusDetail : ""}`,
+            ]),
+          ]),
+          newelem("div", { class: "slot-controls" }, [
+            (() => {
+              const modeSelect = newelem("select", {
+                title:
+                  hasProg ? "" : (
+                    `Upload/load a rules JSON for "${conn.game}" to unlock progression-aware alerts`
+                  ),
+                options: {
+                  "Notify: none": "none",
+                  "Notify: progression-unlocking only": "progression",
+                  "Notify: all (highlight progression)": "both",
+                  "Notify: all items": "all",
+                },
+                value: conn.notifyMode || "all",
+              })
+              modeSelect.onchange = () => {
+                const cc = window.db.connections[conn.id]
+                if (!cc) return
+                cc.notifyMode = /** @type {NotifyMode} */ (
+                  modeSelect.value
                 )
-                if (versionKeys.length <= 1) return null
+              }
+              return modeSelect
+            })(),
+            (() => {
+              // Only shown once more than one version of this slot's game
+              // has a rules file loaded -- otherwise there's nothing to
+              // choose between. Lets a slot switch which loaded ruleset
+              // (progKey) it tracks against after creation, e.g. once a
+              // re-rolled version's JSON has been uploaded.
+              const versionKeys = SlotsUI.gamesWithProg().filter(
+                (k) => SlotsUI.progGameName(k) === conn.game,
+              )
+              if (versionKeys.length <= 1) return null
 
-                /**@type {Record<string, *>} */
-                const options = {}
-                for (const k of versionKeys)
-                  options[
-                    `Version: v${SlotsUI.progVersion(k) ?? "?"}`
-                  ] = k
+              /**@type {Record<string, *>} */
+              const options = {}
+              for (const k of versionKeys)
+                options[
+                  `Version: v${SlotsUI.progVersion(k) ?? "?"}`
+                ] = k
 
-                return newelem("select", {
-                  title:
-                    "Which loaded ruleset (version) this slot's logic (map + notifications) should use",
-                  options,
-                  value: conn.progKey,
-                  onchange() {
-                    const cc = window.db.connections[conn.id]
-                    if (!cc) return
-                    cc.progKey = this.value
-                    if (Connections.runtime[conn.id]) {
-                      RequirementGroups.maybeRecomputeProgression(
-                        conn,
-                        Connections.runtime[conn.id],
-                      )
-                      CheeseTrackers.ctAutoSync(conn)
-                    }
-                    if (db.currentMapConnId === conn.id) {
-                      if (
-                        SlotSync.appEl.classList.contains("visible")
-                      )
-                        SlotSync.openMapForSlot(cc)
-                      else SlotSync.syncFromSlot(cc)
-                    }
-                    SlotsUI.renderSlots()
-                  },
-                })
-              })(),
-              (() => {
-                // Only shown once a rules file is loaded for this slot's game
-                // AND that file actually has more than one settings profile
-                // baked in -- otherwise there's nothing to choose between.
-                // Each slot keeps its own `conn.profile`, so two slots on the
-                // same game+version file can independently track different
-                // settings (e.g. one with walls_are_checks on, one off).
-                const profileNames =
-                  hasProg ?
-                    ProgKeys.profileNamesFor(conn.progKey)
-                  : []
-                if (profileNames.length <= 1) return null
-
-                const applyProfile = (profile) => {
+              return newelem("select", {
+                title:
+                  "Which loaded ruleset (version) this slot's logic (map + notifications) should use",
+                options,
+                value: conn.progKey,
+                onchange() {
                   const cc = window.db.connections[conn.id]
                   if (!cc) return
-                  cc.profile = profile
+                  cc.progKey = this.value
                   if (Connections.runtime[conn.id]) {
                     RequirementGroups.maybeRecomputeProgression(
                       conn,
@@ -378,199 +334,235 @@ class SlotsUI {
                     else SlotSync.syncFromSlot(cc)
                   }
                   SlotsUI.renderSlots()
+                },
+              })
+            })(),
+            (() => {
+              // Only shown once a rules file is loaded for this slot's game
+              // AND that file actually has more than one settings profile
+              // baked in -- otherwise there's nothing to choose between.
+              // Each slot keeps its own `conn.profile`, so two slots on the
+              // same game+version file can independently track different
+              // settings (e.g. one with walls_are_checks on, one off).
+              const profileNames =
+                hasProg ? ProgKeys.profileNamesFor(conn.progKey) : []
+              if (profileNames.length <= 1) return null
+
+              const applyProfile = (profile) => {
+                const cc = window.db.connections[conn.id]
+                if (!cc) return
+                cc.profile = profile
+                if (Connections.runtime[conn.id]) {
+                  RequirementGroups.maybeRecomputeProgression(
+                    conn,
+                    Connections.runtime[conn.id],
+                  )
+                  CheeseTrackers.ctAutoSync(conn)
                 }
-
-                const activeProfile = ProgKeys.activeProfileFor(conn)
-
-                // If every profile name looks like "a=1,b=true,c=2" and they
-                // all list the same keys, show one dropdown per key instead
-                // of one long dropdown of full combinations.
-                const parsed = profileNames.map((n) =>
-                  SlotsUI.parseProfileSettings(n),
-                )
-                const keySig = (m) => [...m.keys()].sort().join(",")
-                const splittable =
-                  parsed.every((p) => p !== null) &&
-                  parsed.every((p) => keySig(p) === keySig(parsed[0]))
-
-                if (!splittable) {
-                  /**@type {Record<string, *>} */
-                  const options = {}
-                  for (const n of profileNames)
-                    options[`Profile: ${n}`] = n
-
-                  return newelem("select", {
-                    title:
-                      "Which settings profile this slot's logic (map + notifications) should use",
-                    options,
-                    value: activeProfile,
-                    onchange() {
-                      applyProfile(this.value)
-                    },
-                  })
+                if (db.currentMapConnId === conn.id) {
+                  if (SlotSync.appEl.classList.contains("visible"))
+                    SlotSync.openMapForSlot(cc)
+                  else SlotSync.syncFromSlot(cc)
                 }
+                SlotsUI.renderSlots()
+              }
 
-                const activeSettings =
-                  SlotsUI.parseProfileSettings(activeProfile)
-                const profileBySettings = new Map(
-                  profileNames.map((n, i) => [n, parsed[i]]),
-                )
+              const activeProfile = ProgKeys.activeProfileFor(conn)
 
-                return newelem(
-                  "div",
-                  { class: "h" },
-                  [...parsed[0].keys()].map((key) => {
-                    const values = [
-                      ...new Set(parsed.map((p) => p.get(key))),
-                    ]
-                    /**@type {Record<string, *>} */
-                    const options = {}
-                    for (const v of values) options[`${key}: ${v}`] = v
+              // If every profile name looks like "a=1,b=true,c=2" and they
+              // all list the same keys, show one dropdown per key instead
+              // of one long dropdown of full combinations.
+              const parsed = profileNames.map((n) =>
+                SlotsUI.parseProfileSettings(n),
+              )
+              const keySig = (m) => [...m.keys()].sort().join(",")
+              const splittable =
+                parsed.every((p) => p !== null) &&
+                parsed.every((p) => keySig(p) === keySig(parsed[0]))
 
-                    return newelem("select", {
-                      title: `Setting "${key}" for this slot's logic (map + notifications)`,
-                      options,
-                      value: activeSettings.get(key),
-                      onchange() {
-                        // Not every combination necessarily exists as a
-                        // baked-in profile, so among the profiles with the
-                        // newly chosen value, take the one that keeps the
-                        // most of the other current settings.
-                        let best = null
-                        let bestScore = -1
-                        for (const [name, settings] of profileBySettings) {
-                          if (settings.get(key) !== this.value) continue
-                          let score = 0
-                          for (const [k, v] of activeSettings)
-                            if (k !== key && settings.get(k) === v) score++
-                          if (score > bestScore) {
-                            best = name
-                            bestScore = score
-                          }
-                        }
-                        applyProfile(best)
-                      },
-                    })
-                  }),
-                )
-              })(),
-              newelem("div", { class: "h" }, [
-                newelem(
-                  "button",
-                  {
-                    onclick() {
-                      if (
-                        status === "disconnected" ||
-                        status === "error" ||
-                        !rt
-                      ) {
-                        conn.autoConnect = true
-                        Connections.startConnection(conn)
-                      } else {
-                        conn.autoConnect = false
-                        Connections.stopConnection(conn.id)
-                      }
-                    },
+              if (!splittable) {
+                /**@type {Record<string, *>} */
+                const options = {}
+                for (const n of profileNames)
+                  options[`Profile: ${n}`] = n
+
+                return newelem("select", {
+                  title:
+                    "Which settings profile this slot's logic (map + notifications) should use",
+                  options,
+                  value: activeProfile,
+                  onchange() {
+                    applyProfile(this.value)
                   },
-                  [
-                    status === "disconnected" || status === "error" ?
-                      "Connect"
-                    : "Disconnect",
-                  ],
-                ),
-                newelem(
-                  "button",
-                  {
-                    class: "danger",
-                    onclick() {
-                      Connections.stopConnection(conn.id)
-                      delete window.db.connections[conn.id]
-                      SlotsUI.renderSlots()
-                    },
-                  },
-                  ["Remove"],
-                ),
-                newelem(
-                  "label",
-                  {
-                    class: "h",
-                    checked: conn.locationScoutsEnabled,
-                    flexGrow: 2,
-                  },
-                  [
-                    newelem("input", {
-                      type: "checkbox",
-                      flexGrow: 0,
-                      padding: 0,
-                      margin: 0,
-                      /** @this {HTMLInputElement} */
-                      onclick() {
-                        conn.locationScoutsEnabled = this.checked
-                        const client =
-                          Connections.runtime[conn.id].client
-                        if (
-                          !conn.scoutedLocations &&
-                          conn.locationScoutsEnabled &&
-                          client?.isAuthenticated
-                        ) {
-                          client.sendLocationScouts(
-                            [
-                              ...client.checkedLocations,
-                              ...client.missingLocations,
-                            ],
-                            0,
-                          )
-                        }
-                      },
-                      checked: conn.locationScoutsEnabled,
-                    }),
-                    "Enable LocationScouts",
-                  ],
-                ),
-                newelem(
-                  "button",
-                  {
-                    flexGrow: 1,
-                    onclick: async (e) => {
-                      // Defined in index.html's map script: loads this game's
-                      // rules JSON (if already known) and syncs the map's
-                      // inventory/checked-locations from this slot's live AP
-                      // state.
-                      SlotSync.openMapForSlot(conn)
-                    },
-                  },
-                  ["Show Map"],
-                ),
-              ]),
-              newelem(
+                })
+              }
+
+              const activeSettings =
+                SlotsUI.parseProfileSettings(activeProfile)
+              const profileBySettings = new Map(
+                profileNames.map((n, i) => [n, parsed[i]]),
+              )
+
+              return newelem(
                 "div",
                 { class: "h" },
-                CheeseTrackers.ctPanelFor(conn),
+                [...parsed[0].keys()].map((key) => {
+                  const values = [
+                    ...new Set(parsed.map((p) => p.get(key))),
+                  ]
+                  /**@type {Record<string, *>} */
+                  const options = {}
+                  for (const v of values) options[`${key}: ${v}`] = v
+
+                  return newelem("select", {
+                    title: `Setting "${key}" for this slot's logic (map + notifications)`,
+                    options,
+                    value: activeSettings.get(key),
+                    onchange() {
+                      // Not every combination necessarily exists as a
+                      // baked-in profile, so among the profiles with the
+                      // newly chosen value, take the one that keeps the
+                      // most of the other current settings.
+                      let best = null
+                      let bestScore = -1
+                      for (const [
+                        name,
+                        settings,
+                      ] of profileBySettings) {
+                        if (settings.get(key) !== this.value) continue
+                        let score = 0
+                        for (const [k, v] of activeSettings)
+                          if (k !== key && settings.get(k) === v)
+                            score++
+                        if (score > bestScore) {
+                          best = name
+                          bestScore = score
+                        }
+                      }
+                      applyProfile(best)
+                    },
+                  })
+                }),
+              )
+            })(),
+            newelem("div", { class: "h" }, [
+              newelem(
+                "button",
+                {
+                  onclick() {
+                    if (
+                      status === "disconnected" ||
+                      status === "error" ||
+                      !rt
+                    ) {
+                      conn.autoConnect = true
+                      Connections.startConnection(conn)
+                    } else {
+                      conn.autoConnect = false
+                      Connections.stopConnection(conn.id)
+                    }
+                  },
+                },
+                [
+                  status === "disconnected" || status === "error" ?
+                    "Connect"
+                  : "Disconnect",
+                ],
               ),
-              newelem("div", { class: "h", flexGrow: "2" }, [
-                newelem(
-                  "button",
-                  {
-                    flexGrow: "2",
-                    onclick: async (e) => {
-                      LaunchUrlEditor.openLink(conn)
-                    },
+              newelem(
+                "button",
+                {
+                  class: "danger",
+                  onclick() {
+                    Connections.stopConnection(conn.id)
+                    delete window.db.connections[conn.id]
+                    SlotsUI.renderSlots()
                   },
-                  ["Launch Client"],
-                ),
-                newelem(
-                  "button",
-                  {
-                    onclick: async (e) => {
-                      LaunchUrlEditor.openURLEditor(conn.game)
+                },
+                ["Remove"],
+              ),
+              newelem(
+                "label",
+                {
+                  class: "h",
+                  checked: conn.locationScoutsEnabled,
+                  flexGrow: 2,
+                },
+                [
+                  newelem("input", {
+                    type: "checkbox",
+                    flexGrow: 0,
+                    padding: 0,
+                    margin: 0,
+                    /** @this {HTMLInputElement} */
+                    onclick() {
+                      conn.locationScoutsEnabled = this.checked
+                      const client =
+                        Connections.runtime[conn.id].client
+                      if (
+                        !conn.scoutedLocations &&
+                        conn.locationScoutsEnabled &&
+                        client?.isAuthenticated
+                      ) {
+                        client.sendLocationScouts(
+                          [
+                            ...client.checkedLocations,
+                            ...client.missingLocations,
+                          ],
+                          0,
+                        )
+                      }
                     },
+                    checked: conn.locationScoutsEnabled,
+                  }),
+                  "Enable LocationScouts",
+                ],
+              ),
+              newelem(
+                "button",
+                {
+                  flexGrow: 1,
+                  onclick: async (e) => {
+                    // Defined in index.html's map script: loads this game's
+                    // rules JSON (if already known) and syncs the map's
+                    // inventory/checked-locations from this slot's live AP
+                    // state.
+                    SlotSync.openMapForSlot(conn)
                   },
-                  ["✎"],
-                ),
-              ]),
+                },
+                ["Show Map"],
+              ),
+            ]),
+            newelem(
+              "div",
+              { class: "h" },
+              CheeseTrackers.ctPanelFor(conn),
+            ),
+            LogicTest.panelFor(conn),
+            newelem("div", { class: "h", flexGrow: "2" }, [
+              newelem(
+                "button",
+                {
+                  flexGrow: "2",
+                  onclick: async (e) => {
+                    LaunchUrlEditor.openLink(conn)
+                  },
+                },
+                ["Launch Client"],
+              ),
+              newelem(
+                "button",
+                {
+                  onclick: async (e) => {
+                    LaunchUrlEditor.openURLEditor(conn.game)
+                  },
+                },
+                ["✎"],
+              ),
             ]),
           ]),
-        ])
+        ]),
+      ])
     }
   }
 
@@ -584,6 +576,17 @@ class SlotsUI {
       )
       return
     }
+
+    // Every redraw rebuilds all cards, which would drop focus (and the caret)
+    // from a text box being typed in. Inputs that opt in with
+    // dataset.focusKey get focus and selection restored afterwards.
+    const active = document.activeElement
+    const focusKey =
+      active instanceof HTMLInputElement ?
+        active.dataset.focusKey
+      : null
+    const selStart = focusKey ? active.selectionStart : null
+    const selEnd = focusKey ? active.selectionEnd : null
 
     // Group slots by hostname+port, preserving first-seen order both
     // of groups and of slots within a group.
@@ -603,9 +606,8 @@ class SlotsUI {
             {
               class: "slot-group-header",
               onclick: () => {
-                db.groupCollapsed[groupKey] = !db.groupCollapsed[
-                  groupKey
-                ]
+                db.groupCollapsed[groupKey] =
+                  !db.groupCollapsed[groupKey]
                 SlotsUI.renderSlots()
               },
             },
@@ -631,6 +633,19 @@ class SlotsUI {
         ])
       }),
     )
+
+    if (focusKey) {
+      const el = /** @type {HTMLInputElement | null} */ (
+        [...SlotsUI.slotsRoot.querySelectorAll("input")].find(
+          (i) => i.dataset.focusKey === focusKey,
+        )
+      )
+      // null when the card was removed or collapsed by this redraw
+      if (el) {
+        el.focus()
+        el.setSelectionRange(selStart, selEnd)
+      }
+    }
   }
 }
 // Close the menu when clicking anywhere outside it.

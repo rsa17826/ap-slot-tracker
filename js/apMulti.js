@@ -19,8 +19,8 @@
 
 /**
  * Minimal, generic Archipelago protocol client meant for running many
- * connections side-by-side in a tracker UI. Unlike a full game client this
- * never sends LocationChecks — it only listens.
+ * connections side-by-side in a tracker UI. Tracker slots only listen; the
+ * only thing that sends LocationChecks is LogicTest (via sendLocationChecks).
  */
 
 class APSlotClient {
@@ -119,7 +119,7 @@ class APSlotClient {
   }
 
   /**
-   * @param {{ cmd: string; locations: number[]; create_as_hint: number; }[] | ({ cmd: string; games: any; password?: undefined; game?: undefined; name?: undefined; uuid?: undefined; version?: undefined; items_handling?: undefined; tags?: undefined; slot_data?: undefined; } | { cmd: string; password: string; game: string; name: string; uuid: string; version: { major: number; minor: number; build: number; class: string; }; items_handling: number; tags: string[]; slot_data: boolean; games?: undefined; })[] | { cmd: string; keys: string[]; }[] | { cmd: string; text: string; }[]} arr
+   * @param {Record<string, any>[]} arr
    */
   sendPackets(arr) {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
@@ -142,9 +142,20 @@ class APSlotClient {
   }
 
   /**
+   * Marks locations as checked on the server. Only LogicTest uses this.
+   * @param {number[]} locationIds
+   */
+  sendLocationChecks(locationIds) {
+    this.sendPackets([
+      { cmd: "LocationChecks", locations: locationIds },
+    ])
+  }
+
+  /**
    * @param {{ cmd: any; games: any; data: { games: { [s: string]: any; } | ArrayLike<any>; }; team: number; slot: number; missing_locations: number[]; checked_locations: number[]; slot_info: {}; players: APPlayer[]; slot_data: {}; errors: any; locations: any; items: any[]; index: any; key: string; value: any[]; keys: { [x: string]: any; }; }} packet
    */
   handlePacket(packet) {
+    this.cb.onPacket?.(packet)
     switch (packet.cmd) {
       case "RoomInfo":
         this.sendPackets([
@@ -162,8 +173,8 @@ class APSlotClient {
               class: "Version",
             },
             items_handling: 7,
-            tags: ["Tracker", "AP"],
-            slot_data: false,
+            tags: this.opts.tags ?? ["Tracker", "AP"],
+            slot_data: this.opts.slotData ?? false,
           },
         ])
         break
@@ -240,6 +251,7 @@ class APSlotClient {
             id: item.item,
             index: idx,
             player: item.player,
+            location: item.location,
           })
         })
         this.cb.onItems?.(items)

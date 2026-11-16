@@ -87,6 +87,8 @@ class Connections {
     )
     rt.client = client
     client.connect()
+    // the Logic Test client runs alongside the tracked slot's connection
+    if (conn.ltEnabled) LogicTest.start(conn)
   }
 
   /**
@@ -95,6 +97,7 @@ class Connections {
   static stopConnection(connId) {
     Connections.runtime[connId]?.client?.disconnect()
     delete Connections.runtime[connId]
+    LogicTest.stop(connId)
     SlotsUI.renderSlots()
   }
   /**

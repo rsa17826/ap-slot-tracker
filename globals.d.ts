@@ -100,6 +100,12 @@ declare global {
     autoUpdateCTStatus?: boolean
     locationScoutsEnabled?: boolean
     scoutedLocations?: boolean
+    /** Follow a Logic Test slot for this slot (see logicTest.js). Unset until first toggled. */
+    ltEnabled?: boolean
+    /** Name of the Logic Test slot to connect to, on the same server as this slot. */
+    ltSlotName?: string
+    /** Open each Logic Test sphere automatically once all its keys are in. */
+    ltAutoProceed?: boolean
   }
 
   interface ScoutedItemEntry {
@@ -122,6 +128,10 @@ declare global {
     game: string
     playerName: string
     password: string
+    /** Connect tags. Defaults to ["Tracker", "AP"]. */
+    tags?: string[]
+    /** Ask the server for slot_data in Connected. Defaults to false. */
+    slotData?: boolean
   }
 
   interface APSlotClientCallbacks {
@@ -129,7 +139,17 @@ declare global {
     onConnected: () => void
     onCheckedLocations: () => void
     onScoutedItems: () => void
-    onItems: (items: { name: string }[]) => void
+    onItems: (
+      items: {
+        name: string
+        id: number
+        index: number
+        player: number
+        location: number
+      }[],
+    ) => void
+    /** Called with every raw packet before the built-in handling. */
+    onPacket?: (packet: any) => void
   }
 
   interface CTGame {

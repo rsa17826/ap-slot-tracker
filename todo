@@ -5,3 +5,5 @@ make the inventory title use renderCheckHoverPopup instead?
 also something looks wrong about the renderCheckHoverPopup;s hint text - don't know what though, could add border?
 make so it can use alternate cheesetracker urls if pasting the entire link instead of just the id
 add option to force show nodes that have hints on them
+
+if logic test enabled also send notification when all keys inlogic have been collected
