@@ -94,10 +94,10 @@ class CheeseTrackers {
   // per its loaded rules graph. null means we can't tell (no graph loaded
   // yet), in which case BK can only be set manually.
   /**
-   * @param {{ progKey: any; profile: any; id: string | number; }} conn
+   * @param {SlotConnection} conn
    */
   static ctObtainableState(conn) {
-    const graph = ProgKeys.progForGame(conn.progKey, conn.profile)
+    const graph = ProgKeys.graphFor(conn)
     const rt = Connections.runtime[conn.id]
     if (!graph || !rt?.prevObtainable) return null
     return rt.prevObtainable.size > 0

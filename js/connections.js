@@ -21,18 +21,14 @@ class Connections {
    * @param {string} body
    */
   static notify(title, body) {
-    if (Notification.permission !== "granted") return
-    try {
-      new Notification(title, { body, icon: undefined })
-    } catch (e) {
-      console.error("Connections.notify failed", e)
-    }
+    window.pywebview.api.notify(title, body).catch((e) => error("notify failed", e))
   }
 
   /**
    * @param {SlotConnection} conn
    */
-  static startConnection(conn) {
+  static async startConnection(conn) {
+    await HostApi.ensureGraph(conn) // a failure is shown on the slot card, the connection still works without a graph
     /** @type {Runtime} */
     const rt = {
       client: null,
@@ -106,7 +102,7 @@ class Connections {
    * @param {any[]} items
    */
   static handleReceivedItems(conn, rt, items) {
-    const graph = ProgKeys.progForGame(conn.progKey, conn.profile)
+    const graph = ProgKeys.graphFor(conn)
 
     items.forEach(
       (/** @type {{ name: string | number; }} */ item) => {

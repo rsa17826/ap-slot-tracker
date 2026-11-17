@@ -5,198 +5,26 @@ class SlotsUI {
   // UI: connections panel
   // ---------------------------------------------------------------------
   static slotsRoot = document.getElementById("slots")
-  static progRoot = document.getElementById("progFiles")
-
-  static gamesWithProg() {
-    return Object.keys(window.db.progFiles || {}).sort((a, s) =>
-      a.localeCompare(s, undefined, { numeric: true }),
-    )
-  }
-
-  // Version comes from the rules JSON's own `.version` field, so each
-  // loaded ruleset's dropdown entry can show which revision it is.
-  static progVersion(progKey) {
-    return window.db.progFiles[progKey]?.version ?? null
-  }
-
-  // The actual AP protocol game name for a loaded ruleset (used to connect
-  // and to look up the data package), as opposed to the composite progKey
-  // used to store/select that specific version of it.
-  static progGameName(progKey) {
-    return window.db.progFiles[progKey]?.game ?? progKey
-  }
-
-  // Keeps the "Add a slot" game picker in sync with whatever rules JSON
-  // files have been loaded, showing each entry's name + version. Games
-  // with a single loaded version are a plain one-click item; games with
-  // multiple loaded versions become a nested group you expand to pick a
-  // version from, like a titlebar menu.
-  //
-  // The picker is a custom widget (not a native <select>, which can't do
-  // nested/expandable entries) but keeps the same #gameSelect id and
-  // exposes its value through a hidden `game` form field, so
-  // `f.game.value` in the add-slot submit handler keeps working unchanged.
-  static gameSelectExpanded = null // which game name's submenu is open, if any
 
   static populateGameSelect() {
-    let root = document.getElementById("gameSelect")
-    if (!root) return
-
-    // First run: the element in markup is still the old <select id="gameSelect">
-    // (or nothing has replaced it yet) — swap it for our widget container,
-    // preserving id/name so the rest of the app and the form keep working.
-    if (
-      root.tagName !== "DIV" ||
-      !root.classList.contains("game-select")
-    ) {
-      const replacement = newelem("div", {
-        id: "gameSelect",
-        class: "game-select",
-      })
-      root.replaceWith(replacement)
-      root = replacement
-    }
-
-    const prevValue = root.dataset.value || ""
-    const progKeys = SlotsUI.gamesWithProg()
-    const hasAny = progKeys.length > 0
-
-    // Group progKeys by display game name, so games with >1 loaded
-    // version become an expandable group and games with exactly one
-    // stay a flat, single-click item.
-    const groups = new Map() // name -> [progKey, ...]
-    for (const progKey of progKeys) {
-      const name = SlotsUI.progGameName(progKey)
-      if (!groups.has(name)) groups.set(name, [])
-      groups.get(name).push(progKey)
-    }
-
-    const selectedValid = progKeys.includes(prevValue)
-    const value = selectedValid ? prevValue : ""
-    root.dataset.value = value
-
-    const selectedLabel = (() => {
-      if (!value) {
-        return hasAny ? "Select a game" : (
-            "Load a rules JSON below to select a game"
-          )
-      }
-      const version = SlotsUI.progVersion(value)
-      const name = SlotsUI.progGameName(value)
-      return version ? `${name} (v${version})` : name
-    })()
-
-    function closeMenu() {
-      SlotsUI.gameSelectExpanded = null
-      const menu = root.querySelector(".game-select-menu")
-      menu?.remove()
-      root.classList.remove("open")
-    }
-
-    function selectValue(progKey) {
-      root.dataset.value = progKey
-      closeMenu()
-      SlotsUI.populateGameSelect()
-      root
-        .querySelector('input[name="game"]')
-        ?.dispatchEvent(new Event("change", { bubbles: true }))
-    }
-
-    function buildMenu() {
-      if (groups.size === 0) {
-        return newelem("div", { class: "game-select-menu" }, [
-          newelem("div", { class: "game-select-empty" }, [
-            "Load a rules JSON below to select a game",
-          ]),
-        ])
-      }
-      return newelem(
-        "div",
-        { class: "game-select-menu" },
-        [...groups.entries()].map(([name, keys]) => {
-          if (keys.length === 1) {
-            const progKey = keys[0]
-            return newelem(
-              "div",
-              {
-                class: `game-select-item${progKey === value ? " selected" : ""}`,
-                onclick: (e) => {
-                  e.stopPropagation()
-                  selectValue(progKey)
-                },
-              },
-              [name],
-            )
-          }
-
-          const expanded = SlotsUI.gameSelectExpanded === name
-          return newelem("div", { class: "game-select-group" }, [
-            newelem(
-              "div",
-              {
-                class: `game-select-group-header${expanded ? " expanded" : ""}`,
-                onclick: (e) => {
-                  e.stopPropagation()
-                  SlotsUI.gameSelectExpanded = expanded ? null : name
-                  SlotsUI.populateGameSelect()
-                },
-              },
-              [name, newelem("span", { class: "caret" }, ["▸"])],
-            ),
-            expanded ?
-              newelem(
-                "div",
-                { class: "game-select-submenu" },
-                keys.map((progKey) => {
-                  const version = SlotsUI.progVersion(progKey)
-                  return newelem(
-                    "div",
-                    {
-                      class: `game-select-item${progKey === value ? " selected" : ""}`,
-                      onclick: (e) => {
-                        e.stopPropagation()
-                        selectValue(progKey)
-                      },
-                    },
-                    [version ? `v${version}` : "(unversioned)"],
-                  )
-                }),
-              )
-            : null,
-          ])
-        }),
-      )
-    }
-
-    const wasOpen = root.classList.contains("open")
-
-    root.replaceChildren(
-      newelem("input", { type: "hidden", name: "game", value }),
-      newelem(
-        "button",
-        {
-          type: "button",
-          class: "game-select-trigger",
-          disabled: !hasAny,
-          onclick: (e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            e.stopImmediatePropagation()
-            if (root.classList.contains("open")) closeMenu()
-            else {
-              root.classList.add("open")
-              root.appendChild(buildMenu())
-            }
-          },
-        },
-        [selectedLabel, newelem("span", { class: "caret" }, ["▾"])],
-      ),
+    const sel = /** @type {HTMLSelectElement} */ (
+      document.getElementById("gameSelect")
     )
-
-    if (wasOpen) {
-      root.classList.add("open")
-      root.appendChild(buildMenu())
+    const prev = sel.value
+    const first = document.createElement("option")
+    first.value = ""
+    first.disabled = true
+    first.selected = true
+    first.textContent =
+      HostApi.worlds ? "Select an installed game" : "Loading installed worlds…"
+    sel.replaceChildren(first)
+    for (const w of HostApi.worlds ?? []) {
+      const o = document.createElement("option")
+      o.value = w.game
+      o.textContent = `${w.game} (v${w.version})`
+      sel.append(o)
     }
+    if (HostApi.worlds?.some((w) => w.game === prev)) sel.value = prev
   }
 
   // Group key for a slot connection: all slots on the same AP server
@@ -205,28 +33,14 @@ class SlotsUI {
     return `${conn.hostname}:${conn.port}`
   }
 
-  // Parses a profile name of the form "a=1,b=true,c=x" into a Map of
-  // key -> value strings. Returns null if the name isn't in that format.
-  static parseProfileSettings(name) {
-    const settings = new Map()
-    for (const part of name.split(",")) {
-      const m = /^([^=,]+)=([^,]*)$/.exec(part)
-      if (!m) return null
-      settings.set(m[1], m[2])
-    }
-    return settings
-  }
-
   static renderSlotCard(conn) {
     {
       const rt = Connections.runtime[conn.id]
       const status = rt?.status || "disconnected"
 
-      const hasProg = SlotsUI.gamesWithProg().includes(conn.progKey)
-      const graph =
-        hasProg ?
-          ProgKeys.progForGame(conn.progKey, conn.profile)
-        : null
+      const graph = ProgKeys.graphFor(conn)
+      const hasProg = !!graph
+      const buildError = HostApi.errors[conn.id]
       const obtainable =
         graph ?
           [...(rt?.prevObtainable || [])].sort((a, b) =>
@@ -267,7 +81,7 @@ class SlotsUI {
               `${conn.playerName} @ ${conn.hostname}${conn.port ? ":" + conn.port : ""}`,
             ]),
             newelem("div", { class: "slot-sub" }, [
-              `${conn.game}${conn.progKey && hasProg ? " — v" + (SlotsUI.progVersion(conn.progKey) ?? "?") : ""}${rt?.statusDetail ? " — " + rt.statusDetail : ""}`,
+              `${conn.game}${graph ? " — v" + graph.version : ""}${HostApi.building.has(conn.id) ? " — generating…" : ""}${conn.optionsSource === "defaults" ? " — default options (no yaml found)" : ""}${rt?.statusDetail ? " — " + rt.statusDetail : ""}`,
             ]),
           ]),
           newelem("div", { class: "slot-controls" }, [
@@ -275,7 +89,7 @@ class SlotsUI {
               const modeSelect = newelem("select", {
                 title:
                   hasProg ? "" : (
-                    `Upload/load a rules JSON for "${conn.game}" to unlock progression-aware alerts`
+                    `No graph for "${conn.game}" yet, progression-aware alerts need one`
                   ),
                 options: {
                   "Notify: none": "none",
@@ -294,157 +108,37 @@ class SlotsUI {
               }
               return modeSelect
             })(),
-            (() => {
-              // Only shown once more than one version of this slot's game
-              // has a rules file loaded -- otherwise there's nothing to
-              // choose between. Lets a slot switch which loaded ruleset
-              // (progKey) it tracks against after creation, e.g. once a
-              // re-rolled version's JSON has been uploaded.
-              const versionKeys = SlotsUI.gamesWithProg().filter(
-                (k) => SlotsUI.progGameName(k) === conn.game,
-              )
-              if (versionKeys.length <= 1) return null
-
-              /**@type {Record<string, *>} */
-              const options = {}
-              for (const k of versionKeys)
-                options[
-                  `Version: v${SlotsUI.progVersion(k) ?? "?"}`
-                ] = k
-
-              return newelem("select", {
-                title:
-                  "Which loaded ruleset (version) this slot's logic (map + notifications) should use",
-                options,
-                value: conn.progKey,
-                onchange() {
-                  const cc = window.db.connections[conn.id]
-                  if (!cc) return
-                  cc.progKey = this.value
-                  if (Connections.runtime[conn.id]) {
-                    RequirementGroups.maybeRecomputeProgression(
-                      conn,
-                      Connections.runtime[conn.id],
-                    )
-                    CheeseTrackers.ctAutoSync(conn)
-                  }
-                  if (db.currentMapConnId === conn.id) {
-                    if (SlotSync.appEl.classList.contains("visible"))
-                      SlotSync.openMapForSlot(cc)
-                    else SlotSync.syncFromSlot(cc)
-                  }
-                  SlotsUI.renderSlots()
-                },
-              })
-            })(),
-            (() => {
-              // Only shown once a rules file is loaded for this slot's game
-              // AND that file actually has more than one settings profile
-              // baked in -- otherwise there's nothing to choose between.
-              // Each slot keeps its own `conn.profile`, so two slots on the
-              // same game+version file can independently track different
-              // settings (e.g. one with walls_are_checks on, one off).
-              const profileNames =
-                hasProg ? ProgKeys.profileNamesFor(conn.progKey) : []
-              if (profileNames.length <= 1) return null
-
-              const applyProfile = (profile) => {
-                const cc = window.db.connections[conn.id]
-                if (!cc) return
-                cc.profile = profile
-                if (Connections.runtime[conn.id]) {
-                  RequirementGroups.maybeRecomputeProgression(
-                    conn,
-                    Connections.runtime[conn.id],
-                  )
-                  CheeseTrackers.ctAutoSync(conn)
-                }
-                if (db.currentMapConnId === conn.id) {
-                  if (SlotSync.appEl.classList.contains("visible"))
-                    SlotSync.openMapForSlot(cc)
-                  else SlotSync.syncFromSlot(cc)
-                }
-                SlotsUI.renderSlots()
-              }
-
-              const activeProfile = ProgKeys.activeProfileFor(conn)
-
-              // If every profile name looks like "a=1,b=true,c=2" and they
-              // all list the same keys, show one dropdown per key instead
-              // of one long dropdown of full combinations.
-              const parsed = profileNames.map((n) =>
-                SlotsUI.parseProfileSettings(n),
-              )
-              const keySig = (m) => [...m.keys()].sort().join(",")
-              const splittable =
-                parsed.every((p) => p !== null) &&
-                parsed.every((p) => keySig(p) === keySig(parsed[0]))
-
-              if (!splittable) {
-                /**@type {Record<string, *>} */
-                const options = {}
-                for (const n of profileNames)
-                  options[`Profile: ${n}`] = n
-
-                return newelem("select", {
-                  title:
-                    "Which settings profile this slot's logic (map + notifications) should use",
-                  options,
-                  value: activeProfile,
-                  onchange() {
-                    applyProfile(this.value)
+            buildError ?
+              newelem("div", { class: "slot-error", color: "#f87171", whiteSpace: "pre-wrap" }, [buildError])
+            : null,
+            newelem("div", { class: "h" }, [
+              newelem(
+                "button",
+                {
+                  flexGrow: 2,
+                  title: conn.yamlPath ?? "no yaml, using world defaults",
+                  async onclick() {
+                    const path = await window.pywebview.api.pick_yaml()
+                    if (!path) return
+                    const cc = window.db.connections[conn.id]
+                    cc.yamlPath = path
+                    await HostApi.regenerate(cc)
                   },
-                })
-              }
-
-              const activeSettings =
-                SlotsUI.parseProfileSettings(activeProfile)
-              const profileBySettings = new Map(
-                profileNames.map((n, i) => [n, parsed[i]]),
-              )
-
-              return newelem(
-                "div",
-                { class: "h" },
-                [...parsed[0].keys()].map((key) => {
-                  const values = [
-                    ...new Set(parsed.map((p) => p.get(key))),
-                  ]
-                  /**@type {Record<string, *>} */
-                  const options = {}
-                  for (const v of values) options[`${key}: ${v}`] = v
-
-                  return newelem("select", {
-                    title: `Setting "${key}" for this slot's logic (map + notifications)`,
-                    options,
-                    value: activeSettings.get(key),
-                    onchange() {
-                      // Not every combination necessarily exists as a
-                      // baked-in profile, so among the profiles with the
-                      // newly chosen value, take the one that keeps the
-                      // most of the other current settings.
-                      let best = null
-                      let bestScore = -1
-                      for (const [
-                        name,
-                        settings,
-                      ] of profileBySettings) {
-                        if (settings.get(key) !== this.value) continue
-                        let score = 0
-                        for (const [k, v] of activeSettings)
-                          if (k !== key && settings.get(k) === v)
-                            score++
-                        if (score > bestScore) {
-                          best = name
-                          bestScore = score
-                        }
-                      }
-                      applyProfile(best)
-                    },
-                  })
-                }),
-              )
-            })(),
+                },
+                [conn.yamlPath ? `YAML: ${conn.yamlPath.split("/").pop()}` : "Select YAML"],
+              ),
+              newelem(
+                "button",
+                {
+                  title: "Regenerate this slot's graph (re-reads the yaml and the world's code)",
+                  disabled: HostApi.building.has(conn.id),
+                  onclick() {
+                    HostApi.regenerate(window.db.connections[conn.id])
+                  },
+                },
+                ["Regenerate"],
+              ),
+            ]),
             newelem("div", { class: "h" }, [
               newelem(
                 "button",
@@ -476,7 +170,9 @@ class SlotsUI {
                   onclick() {
                     Connections.stopConnection(conn.id)
                     delete window.db.connections[conn.id]
+                    delete HostApi.graphs[conn.id]
                     SlotsUI.renderSlots()
+                    HostApi.gc()
                   },
                 },
                 ["Remove"],
@@ -648,12 +344,3 @@ class SlotsUI {
     }
   }
 }
-// Close the menu when clicking anywhere outside it.
-document.addEventListener("click", (e) => {
-  const root = document.getElementById("gameSelect")
-  if (!root || !root.classList.contains("open")) return
-  if (root.contains(/** @type {Node | null} */ (e.target))) return
-  SlotsUI.gameSelectExpanded = null
-  root.classList.remove("open")
-  root.querySelector(".game-select-menu")?.remove()
-})

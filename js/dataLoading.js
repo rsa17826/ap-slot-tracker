@@ -183,13 +183,6 @@ class DataLoading {
     Layout.layoutIfNeeded()
     Render.render()
 
-    // Publish this graph into the tracker's shared store so app.js can
-    // use it for progression notifications too — the map is now the
-    // single source of truth for "prog" data, replacing prog.js.
-    // Keyed by game+version so multiple rules revisions of the same
-    // game can be stored side by side.
-    window.db.progFiles[key] = raw
-    ProgFilesUI.renderProgFiles()
     SlotsUI.renderSlots()
   }
 }

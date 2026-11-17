@@ -61,7 +61,7 @@
           <input name="port" placeholder="Port" required value="80" />
           <select id="gameSelect" name="game" required>
             <option value="" disabled selected>
-              Select a game (load rules JSON below)
+              Loading installed worlds…
             </option>
           </select>
           <input
@@ -99,27 +99,6 @@
       </section>
 
       <section class="panel">
-        <h2>
-          Progression files
-          <div>
-            <span class="hint"> generate with </span>
-            <span class="hint" style="color: var(--accent)">
-              TRACKER_FILE_OUT_DIR=/trackerFiles
-              AP_SOURCE_DIR=/Archipelago nix run . APGameName
-            </span>
-            <span class="hint"> # all paths should be updated</span>
-          </div>
-        </h2>
-        <div class="v" id="aaaaa">
-          <div class="h">
-            <button id="loadBtn">Load rules file</button>
-            <button id="loadFolderBtn">Load rules folder</button>
-          </div>
-        </div>
-        <div id="progFiles"></div>
-      </section>
-
-      <section class="panel">
         <h2>Slots</h2>
         <div id="slots"></div>
       </section>
@@ -127,16 +106,15 @@
 
     <script src="newelem.js"></script>
     <script src="indexeddbProxy.js"></script>
-    <script src="js/importExport.js"></script>
     <script src="js/apMulti.js"></script>
     <script src="js/CheeseTrackersClient.js"></script>
     <script src="js/progKeys.js"></script>
+    <script src="js/hostApi.js"></script>
     <script src="js/connections.js"></script>
     <script src="js/logicTest.js"></script>
     <script src="js/requirementGroups.js"></script>
     <script src="js/slotsUI.js"></script>
     <script src="js/cheeseTrackers.js"></script>
-    <script src="js/progFilesUI.js"></script>
 
     <div id="app">
       <div id="sidebar">

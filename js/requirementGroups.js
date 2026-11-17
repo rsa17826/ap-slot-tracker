@@ -250,7 +250,7 @@ class RequirementGroups {
   }
 
   static maybeRecomputeProgression(conn, rt) {
-    const graph = ProgKeys.progForGame(conn.progKey, conn.profile)
+    const graph = ProgKeys.graphFor(conn)
     if (!graph) return
     const checkedNames = ProgKeys.checkedLocationNames(conn, rt)
     const { locations, eventInventory } =

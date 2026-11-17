@@ -38,24 +38,13 @@ class SlotSync {
    */
   static async syncFromSlot(conn) {
     if (!conn || conn.id !== db.currentMapConnId) return
-    const raw = db.progFiles[conn.progKey]
-    const wantProfile =
-      raw ?
-        DataLoading.resolvedProfileNameFor(raw, conn.profile)
-      : null
-    if (
-      !State.graph ||
-      CustomLayout.gameKeyOf() !== conn.progKey ||
-      State.graph.activeProfile !== wantProfile
-    ) {
-      const ok = await Main.tryLoadFile(conn.progKey, conn.profile)
-      if (!ok) {
-        alert(
-          "error, failed to load tracker for " +
-            (conn.game || conn.progKey),
-        )
-      }
+    const graph = ProgKeys.graphFor(conn)
+    if (!graph) {
+      error("no graph for slot", conn.id, HostApi.errors[conn.id])
+      return
     }
+    if (State.rawGraph !== graph) DataLoading.loadGraph(graph)
+    Render.scheduleDraw()
     // `runtime` is app.js's connId -> {client, receivedCounts, ...} map;
     // shared global scope means it's directly visible here.
     const rt = Connections.runtime[conn.id]
