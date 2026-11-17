@@ -76,10 +76,10 @@
 
       packages = {
         x86_64-linux = {
-          default = pkgs.writers.writePython3Bin "generate-global-tracker-data" {
+          default = pkgs.writers.writePython3Bin "ap-slot-tracker" {
             doCheck = false;
             libraries = pylib;
-          } ./generate-global-tracker-data.py;
+          } ./app.py;
         };
       };
     };
