@@ -28,6 +28,8 @@
         schema
         bsdiff4
 
+        pygobject3
+
         orjson
         requests
         jinja2
@@ -54,8 +56,21 @@
       devShells = {
         x86_64-linux = {
           default = pkgs.mkShell {
-            buildInputs = pylib;
+            buildInputs =
+              with pkgs;
+              [
+                webkitgtk_4_1
+                gtk3
+                gobject-introspection
+                gsettings-desktop-schemas
+                glib-networking
+              ]
+              ++ pylib;
           };
+          shellHook = ''
+            export XDG_DATA_DIRS=${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}:${pkgs.gtk3}/share/gsettings-schemas/${pkgs.gtk3.name}:$XDG_DATA_DIRS
+            export GIO_EXTRA_MODULES=${pkgs.glib-networking}/lib/gio/modules
+          '';
         };
       };
 

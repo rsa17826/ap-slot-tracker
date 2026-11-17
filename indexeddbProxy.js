@@ -16,53 +16,27 @@
   ========================================================== */
 
   const idb = (() => {
-    function openDB({ dbName, storeName, keyPath = "id" }) {
-      return new Promise((resolve, reject) => {
-        const request = indexedDB.open(dbName, 1)
-
-        request.onupgradeneeded = (e) => {
-          const db = e.target.result
-          if (!db.objectStoreNames.contains(storeName)) {
-            db.createObjectStore(storeName, { keyPath })
-          }
-        }
-
-        request.onsuccess = () => resolve(request.result)
-        request.onerror = () => reject(request.error)
-      })
-    }
-
-    async function setup({
-      storeName,
-      keyPath = "id",
-      storePrefix = "",
-    }) {
+    // Storage is a json file owned by app.py (~/.config/ap-slot-tracker/db.json), not IndexedDB:
+    // WebKitGTK doesn't reliably persist IndexedDB for this app.
+    async function setup({ storeName, storePrefix = "" }) {
+      if (!window.pywebview) {
+        await new Promise((resolve) =>
+          window.addEventListener("pywebviewready", resolve, {
+            once: true,
+          }),
+        )
+      }
       const dbName =
         storePrefix ? `${storePrefix}_${storeName}` : storeName
-
-      const db = await openDB({ dbName, storeName, keyPath })
-      return { db, storeName }
+      return { db: { name: dbName }, storeName }
     }
 
-    function getStore(dbObj, mode = "readonly") {
-      const tx = dbObj.db.transaction(dbObj.storeName, mode)
-      return tx.objectStore(dbObj.storeName)
+    function getAll() {
+      return window.pywebview.api.db_load()
     }
 
-    function getAll(dbObj) {
-      return new Promise((resolve, reject) => {
-        const request = getStore(dbObj).getAll()
-        request.onsuccess = () => resolve(request.result || [])
-        request.onerror = () => reject(request.error)
-      })
-    }
-
-    function clearAll(dbObj) {
-      return new Promise((resolve, reject) => {
-        const request = getStore(dbObj, "readwrite").clear()
-        request.onsuccess = () => resolve(true)
-        request.onerror = () => reject(request.error)
-      })
+    function clearAll() {
+      return window.pywebview.api.db_clear()
     }
 
     return { setup, getAll, clearAll }
@@ -438,24 +412,13 @@
       writeQueue.clear()
 
       try {
-        await new Promise((resolve, reject) => {
-          const tx = dbObj.db.transaction(
-            dbObj.storeName,
-            "readwrite",
-          )
-          const store = tx.objectStore(dbObj.storeName)
-
-          for (const item of items) {
-            if (item.val === undefined) {
-              store.delete(item.id)
-            } else {
-              store.put(item)
-            }
-          }
-
-          tx.oncomplete = resolve
-          tx.onerror = () => reject(tx.error)
-        })
+        await window.pywebview.api.db_write(
+          items.map((item) => ({
+            id: item.id,
+            val: item.val === undefined ? null : item.val,
+            deleted: item.val === undefined,
+          })),
+        )
 
         // Only broadcast after the transaction actually committed.
         for (const item of items) {

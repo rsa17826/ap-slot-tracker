@@ -113,6 +113,26 @@ def fingerprint(path):
   return h.hexdigest()
 
 
+PICKER_SCRIPT = """
+import os, sys
+import gi
+gi.require_version("Gtk", "3.0")
+from gi.repository import Gtk
+dlg = Gtk.FileChooserNative.new("Select player yaml", None, Gtk.FileChooserAction.OPEN, "Open", "Cancel")
+flt = Gtk.FileFilter()
+flt.set_name("YAML files")
+flt.add_pattern("*.yaml")
+flt.add_pattern("*.yml")
+dlg.add_filter(flt)
+if os.path.isdir(sys.argv[1]):
+  dlg.set_current_folder(sys.argv[1])
+
+if dlg.run() == Gtk.ResponseType.ACCEPT:
+  print(dlg.get_filename())
+
+"""
+
+
 class Api:
   """Everything here is callable from JS as `await pywebview.api.<name>(...)`.
   Attributes starting with _ are not exposed (important for _window)."""
@@ -120,6 +140,8 @@ class Api:
   def __init__(self, cfg):
     self._cfg = cfg
     self._window = None
+    self._db_data = None
+    self._db_lock = threading.Lock()
     self._worlds = None
     self._lock = threading.Lock() # guards the cached world list
     self._cache_lock = threading.Lock() # serialises builds and gc
@@ -168,12 +190,15 @@ class Api:
 
   # -- yaml ---------------------------------------------------------------------
   def pick_yaml(self):
-    result = self._window.create_file_dialog(
-      webview.FileDialog.OPEN,
-      directory=self._cfg["players_dir"] if os.path.isdir(self._cfg["players_dir"]) else "",
-      file_types=("YAML files (*.yaml;*.yml)",),
-    )
-    return result[0] if result else None
+    # The window itself is Qt; GTK is only used here, in a throwaway process with its own main
+    # loop (a GTK dialog can't share this process's Qt event loop). GTK_USE_PORTAL makes it the
+    # desktop's native picker through xdg-desktop-portal; GTK_THEME only matters if there's no portal.
+    env = {**os.environ, "GTK_USE_PORTAL": "1", "GTK_THEME": "Adwaita:dark"}
+    proc = subprocess.run([sys.executable, "-c", PICKER_SCRIPT, self._cfg["players_dir"]], env=env, capture_output=True, text=True)
+    if proc.returncode != 0:
+      raise RuntimeError(f"file picker failed:\n{proc.stderr[-2000:]}")
+
+    return proc.stdout.strip() or None
 
   def _find_yaml(self, game, player_name):
     d = self._cfg["players_dir"]
@@ -244,6 +269,54 @@ class Api:
 
 
 
+  # -- persistent settings/slots (replaces IndexedDB) -----------------------------
+  def _db_path(self):
+    return os.path.join(CONFIG_DIR, "db.json")
+
+  def _db(self):
+    if self._db_data is None:
+      self._db_data = {}
+      if os.path.exists(self._db_path()):
+        with open(self._db_path()) as f:
+          self._db_data = json.load(f)
+
+
+
+    return self._db_data
+
+  def _db_save(self):
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+    tmp = self._db_path() + ".tmp"
+    with open(tmp, "w") as f:
+      json.dump(self._db_data, f, indent=1)
+
+    os.replace(tmp, self._db_path()) # atomic, a crash mid-write can't corrupt the file
+
+  def db_load(self):
+    with self._db_lock:
+      return [{"id": k, "val": v} for k, v in self._db().items()]
+
+
+  def db_write(self, items):
+    with self._db_lock:
+      data = self._db()
+      for item in items:
+        if item["deleted"]:
+          data.pop(item["id"], None)
+        else:
+          data[item["id"]] = item["val"]
+
+
+      self._db_save()
+
+
+  def db_clear(self):
+    with self._db_lock:
+      self._db_data = {}
+      self._db_save()
+
+    return True
+
   # -- misc ---------------------------------------------------------------------
   def notify(self, title, body):
     # WebKitGTK has no working Notification API, so go through the desktop
@@ -272,7 +345,7 @@ def main():
     transparent=True,
   )
   os.makedirs(os.path.join(CONFIG_DIR, "webview"), exist_ok=True)
-  webview.start(storage_path=os.path.join(CONFIG_DIR, "webview"), private_mode=False)
+  webview.start(gui="qt", storage_path=os.path.join(CONFIG_DIR, "webview"), private_mode=False, debug=bool(os.environ.get("AP_TRACKER_DEBUG")))
 
 
 if __name__ == "__main__":
