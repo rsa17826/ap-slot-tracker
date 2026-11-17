@@ -293,12 +293,13 @@ class Api:
     os.makedirs(CONFIG_DIR, exist_ok=True)
     tmp = self._db_path() + ".tmp"
     with open(tmp, "w") as f:
-      json.dump(self._db_data, f, indent=1)
+      json.dump(self._db_data, f)
 
     os.replace(tmp, self._db_path()) # atomic, a crash mid-write can't corrupt the file
 
   def db_load(self):
     with self._db_lock:
+      print(f"[ap-tracker] db_load from {self._db_path()}", flush=True)
       return [{"id": k, "val": v} for k, v in self._db().items()]
 
 
@@ -313,6 +314,7 @@ class Api:
 
 
       self._db_save()
+      print(f"[ap-tracker] db_write {len(items)} item(s) -> {self._db_path()}", flush=True)
 
 
   def db_clear(self):
@@ -329,8 +331,15 @@ class Api:
 
 
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
-  def log_message(self, *args):
-    pass
+  def log_message(self, format, *args):
+    if self.path.split("?")[0].endswith((".js", ".html", "/")):
+      print(f"[ap-tracker] GET {self.path}", flush=True) # no line for a file = the webview served it from its cache
+
+
+  def end_headers(self):
+    # the webview would otherwise heuristically cache the js and keep running stale code after an update
+    self.send_header("Cache-Control", "no-store")
+    super().end_headers()
 
 
 def serve_static():
@@ -340,6 +349,7 @@ def serve_static():
 
 def main():
   api = Api(load_config())
+  print(f"[ap-tracker] app.py {os.path.abspath(__file__)} serving {ROOT}", flush=True)
   serve_static()
   api._window = webview.create_window(
     "AP Multi-Slot Tracker",

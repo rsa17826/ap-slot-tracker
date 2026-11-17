@@ -12,7 +12,8 @@ class HostApi {
   static worlds = null
 
   static async init() {
-    if (!window.pywebview) {
+    // window.pywebview exists before its api methods are injected, so wait for the method itself
+    if (typeof window.pywebview?.api?.list_worlds !== "function") {
       await new Promise((resolve) =>
         window.addEventListener("pywebviewready", resolve, {
           once: true,

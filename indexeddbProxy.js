@@ -17,9 +17,9 @@
 
   const idb = (() => {
     // Storage is a json file owned by app.py (~/.config/ap-slot-tracker/db.json), not IndexedDB:
-    // WebKitGTK doesn't reliably persist IndexedDB for this app.
     async function setup({ storeName, storePrefix = "" }) {
-      if (!window.pywebview) {
+      // window.pywebview exists before its api methods are injected, so wait for the method itself
+      if (typeof window.pywebview?.api?.db_load !== "function") {
         await new Promise((resolve) =>
           window.addEventListener("pywebviewready", resolve, {
             once: true,
