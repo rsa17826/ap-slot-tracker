@@ -103,10 +103,15 @@ def fingerprint(path):
     h.update(f"{target}{st.st_mtime_ns}{st.st_size}".encode())
   else:
     for dirpath, dirnames, filenames in os.walk(target):
-      dirnames[:] = sorted(d for d in dirnames if d != "__pycache__")
+      # skip hidden dirs (.direnv, .git, ...), caches and venvs: they're not world code and can hold dangling symlinks
+      dirnames[:] = sorted(d for d in dirnames if not d.startswith(".") and d not in ("__pycache__", "node_modules"))
       for fn in sorted(filenames):
-        st = os.stat(os.path.join(dirpath, fn))
-        h.update(f"{dirpath}/{fn}{st.st_mtime_ns}{st.st_size}".encode())
+        full = os.path.join(dirpath, fn)
+        if not os.path.isfile(full): # dangling symlink etc.
+          continue
+
+        st = os.stat(full)
+        h.update(f"{full}{st.st_mtime_ns}{st.st_size}".encode())
 
 
 
