@@ -17,26 +17,19 @@
 
   const idb = (() => {
     // Storage is a json file owned by app.py (~/.config/ap-slot-tracker/db.json), not IndexedDB:
+    // WebKitGTK doesn't reliably persist IndexedDB for this app.
     async function setup({ storeName, storePrefix = "" }) {
-      // window.pywebview exists before its api methods are injected, so wait for the method itself
-      if (typeof window.pywebview?.api?.db_load !== "function") {
-        await new Promise((resolve) =>
-          window.addEventListener("pywebviewready", resolve, {
-            once: true,
-          }),
-        )
-      }
       const dbName =
         storePrefix ? `${storePrefix}_${storeName}` : storeName
       return { db: { name: dbName }, storeName }
     }
 
     function getAll() {
-      return window.pywebview.api.db_load()
+      return window.hostRpc.db_load()
     }
 
     function clearAll() {
-      return window.pywebview.api.db_clear()
+      return window.hostRpc.db_clear()
     }
 
     return { setup, getAll, clearAll }
@@ -186,15 +179,24 @@
     let flushing = false
     let pendingResolves = []
 
+    const FLUSH_DELAY_MS = 750
+
     function scheduleFlush() {
       if (flushScheduled) return
       flushScheduled = true
 
-      queueMicrotask(async () => {
+      // Debounced: every write is a round trip to python (pywebview bridge + rewriting db.json), and
+      // panning/zooming mutates db.view on every mouse move. Flushing per event backs up the UI thread.
+      setTimeout(async () => {
         flushScheduled = false
         await flush()
-      })
+      }, FLUSH_DELAY_MS)
     }
+    // don't sit on unsaved changes when the window is hidden or closed
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") flush()
+    })
+    window.addEventListener("pagehide", () => flush())
     function unwrap(value) {
       if (value === null || typeof value !== "object") return value
 
@@ -412,7 +414,7 @@
       writeQueue.clear()
 
       try {
-        await window.pywebview.api.db_write(
+        await window.hostRpc.db_write(
           items.map((item) => ({
             id: item.id,
             val: item.val === undefined ? null : item.val,

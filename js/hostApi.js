@@ -12,17 +12,9 @@ class HostApi {
   static worlds = null
 
   static async init() {
-    // window.pywebview exists before its api methods are injected, so wait for the method itself
-    if (typeof window.pywebview?.api?.list_worlds !== "function") {
-      await new Promise((resolve) =>
-        window.addEventListener("pywebviewready", resolve, {
-          once: true,
-        }),
-      )
-    }
     document.getElementById("notifBtn").style.display = "none" // notifications go through python
     document.getElementById("swbtn").style.display = "none"
-    HostApi.worlds = await window.pywebview.api.list_worlds()
+    HostApi.worlds = await window.hostRpc.list_worlds()
     SlotsUI.populateGameSelect()
   }
 
@@ -36,7 +28,7 @@ class HostApi {
     delete HostApi.errors[conn.id]
     SlotsUI.renderSlots()
     try {
-      const r = await window.pywebview.api.build({
+      const r = await window.hostRpc.build({
         game: conn.game,
         playerName: conn.playerName,
         yamlPath: conn.yamlPath,
@@ -85,6 +77,6 @@ class HostApi {
     const keys = Object.values(window.db.connections).map(
       (c) => c.cacheKey,
     )
-    await window.pywebview.api.gc(keys.filter((k) => k))
+    await window.hostRpc.gc(keys.filter((k) => k))
   }
 }

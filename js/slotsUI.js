@@ -118,7 +118,7 @@ class SlotsUI {
                   flexGrow: 2,
                   title: conn.yamlPath ?? "no yaml, using world defaults",
                   async onclick() {
-                    const path = await window.pywebview.api.pick_yaml()
+                    const path = await window.hostRpc.pick_yaml()
                     if (!path) return
                     const cc = window.db.connections[conn.id]
                     cc.yamlPath = path

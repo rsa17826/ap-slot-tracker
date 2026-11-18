@@ -21,7 +21,7 @@ class Connections {
    * @param {string} body
    */
   static notify(title, body) {
-    window.pywebview.api.notify(title, body).catch((e) => error("notify failed", e))
+    window.hostRpc.notify(title, body).catch((e) => error("notify failed", e))
   }
 
   /**
