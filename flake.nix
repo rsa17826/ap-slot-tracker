@@ -24,7 +24,6 @@
         pyyaml
         pathspec
         typing-extensions
-        pywebview
         schema
         bsdiff4
 
@@ -59,7 +58,6 @@
             buildInputs =
               with pkgs;
               [
-                webkitgtk_4_1
                 gtk3
                 gobject-introspection
                 gsettings-desktop-schemas

@@ -268,6 +268,7 @@ class Interaction {
       const dx = isLocked ? ev.movementX : ev.clientX - sx
       const dy = isLocked ? ev.movementY : ev.clientY - sy
 
+      Render.markInteracting()
       if (isRightDown || panning) {
         State.view.x += dx
         State.view.y += dy
@@ -403,6 +404,7 @@ class Interaction {
       2.2,
       Math.max(0.05, State.view.scale + delta),
     )
+    Render.markInteracting()
     State.view.x = localX - worldX * State.view.scale
     State.view.y = localY - worldY * State.view.scale
     Render.scheduleDraw()

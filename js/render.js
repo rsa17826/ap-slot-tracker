@@ -212,8 +212,13 @@ class Render {
       State.els.canvas.width = w
       State.els.canvas.height = h
     }
-    State.els.canvas.style.width = rect.width + "px"
-    State.els.canvas.style.height = rect.height + "px"
+    // only touch style when it changes: writing it every frame invalidates layout
+    const sw = rect.width + "px",
+      sh = rect.height + "px"
+    if (State.els.canvas.style.width !== sw)
+      State.els.canvas.style.width = sw
+    if (State.els.canvas.style.height !== sh)
+      State.els.canvas.style.height = sh
     return { rect, dpr }
   }
 
@@ -438,8 +443,10 @@ class Render {
   // World-space rect currently on screen, expanded by a small margin
   // so nodes/edges just outside the edge of the viewport are drawn
   // too (avoids a visible pop-in strip while panning).
-  static visibleWorldRect(marginPx = 150) {
-    const rect = State.els.canvasWrap.getBoundingClientRect()
+  static visibleWorldRect(
+    marginPx = 150,
+    rect = State.els.canvasWrap.getBoundingClientRect(),
+  ) {
     return {
       x0: (-State.view.x - marginPx) / State.view.scale,
       y0: (-State.view.y - marginPx) / State.view.scale,
@@ -468,6 +475,112 @@ class Render {
     Render.ctx.stroke()
     Render.ctx.setLineDash([])
     Render.ctx.globalAlpha = 1
+  }
+
+  static MAX_DASHED_EDGES = 300
+
+  static interacting = false
+  static _interactTimer = 0
+  // Call on every pan/zoom/drag step; schedules one full-detail redraw when the motion stops.
+  static markInteracting() {
+    Render.interacting = true
+    Render.scheduleDraw()
+    clearTimeout(Render._interactTimer)
+    Render._interactTimer = setTimeout(() => {
+      Render.interacting = false
+      Render.scheduleDraw()
+    }, 15)
+  }
+
+  // The faint (unreachable) edges are the expensive part, so they live in their own bitmap that
+  // covers the viewport plus half a viewport on every side. It is re-rendered whenever we aren't
+  // mid-motion; while panning/zooming the old bitmap is just moved/scaled to match the view, so
+  // nothing disappears and the sharp version replaces it as soon as the motion stops.
+  /** @type {{canvas: HTMLCanvasElement, view: {x:number,y:number,scale:number}, mx:number, my:number, dpr:number} | null} */
+  static edgeLayer = null
+
+  static renderEdgeLayer(edges, rect, dpr, view) {
+    const mx = rect.width * 0.5,
+      my = rect.height * 0.5
+    const cw = Math.round((rect.width + 2 * mx) * dpr),
+      ch = Math.round((rect.height + 2 * my) * dpr)
+    let layer = Render.edgeLayer
+    if (
+      !layer ||
+      layer.canvas.width !== cw ||
+      layer.canvas.height !== ch
+    ) {
+      const canvas = document.createElement("canvas")
+      canvas.width = cw
+      canvas.height = ch
+      layer = Render.edgeLayer = { canvas, view, mx, my, dpr }
+    }
+    const lctx = layer.canvas.getContext("2d")
+    lctx.setTransform(1, 0, 0, 1, 0, 0)
+    lctx.clearRect(0, 0, cw, ch)
+    lctx.setTransform(
+      dpr,
+      0,
+      0,
+      dpr,
+      dpr * (view.x + mx),
+      dpr * (view.y + my),
+    )
+    lctx.scale(view.scale, view.scale)
+    Render.strokeEdges(edges, false, view.scale, lctx)
+    layer.view = { x: view.x, y: view.y, scale: view.scale }
+    layer.mx = mx
+    layer.my = my
+    layer.dpr = dpr
+  }
+
+  // Draws the cached layer, moved/scaled from the view it was rendered at to the current view.
+  static blitEdgeLayer(view) {
+    const layer = Render.edgeLayer
+    if (!layer) return
+    const k = view.scale / layer.view.scale
+    Render.ctx.save()
+    Render.ctx.translate(
+      (-layer.mx - layer.view.x) * k + view.x,
+      (-layer.my - layer.view.y) * k + view.y,
+    )
+    Render.ctx.scale(k, k)
+    Render.ctx.drawImage(
+      layer.canvas,
+      0,
+      0,
+      layer.canvas.width / layer.dpr,
+      layer.canvas.height / layer.dpr,
+    )
+    Render.ctx.restore()
+  }
+
+  // pts is a flat [p1, p2, p1, p2, ...] list; everything is stroked in a single path
+  static strokeEdges(pts, traversable, scale, ctx = Render.ctx) {
+    if (!pts.length) return
+    ctx.beginPath()
+    for (let i = 0; i < pts.length; i += 2) {
+      const p1 = pts[i],
+        p2 = pts[i + 1]
+      const dx = (p2.x - p1.x) * 0.5
+      ctx.moveTo(p1.x, p1.y)
+      ctx.bezierCurveTo(p1.x + dx, p1.y, p2.x - dx, p2.y, p2.x, p2.y)
+    }
+    ctx.strokeStyle = traversable ? Render.COLORS.accent : "#2a3040"
+    ctx.lineWidth = traversable ? 2 : 1.4
+    ctx.globalAlpha = traversable ? 0.9 : 0.45
+    // The dash pattern is in map units, so a long edge seen from far away turned into
+    // thousands of sub-pixel dashes. Keep dashes at least 4 screen px (unchanged at zoom >= 1).
+    const dash = 4 / Math.min(1, scale)
+    // Dashing is by far the most expensive part of stroking. With hundreds of edges on screen the
+    // dashes are unreadable anyway, so fall back to a fainter solid line.
+    const dashed =
+      !traversable && pts.length <= 2 * Render.MAX_DASHED_EDGES
+    // if (!traversable && !dashed) ctx.globalAlpha = 0.3
+    ctx.setLineDash(dashed ? [dash, dash] : [])
+    ctx.stroke()
+    ctx.setLineDash([])
+    ctx.globalAlpha = 1
   }
 
   static drawNode(rname, pos, layout) {
@@ -598,7 +711,16 @@ class Render {
     Render.ctx.translate(State.view.x, State.view.y)
     Render.ctx.scale(State.view.scale, State.view.scale)
 
-    const vp = Render.visibleWorldRect()
+    const vp = Render.visibleWorldRect(150, rect)
+    // edges are culled with the layer's wider area so the cached bitmap has edges beyond the screen too
+    const vpEdges = Render.visibleWorldRect(
+      150 + Math.max(rect.width, rect.height) * 0.5,
+      rect,
+    )
+    // Edges are collected and stroked as two batches (one path per style) instead of one
+    // stroke() per edge: thousands of separate dashed strokes made the raster step take 60ms+.
+    const solidEdges = [],
+      dashedEdges = []
     for (const { from, to, traversable } of State.edgeList) {
       if (
         !Reachability.regionMatchesSearch(from, State.searchQuery) ||
@@ -613,15 +735,29 @@ class Render {
           Math.min(p1.y, p2.y),
           Math.max(p1.x, p2.x),
           Math.max(p1.y, p2.y),
-          vp.x0,
-          vp.y0,
-          vp.x1,
-          vp.y1,
+          vpEdges.x0,
+          vpEdges.y0,
+          vpEdges.x1,
+          vpEdges.y1,
         )
       )
         continue
-      Render.drawEdge(p1, p2, traversable)
+      ;(traversable ? solidEdges : dashedEdges).push(p1, p2)
     }
+    // faint edges: re-render the cached bitmap unless we're mid-motion with lots of them, then draw
+    // it (moved/scaled to the current view) underneath the reachable edges and the nodes
+    if (
+      !(
+        Render.interacting &&
+        dashedEdges.length > Render.MAX_DASHED_EDGES
+      )
+    )
+      Render.renderEdgeLayer(dashedEdges, rect, dpr, State.view)
+    Render.ctx.save()
+    Render.ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    Render.blitEdgeLayer(State.view)
+    Render.ctx.restore()
+    Render.strokeEdges(solidEdges, true, State.view.scale)
 
     for (const rname in State.nodeLayouts) {
       if (!Reachability.regionMatchesSearch(rname, State.searchQuery))
