@@ -484,12 +484,11 @@ class Render {
   // Call on every pan/zoom/drag step; schedules one full-detail redraw when the motion stops.
   static markInteracting() {
     Render.interacting = true
-    Render.scheduleDraw()
     clearTimeout(Render._interactTimer)
     Render._interactTimer = setTimeout(() => {
       Render.interacting = false
       Render.scheduleDraw()
-    }, 15)
+    }, 150)
   }
 
   // The faint (unreachable) edges are the expensive part, so they live in their own bitmap that
@@ -576,7 +575,7 @@ class Render {
     // dashes are unreadable anyway, so fall back to a fainter solid line.
     const dashed =
       !traversable && pts.length <= 2 * Render.MAX_DASHED_EDGES
-    // if (!traversable && !dashed) ctx.globalAlpha = 0.3
+    if (!traversable && !dashed) ctx.globalAlpha = 0.3
     ctx.setLineDash(dashed ? [dash, dash] : [])
     ctx.stroke()
     ctx.setLineDash([])
@@ -597,6 +596,10 @@ class Render {
         Render.COLORS.accent
       : Render.COLORS.borderDim
     Render.ctx.stroke()
+
+    // level of detail: below these zooms the text is under ~4px and unreadable, so don't pay for it
+    const zoom = State.view.scale
+    if (zoom < 0.25) return // just the box
 
     if (layout.reachable) {
       Render.ctx.save()
@@ -625,6 +628,8 @@ class Render {
     Render.ctx.font = `600 12px ${Render.COLORS.mono}, monospace`
     Render.ctx.fillStyle = Render.COLORS.text
     Render.drawFitText(rname, x + 19, headMidY, w - 27)
+
+    if (zoom < 0.4) return // header only, no rows
 
     let rowY = y + Layout.NODE_HEADER_H + Layout.NODE_BODY_PAD / 2
     for (const row of layout.rows) {

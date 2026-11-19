@@ -16,6 +16,8 @@ class Reachability {
       countHave: MapEngine.countHave,
       reach: { regions, locations, entrances },
       warnOnce: MapEngine.warnOnce,
+      // python's answers for lambda rules; false until the first evaluation arrives
+      lambda: (key) => State.graph.lambdaResults?.[key] === true,
     }
 
     for (let iter = 0; iter < 20000; iter++) {

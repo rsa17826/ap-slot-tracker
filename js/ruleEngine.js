@@ -60,6 +60,9 @@ class RuleEngine {
       //     need
       //   )
       // }
+      case "Lambda":
+        // truth value computed by python (see HostApi.refreshLambdas)
+        return ctx.lambda(rule.key)
       case "And":
         return rule.children.every((r) => RuleEngine.evalRule(r, ctx))
       case "Or":

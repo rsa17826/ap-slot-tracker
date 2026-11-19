@@ -14,6 +14,7 @@ Graph cache:    $XDG_CACHE_HOME/ap-slot-tracker/graphs/<key>.json
 Browser profile (separate from your normal one): $XDG_CONFIG_HOME/ap-slot-tracker/browser
 """
 
+import atexit
 import functools
 import shutil
 import hashlib
@@ -29,7 +30,7 @@ import threading
 import yaml
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-PORT = 54221  # fixed so the page origin (and with it IndexedDB) is the same on every launch
+PORT = 54221 # fixed so the page origin (and with it IndexedDB) is the same on every launch
 CONFIG_DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "ap-slot-tracker")
 CACHE_DIR = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "ap-slot-tracker", "graphs")
 
@@ -40,10 +41,14 @@ def load_config():
   if os.path.exists(path):
     with open(path) as f:
       cfg = json.load(f)
+
+
   if os.environ.get("AP_SOURCE_DIR"):
     cfg["ap_source_dir"] = os.environ["AP_SOURCE_DIR"]
+
   if "ap_source_dir" not in cfg:
     raise SystemExit(f"set ap_source_dir in {path} or AP_SOURCE_DIR in the environment")
+
   cfg.setdefault("worker_python", sys.executable)
   cfg.setdefault("browser_cmd", ["chromium"])
   cfg.setdefault("players_dir", os.path.join(cfg["ap_source_dir"], "Players"))
@@ -56,15 +61,18 @@ def _plain(value):
   if isinstance(value, dict):
     live = [k for k, w in value.items() if w]
     return live[0] if len(live) == 1 else None
+
   return value
 
 
 def name_matches(template, name):
   if not isinstance(template, str):
     return False
+
   pattern = re.escape(template)
   for token, rx in (("player", ".*"), ("PLAYER", ".*"), ("number", r"\d*"), ("NUMBER", r"\d*")):
     pattern = pattern.replace(re.escape("{" + token + "}"), rx)
+
   return re.fullmatch(pattern, name) is not None
 
 
@@ -73,6 +81,7 @@ def read_yaml_docs(path):
   determined with certainty."""
   with open(path) as f:
     docs = [d for d in yaml.safe_load_all(f) if isinstance(d, dict)]
+
   out = []
   for doc in docs:
     game = _plain(doc.get("game"))
@@ -84,6 +93,7 @@ def read_yaml_docs(path):
         "has_triggers": bool(doc.get("triggers")),
       }
     )
+
   return out
 
 
@@ -102,10 +112,14 @@ def fingerprint(path):
       dirnames[:] = sorted(d for d in dirnames if not d.startswith(".") and d not in ("__pycache__", "node_modules"))
       for fn in sorted(filenames):
         full = os.path.join(dirpath, fn)
-        if not os.path.isfile(full):  # dangling symlink etc.
+        if not os.path.isfile(full): # dangling symlink etc.
           continue
+
         st = os.stat(full)
         h.update(f"{full}{st.st_mtime_ns}{st.st_size}".encode())
+
+
+
   return h.hexdigest()
 
 
@@ -122,9 +136,59 @@ flt.add_pattern("*.yml")
 dlg.add_filter(flt)
 if os.path.isdir(sys.argv[1]):
   dlg.set_current_folder(sys.argv[1])
+
 if dlg.run() == Gtk.ResponseType.ACCEPT:
   print(dlg.get_filename())
+
 """
+
+
+class EvalServer:
+  """One long-lived tracker_worker.py eval_server process (a generated world kept in memory)."""
+
+  def __init__(self, cfg, game, options, slot_data):
+    self._lock = threading.Lock()
+    env = {**os.environ, "AP_SOURCE_DIR": cfg["ap_source_dir"]}
+    self._proc = subprocess.Popen(
+      [cfg["worker_python"], os.path.join(ROOT, "tracker_worker.py"), "eval_server"],
+      stdin=subprocess.PIPE,
+      stdout=subprocess.PIPE,
+      text=True,
+      env=env,
+      cwd=cfg["ap_source_dir"], # stderr is inherited so world output shows in this terminal
+    )
+    self._send({"game": game, "options": options, "slot_data": slot_data})
+    ready = self._recv()
+    if "error" in ready:
+      raise RuntimeError(ready["error"])
+
+
+  def _send(self, obj):
+    self._proc.stdin.write(json.dumps(obj) + "\n")
+    self._proc.stdin.flush()
+
+  def _recv(self):
+    line = self._proc.stdout.readline()
+    if not line:
+      raise RuntimeError("the python rule evaluator exited unexpectedly, see this terminal for its output")
+
+    return json.loads(line)
+
+  def alive(self):
+    return self._proc.poll() is None
+
+  def evaluate(self, items):
+    with self._lock:
+      self._send({"items": items})
+      reply = self._recv()
+
+    if "error" in reply:
+      raise RuntimeError(reply["error"])
+
+    return reply["results"]
+
+  def stop(self):
+    self._proc.terminate()
 
 
 class Api:
@@ -136,8 +200,11 @@ class Api:
     self._db_data = None
     self._db_lock = threading.Lock()
     self._worlds = None
-    self._lock = threading.Lock()  # guards the cached world list
-    self._cache_lock = threading.Lock()  # serialises builds and gc
+    self._lock = threading.Lock() # guards the cached world list
+    self._cache_lock = threading.Lock() # serialises builds and gc
+    self._servers = {} # cache key -> EvalServer
+    self._servers_lock = threading.Lock()
+    atexit.register(self._stop_servers)
     os.makedirs(CACHE_DIR, exist_ok=True)
 
   # -- worker -------------------------------------------------------------------
@@ -149,27 +216,36 @@ class Api:
         req = os.path.join(tmp, "req.json")
         with open(req, "w") as f:
           json.dump(request, f)
+
         args.append(req)
+
       args.append(out)
       env = {**os.environ, "AP_SOURCE_DIR": self._cfg["ap_source_dir"]}
       proc = subprocess.run(args, env=env, cwd=self._cfg["ap_source_dir"], capture_output=True, text=True)
       if proc.returncode != 0 or not os.path.exists(out):
         raise RuntimeError(f"worker '{command}' failed ({proc.returncode}):\n{(proc.stdout + proc.stderr)[-4000:]}")
+
       with open(out) as f:
         return json.load(f)
+
+
 
   # -- worlds -------------------------------------------------------------------
   def list_worlds(self, refresh=False):
     with self._lock:
       if self._worlds is None or refresh:
         self._worlds = self._run_worker("list_worlds")
+
       return [{"game": w["game"], "version": w["version"]} for w in self._worlds]
+
 
   def _world(self, game):
     self.list_worlds()
     for w in self._worlds:
       if w["game"] == game:
         return w
+
+
     raise RuntimeError(f"'{game}' is not an installed world")
 
   # -- yaml ---------------------------------------------------------------------
@@ -178,23 +254,26 @@ class Api:
     # loop (a GTK dialog can't share this process's Qt event loop). GTK_USE_PORTAL makes it the
     # desktop's native picker through xdg-desktop-portal; GTK_THEME only matters if there's no portal.
     env = {**os.environ, "GTK_USE_PORTAL": "1", "GTK_THEME": "Adwaita:dark"}
-    proc = subprocess.run(
-      [sys.executable, "-c", PICKER_SCRIPT, self._cfg["players_dir"]], env=env, capture_output=True, text=True
-    )
+    proc = subprocess.run([sys.executable, "-c", PICKER_SCRIPT, self._cfg["players_dir"]], env=env, capture_output=True, text=True)
     if proc.returncode != 0:
       raise RuntimeError(f"file picker failed:\n{proc.stderr[-2000:]}")
+
     return proc.stdout.strip() or None
 
   def _find_yaml(self, game, player_name):
     d = self._cfg["players_dir"]
     if not os.path.isdir(d):
       return None
+
     for fn in sorted(os.listdir(d)):
       if not fn.lower().endswith((".yaml", ".yml")):
         continue
+
       path = os.path.join(d, fn)
       if any(doc["game"] == game and name_matches(doc["name"], player_name) for doc in read_yaml_docs(path)):
         return path
+
+
     return None
 
   # -- graph --------------------------------------------------------------------
@@ -204,7 +283,10 @@ class Api:
     with self._cache_lock:
       return self._build_locked(req)
 
-  def _build_locked(self, req):
+
+  def _prepare(self, req):
+    """Resolves which yaml section / world version a request means -> {game, options, source, yamlPath, key}
+    or {error}."""
     game, player = req["game"], req["playerName"]
     world = self._world(game)
     yaml_path = req.get("yamlPath") or self._find_yaml(game, player)
@@ -213,37 +295,86 @@ class Api:
       docs = [d for d in read_yaml_docs(yaml_path) if d["game"] == game and name_matches(d["name"], player)]
       if len(docs) != 1:
         return {"error": f"{yaml_path}: expected exactly 1 document for {player}/{game}, found {len(docs)}"}
+
       if docs[0]["has_triggers"]:
         return {"error": f"{yaml_path}: triggers are not supported (outcome isn't certain)"}
+
       options, source = docs[0]["section"] or {}, "yaml"
     else:
       options, source = {}, "defaults"
 
-    key = hashlib.sha256(
-      json.dumps(
-        [game, world["version"], fingerprint(world["path"]), options, req.get("slotData")], sort_keys=True, default=str
-      ).encode()
-    ).hexdigest()[:24]
+    key = hashlib.sha256(json.dumps([game, world["version"], fingerprint(world["path"]), options, req.get("slotData")], sort_keys=True, default=str).encode()).hexdigest()[:24]
+    return {"game": game, "options": options, "source": source, "yamlPath": yaml_path, "key": key}
+
+  def _build_locked(self, req):
+    prep = self._prepare(req)
+    if "error" in prep:
+      return prep
+
+    key = prep["key"]
     cache_path = os.path.join(CACHE_DIR, f"{key}.json")
 
     if req.get("force") or not os.path.exists(cache_path):
-      result = self._run_worker("build", {"game": game, "options": options, "slot_data": req.get("slotData")})
+      self._stop_server(key) # its world is about to be regenerated from the code on disk
+      result = self._run_worker("build", {"game": prep["game"], "options": prep["options"], "slot_data": req.get("slotData")})
       if "error" in result:
         return {"error": result["error"]}
+
       with open(cache_path, "w") as f:
         json.dump(result["graph"], f)
 
+
     with open(cache_path) as f:
       graph = json.load(f)
-    return {"key": key, "yamlPath": yaml_path, "optionsSource": source, "graph": graph}
+
+    return {"key": key, "yamlPath": prep["yamlPath"], "optionsSource": prep["source"], "graph": graph}
+
+  # -- python-side rule evaluation (lambda rules) ---------------------------------
+  def lambda_eval(self, req):
+    """req: {game, playerName, yamlPath, slotData?, items: {name: count}} -> {lambda key: bool}.
+    The first call for a world generates it in a helper process (seconds), later calls are fast."""
+    with self._cache_lock:
+      prep = self._prepare(req)
+
+    if "error" in prep:
+      raise RuntimeError(prep["error"])
+
+    with self._servers_lock:
+      server = self._servers.get(prep["key"])
+      if server is None or not server.alive():
+        server = self._servers[prep["key"]] = EvalServer(self._cfg, prep["game"], prep["options"], req.get("slotData"))
+
+
+    return server.evaluate(req["items"])
+
+  def _stop_server(self, key):
+    with self._servers_lock:
+      server = self._servers.pop(key, None)
+
+    if server:
+      server.stop()
+
+
+  def _stop_servers(self):
+    for key in list(self._servers):
+      self._stop_server(key)
+
 
   def gc(self, live_keys):
     """Delete cached graphs that no slot references any more."""
     live = set(live_keys)
+    for key in list(self._servers):
+      if key not in live:
+        self._stop_server(key)
+
+
     with self._cache_lock:
       for fn in os.listdir(CACHE_DIR):
         if fn.endswith(".json") and fn[:-5] not in live:
           os.remove(os.path.join(CACHE_DIR, fn))
+
+
+
 
   # -- persistent settings/slots (replaces IndexedDB) -----------------------------
   def _db_path(self):
@@ -255,19 +386,24 @@ class Api:
       if os.path.exists(self._db_path()):
         with open(self._db_path()) as f:
           self._db_data = json.load(f)
+
+
+
     return self._db_data
 
   def _db_save(self):
     os.makedirs(CONFIG_DIR, exist_ok=True)
     tmp = self._db_path() + ".tmp"
     with open(tmp, "w") as f:
-      json.dump(self._db_data, f, indent=1)
-    os.replace(tmp, self._db_path())  # atomic, a crash mid-write can't corrupt the file
+      json.dump(self._db_data, f)
+
+    os.replace(tmp, self._db_path()) # atomic, a crash mid-write can't corrupt the file
 
   def db_load(self):
     with self._db_lock:
       print(f"[ap-tracker] db_load from {self._db_path()}", flush=True)
       return [{"id": k, "val": v} for k, v in self._db().items()]
+
 
   def db_write(self, items):
     with self._db_lock:
@@ -277,13 +413,17 @@ class Api:
           data.pop(item["id"], None)
         else:
           data[item["id"]] = item["val"]
+
+
       self._db_save()
       print(f"[ap-tracker] db_write {len(items)} item(s) -> {self._db_path()}", flush=True)
+
 
   def db_clear(self):
     with self._db_lock:
       self._db_data = {}
       self._db_save()
+
     return True
 
   # -- misc ---------------------------------------------------------------------
@@ -299,8 +439,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     if self.path.split("?")[0].endswith((".js", ".html", "/")):
       print(f"[ap-tracker] GET {self.path}", flush=True)
 
+
   def end_headers(self):
-    self.send_header("Cache-Control", "no-store")  # always serve the files as they are on disk
+    self.send_header("Cache-Control", "no-store") # always serve the files as they are on disk
     super().end_headers()
 
   def _reply(self, status, obj):
@@ -316,23 +457,29 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     # (a JSON body forces a CORS preflight we never answer, and Host blocks DNS rebinding).
     if self.headers.get("Host") != f"127.0.0.1:{PORT}":
       return self._reply(403, {"error": "bad host"})
+
     origin = self.headers.get("Origin")
     if origin is not None and origin != f"http://127.0.0.1:{PORT}":
       return self._reply(403, {"error": "bad origin"})
+
     if not self.path.startswith("/api/"):
       return self._reply(404, {"error": "not found"})
+
     method = self.path[len("/api/") :]
     fn = getattr(Api, method, None)
     if method.startswith("_") or not callable(fn):
       return self._reply(404, {"error": f"no api method {method}"})
+
     args = json.loads(self.rfile.read(int(self.headers["Content-Length"])))["args"]
     try:
       result = getattr(self.api, method)(*args)
-    except Exception as e:  # reported to the page, which shows it on the slot
+
+    except Exception as e: # reported to the page, which shows it on the slot
       import traceback
 
       traceback.print_exc()
       return self._reply(500, {"error": f"{type(e).__name__}: {e}"})
+
     self._reply(200, {"result": result})
 
 
@@ -347,6 +494,7 @@ def main():
   browser = shutil.which(cfg["browser_cmd"][0])
   if browser is None:
     raise SystemExit(f"browser '{cfg['browser_cmd'][0]}' not found; set browser_cmd in {CONFIG_DIR}/config.json")
+
   profile = os.path.join(CONFIG_DIR, "browser")
   # own profile => own process, so this call blocks until the window is closed and the app exits with it
   subprocess.run([browser, *cfg["browser_cmd"][1:], f"--user-data-dir={profile}", f"--app=http://127.0.0.1:{PORT}/index.html"])

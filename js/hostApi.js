@@ -62,6 +62,7 @@ class HostApi {
     await HostApi.ensureGraph(conn, true)
     const rt = Connections.runtime[conn.id]
     if (rt && HostApi.graphs[conn.id]) {
+      await HostApi.refreshLambdas(conn, rt)
       RequirementGroups.maybeRecomputeProgression(conn, rt)
       CheeseTrackers.ctAutoSync(conn)
     }
@@ -70,6 +71,32 @@ class HostApi {
         SlotSync.openMapForSlot(conn)
       else SlotSync.syncFromSlot(conn)
     }
+  }
+
+  // Lambda rules can't be evaluated by the page, so python does it: send what the slot has received,
+  // get back the truth of every lambda rule, and keep it on the graph for the rule engine.
+  // Awaited by the caller before it recomputes reachability.
+  /**
+   * @param {SlotConnection} conn
+   * @param {Runtime} rt
+   */
+  static async refreshLambdas(conn, rt) {
+    const graph = HostApi.graphs[conn.id]
+    if (!graph.lambda_keys.length) return
+    try {
+      graph.lambdaResults = await window.hostRpc.lambda_eval({
+        game: conn.game,
+        playerName: conn.playerName,
+        yamlPath: conn.yamlPath,
+        items: { ...rt.receivedCounts },
+      })
+      delete HostApi.errors[conn.id]
+    } catch (e) {
+      HostApi.errors[conn.id] =
+        `lambda rules: ${String(e?.message ?? e)}`
+      error(e)
+    }
+    SlotsUI.renderSlots()
   }
 
   // Lets python delete cached graphs no slot points at any more.

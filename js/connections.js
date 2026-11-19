@@ -21,7 +21,9 @@ class Connections {
    * @param {string} body
    */
   static notify(title, body) {
-    window.hostRpc.notify(title, body).catch((e) => error("notify failed", e))
+    window.hostRpc
+      .notify(title, body)
+      .catch((e) => error("notify failed", e))
   }
 
   /**
@@ -101,7 +103,7 @@ class Connections {
    * @param {Runtime} rt
    * @param {any[]} items
    */
-  static handleReceivedItems(conn, rt, items) {
+  static async handleReceivedItems(conn, rt, items) {
     const graph = ProgKeys.graphFor(conn)
 
     items.forEach(
@@ -111,6 +113,8 @@ class Connections {
           (rt.receivedCounts[item.name] || 0) + 1
       },
     )
+
+    if (graph) await HostApi.refreshLambdas(conn, rt)
 
     // Figure out, per item, whether it opened up anything new — only
     // meaningful if a map graph has been loaded for this game.

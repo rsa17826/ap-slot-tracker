@@ -2,7 +2,8 @@
 window.hostRpc = new Proxy(
   {},
   {
-    get: (_, method) =>
+    get:
+      (_, method) =>
       async (...args) => {
         const r = await fetch(`/api/${String(method)}`, {
           method: "POST",

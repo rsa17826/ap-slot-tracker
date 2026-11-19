@@ -12,7 +12,6 @@ class Main {
       Main.notifBtn.classList.remove("granted")
     }
   }
-
 }
 
 document.getElementById("resetBtn").addEventListener("click", () => {
@@ -126,7 +125,9 @@ document.addEventListener("keydown", (ev) => {
   await HostApi.init()
   // generate every slot's graph first (python serialises these), then drop cache files no slot uses
   await Promise.all(
-    Object.values(window.db.connections).map((c) => HostApi.ensureGraph(c)),
+    Object.values(window.db.connections).map((c) =>
+      HostApi.ensureGraph(c),
+    ),
   )
   await HostApi.gc()
   Object.values(window.db.connections).forEach((conn) => {
@@ -178,8 +179,7 @@ document
       ct: null, // Cheese Trackers link, set via the slot card once created
       autoConnect: true,
     }
-    if (!conn.hostname || !conn.game || !conn.playerName)
-      return
+    if (!conn.hostname || !conn.game || !conn.playerName) return
     window.db.connections[conn.id] = conn
     SlotsUI.renderSlots()
     Connections.startConnection(conn)

@@ -16,7 +16,9 @@ class SlotsUI {
     first.disabled = true
     first.selected = true
     first.textContent =
-      HostApi.worlds ? "Select an installed game" : "Loading installed worlds…"
+      HostApi.worlds ?
+        "Select an installed game"
+      : "Loading installed worlds…"
     sel.replaceChildren(first)
     for (const w of HostApi.worlds ?? []) {
       const o = document.createElement("option")
@@ -109,14 +111,23 @@ class SlotsUI {
               return modeSelect
             })(),
             buildError ?
-              newelem("div", { class: "slot-error", color: "#f87171", whiteSpace: "pre-wrap" }, [buildError])
+              newelem(
+                "div",
+                {
+                  class: "slot-error",
+                  color: "#f87171",
+                  whiteSpace: "pre-wrap",
+                },
+                [buildError],
+              )
             : null,
             newelem("div", { class: "h" }, [
               newelem(
                 "button",
                 {
                   flexGrow: 2,
-                  title: conn.yamlPath ?? "no yaml, using world defaults",
+                  title:
+                    conn.yamlPath ?? "no yaml, using world defaults",
                   async onclick() {
                     const path = await window.hostRpc.pick_yaml()
                     if (!path) return
@@ -125,12 +136,17 @@ class SlotsUI {
                     await HostApi.regenerate(cc)
                   },
                 },
-                [conn.yamlPath ? `YAML: ${conn.yamlPath.split("/").pop()}` : "Select YAML"],
+                [
+                  conn.yamlPath ?
+                    `YAML: ${conn.yamlPath.split("/").pop()}`
+                  : "Select YAML",
+                ],
               ),
               newelem(
                 "button",
                 {
-                  title: "Regenerate this slot's graph (re-reads the yaml and the world's code)",
+                  title:
+                    "Regenerate this slot's graph (re-reads the yaml and the world's code)",
                   disabled: HostApi.building.has(conn.id),
                   onclick() {
                     HostApi.regenerate(window.db.connections[conn.id])

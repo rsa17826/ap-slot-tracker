@@ -120,6 +120,8 @@ class RequirementGroups {
       // case "Filtered":
       // case "WrapperRule":
       //   return RequirementGroups.ruleToGroups(rule.rule || rule.wrapped || rule.sub_rule)
+      case "Lambda":
+        return [[`custom rule: ${rule.key.slice(4)}`]]
       case "CanReachRegion":
         return [[`reach: ${rule.region_name || rule.name}`]]
       case "CanReachLocation":
@@ -145,7 +147,11 @@ class RequirementGroups {
   }
 
   static tokenVerifiable(token) {
-    return !token.startsWith("reach: ") && !token.includes(" of: ")
+    return (
+      !token.startsWith("reach: ") &&
+      !token.startsWith("custom rule: ") &&
+      !token.includes(" of: ")
+    )
   }
 
   static filterGroupsByOwned(groups, receivedCounts) {

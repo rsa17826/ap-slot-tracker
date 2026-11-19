@@ -15,6 +15,8 @@ class MapEngine {
     const ctx = {
       countHave,
       reach: { regions, locations, entrances },
+      // python's answers for lambda rules; false until the first evaluation arrives
+      lambda: (key) => graph.lambdaResults?.[key] === true,
     }
     for (let iter = 0; iter < 20; iter++) {
       let changed = false

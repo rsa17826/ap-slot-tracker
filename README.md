@@ -129,7 +129,3 @@ Fill in the **Add a slot** form: server hostname, port, the game (selected from 
 - A modern browser with File System Access API support (for loading rules files/folders and import/export) and WebSocket support.
 - An Archipelago server to connect to.
 - Python 3.14 an Archipelago source checkout, only if generating your own rules JSON files.
-
-## Known limitations
-
-- Rule parsing can't work on worlds that use the old rule syntax that some games like `TUNIC` are still using - everything will return always accessible if trying.
