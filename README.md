@@ -19,7 +19,7 @@ The main goal of this project is to make tracking logic work for every game with
 
 ### Logic-aware progression tracking
 
-- Loads externally generated **rules JSON** files (region/entrance/location logic graphs — see [Generating rules files](#generating-rules-files) below) and evaluates them live against each slot's received items and checked locations.
+- Rules are generated from a live copy of the world in the set ap folder.
 - Per-slot log of currently **obtainable-but-unchecked** locations, each annotated with the exact item requirements (as OR-of-AND requirement chips) that make the check reachable in logic.
 - Supports multiple versions of the same world to be switched separately per slot
 - Supports rules files with **multiple bundled settings profiles** for worlds where some options can change the rules generated
@@ -81,35 +81,11 @@ Buttons next to **Load rules folder** let you back up and restore the tracker's 
 
 ## Usage
 
-### 1. Generate rules JSON for a game (optional, for map/progression features)
-
-The map and progression-tracking features need a **rules JSON** file describing a game's logic graph. Generate one from an [Archipelago](https://github.com/ArchipelagoMW/Archipelago) checkout using `generate-global-tracker-data.py`:
-
-```bash
-AP_SOURCE_DIR="/path/to/Archipelago" \
-TRACKER_FILE_OUT_DIR="/path/to/trackerFiles" \
-python generate-global-tracker-data.py <GAME_NAME/APWORLD_FILE_pATH>
-```
-
-- The first arguments (before any `--` flag) are one or more **world specs**: a registered game name, a path to a `.apworld` file, or a path to a world's source folder. Multiple specs generate multiple games in one invocation.
-- `--options NAME v1,v2 ...` sweeps one or more option axes and bundles every combination into the output as settings profiles (saved to `<GAME>_tracker_options_meta.json` next to the output, so future runs remember them automatically).
-- `--profiles '{"name": {option: value}, ...}'` (or `--profiles @file.json`) gives full manual control over named profiles instead of a cartesian sweep.
-- Output is written as `<GAME>_tracker_rules_<VERSION>.json` in `TRACKER_FILE_OUT_DIR`.
-
-### 2. Load rules JSON into the tracker
-
-In the **Progression files** panel:
-
-- **Load rules file** — pick one or more rules JSON files directly. - not recommended, folder is better but it's still here and does work
-- **Load rules folder** — pick a folder; every `.json` file directly inside it is loaded and re-scanned automatically on future page loads.
-
-![Progression files panel listing loaded rules files with region/location counts](./.images/progression-files-panel.webp)
-
-### 3. Add a slot
+### 1. Add a slot
 
 Fill in the **Add a slot** form: server hostname, port, the game (selected from rules files you've loaded — games with multiple loaded versions expand into a submenu), your slot name, and an optional password. Submitting connects immediately and saves the slot.
 
-### 4. Track it
+### 2. Track it
 
 - Watch the slot card's log for newly obtainable checks and desktop notifications as items arrive.
 - Click **Show Map** to open the full logic map for that slot; it stays synced live as items/checks come in.
@@ -117,15 +93,12 @@ Fill in the **Add a slot** form: server hostname, port, the game (selected from 
 
 ## Architecture notes
 
-- Pure client-side app (no backend) — slot connections are plain WebSocket clients speaking the Archipelago protocol directly from the browser.
-- Persistent state (`db`) is backed by IndexedDB via `indexeddbProxy.js`; reads/writes to `window.db.*` are transparently persisted.
+- js webapp and python backend.
 - The map is rendered on a single `<canvas>` rather than per-node DOM elements, so it stays fast even with very large logic graphs — only on-screen nodes/edges are drawn each frame.
 - `RuleEngine.evalRule` (the logic-tree evaluator) and `MapEngine`'s reachability pass are shared between the live map UI and the headless progression tracking used for notifications/Cheese Trackers sync, so both always agree on what's currently reachable.
-- Rules JSON files can bundle multiple settings profiles; any field that differs between profiles is stored as `{ "_by_profile": { profileName: value } }` and resolved down to a flat graph per slot/map view via `MapEngine.resolveProfile`.
-- Import/export lives in `importExport.js`.
 
 ## Requirements
 
-- A modern browser with File System Access API support (for loading rules files/folders and import/export) and WebSocket support.
+- A modern browser with WebSocket support.
 - An Archipelago server to connect to.
-- Python 3.14 an Archipelago source checkout, only if generating your own rules JSON files.
+- Python 3.14 an Archipelago source checkout with the world to track installed in it.
